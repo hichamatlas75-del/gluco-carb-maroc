@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="GlucoScan" />
+  <meta name="description" content="GlucoScan Maroc — Scanner photo de plats marocains, estimation automatique du grammage, glucides nets, bolus d'insuline et verdict métabolique." />
+  <title>GlucoScan Maroc — Scanner Photo & Verdict Glycémique</title>
+
+  <!-- Manifeste PWA -->
+  <link rel="manifest" href="./manifest.json" />
+
+  <!-- Typographie : Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Feuille de style personnalisée -->
+  <link rel="stylesheet" href="./css/styles.css" />
+
+  <!-- Icônes Lucide CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <div class="mobile-app pb-24">
+
+    <!-- ========================================== -->
+    <!-- HEADER MOBILE                              -->
+    <!-- ========================================== -->
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shadow-emerald-600/30">
+          <i data-lucide="camera" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <h1 class="text-base font-extrabold tracking-tight text-slate-900">GlucoScan <span class="text-emerald-600">Maroc</span></h1>
+            <span id="engineBadge" class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">IA Vision</span>
+          </div>
+          <p class="text-[11px] text-slate-500 font-medium">Photo • Grammage • Verdict & Bolus</p>
+        </div>
+      </div>
+
+      <!-- Sélecteur de repas (Matin / Midi / Soir) -->
+      <div class="flex items-center bg-slate-100 rounded-xl p-0.5 border border-slate-200">
+        <button type="button" data-slot="morning" class="slot-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500">Matin</button>
+        <button type="button" data-slot="noon" class="slot-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500">Midi</button>
+        <button type="button" data-slot="evening" class="slot-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500">Soir</button>
+      </div>
+    </header>
+
+    <!-- ========================================== -->
+    <!-- CONTENU PRINCIPAL                          -->
+    <!-- ========================================== -->
+    <main class="flex-1 px-3.5 pt-3.5 space-y-3.5">
+
+      <!-- ========================================== -->
+      <!-- VUE 1 : SCANNER CAMÉRA & VERDICT           -->
+      <!-- ========================================== -->
+      <section id="view-scanner" class="space-y-3.5">
+
+        <!-- MODULE 1 : VISEUR PHOTO & DÉTECTION VISUELLE -->
+        <div class="surface-card rounded-3xl overflow-hidden">
+          <div id="viewportBox" class="relative w-full aspect-[4/3] bg-slate-900 flex items-center justify-center overflow-hidden">
+            
+            <!-- Flux Caméra WebRTC Direct -->
+            <video id="cameraVideo" autoplay playsinline muted class="hidden w-full h-full object-cover"></video>
+
+            <!-- Image du plat capturée -->
+            <img id="plateImage" alt="Plat photographié" class="hidden w-full h-full object-cover" />
+
+            <!-- Canvas d'analyse d'image (invisible) -->
+            <canvas id="analysisCanvas" class="hidden"></canvas>
+
+            <!-- Animation de Scan Laser -->
+            <div id="scanningOverlay" class="hidden absolute inset-0 bg-slate-900/50 backdrop-blur-[2px] flex flex-col items-center justify-center z-20">
+              <div class="scanner-laser"></div>
+              <div class="bg-white text-slate-900 px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2 text-xs font-extrabold">
+                <i data-lucide="loader-2" class="w-4 h-4 text-emerald-600 animate-spin"></i>
+                <span id="scanningText">Analyse des aliments & estimation du poids...</span>
+              </div>
+            </div>
+
+            <!-- Étiquettes (Pins) superposées sur les aliments reconnus -->
+            <div id="pinsLayer" class="absolute inset-0 pointer-events-none z-10"></div>
+
+            <!-- État initial : Aucun plat photographié -->
+            <div id="emptyCameraState" class="text-center px-6 py-6 space-y-2.5">
+              <div class="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mx-auto text-emerald-400">
+                <i data-lucide="scan-line" class="w-7 h-7"></i>
+              </div>
+              <h2 class="text-white font-extrabold text-sm">Scannez votre plat avec l'appareil photo</h2>
+              <p class="text-slate-300 text-[11px] leading-relaxed">
+                Prenez une photo ou importez une image : reconnaissance automatique des aliments, calcul du grammage et verdict immédiat.
+              </p>
+            </div>
+
+            <!-- Bouton Nouvelle Photo -->
+            <button id="btnClearPhoto" type="button" class="hidden absolute top-3 right-3 z-20 bg-white/95 text-slate-800 px-2.5 py-1.5 rounded-full text-[11px] font-extrabold shadow-md flex items-center gap-1">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Nouveau scan
+            </button>
+          </div>
+
+          <!-- Commandes de l'Appareil Photo -->
+          <div class="p-3.5 bg-white space-y-2.5">
+            <input id="fileCameraInput" type="file" accept="image/*" capture="environment" class="hidden" />
+            <input id="fileGalleryInput" type="file" accept="image/*" class="hidden" />
+
+            <!-- Boutons Caméra Native & Galerie -->
+            <div id="primaryCaptureActions" class="grid grid-cols-2 gap-2">
+              <button id="btnTakePhoto" type="button" class="py-3 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-extrabold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all">
+                <i data-lucide="camera" class="w-4 h-4"></i>
+                Prendre Photo
+              </button>
+              <button id="btnUploadPhoto" type="button" class="py-3 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-800 font-extrabold text-xs border border-slate-200 flex items-center justify-center gap-1.5 transition-all">
+                <i data-lucide="image" class="w-4 h-4 text-emerald-600"></i>
+                Galerie Photo
+              </button>
+            </div>
+
+            <!-- Déclencheur Flux Vidéo Direct -->
+            <div id="liveStreamActions" class="hidden flex items-center gap-2">
+              <button id="btnCaptureFrame" type="button" class="flex-1 py-3 rounded-2xl bg-emerald-600 text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-1.5">
+                <i data-lucide="aperture" class="w-4 h-4"></i> Capturer & Calculer
+              </button>
+              <button id="btnCloseStream" type="button" class="py-3 px-3.5 rounded-2xl bg-slate-100 text-slate-700 font-bold text-xs">
+                Fermer
+              </button>
+            </div>
+
+            <!-- Raccourcis de Test & Caméra WebRTC Directe -->
+            <div class="pt-2 border-t border-slate-100">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Simuler un scan instantané :</span>
+                <button id="btnStartWebRTC" type="button" class="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                  <i data-lucide="video" class="w-3 h-3"></i> Viseur direct
+                </button>
+              </div>
+              <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                <button type="button" data-demo="tajine_khobz" class="demo-btn whitespace-nowrap px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 text-[11px] font-bold text-slate-700">
+                  🥘 Tajine + Khobz
+                </button>
+                <button type="button" data-demo="couscous_royal" class="demo-btn whitespace-nowrap px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 text-[11px] font-bold text-slate-700">
+                  🍲 Couscous
+                </button>
+                <button type="button" data-demo="ftour_marocain" class="demo-btn whitespace-nowrap px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 text-[11px] font-bold text-slate-700">
+                  🥞 Msemen + Atay
+                </button>
+                <button type="button" data-demo="harira_chebakia" class="demo-btn whitespace-nowrap px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 text-[11px] font-bold text-slate-700">
+                  🥣 Harira + Chebakia
+                </button>
+                <button type="button" data-demo="loubia_complet" class="demo-btn whitespace-nowrap px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 text-[11px] font-bold text-slate-700">
+                  🫘 Loubia + Orge
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODULE 2 : VERDICT MÉTABOLIQUE & BOLUS D'INSULINE -->
+        <div class="surface-card rounded-3xl p-4 space-y-3.5">
+          <!-- Bannière du Verdict -->
+          <div id="verdictBox" class="rounded-2xl p-3.5 bg-slate-50 border border-slate-200 flex items-start gap-3 transition-all">
+            <div id="verdictBadgeIcon" class="w-10 h-10 rounded-2xl bg-slate-200 text-slate-600 flex items-center justify-center flex-shrink-0">
+              <i data-lucide="camera" class="w-5 h-5"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <span id="verdictStatusTag" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">En attente d'image</span>
+                <span id="verdictMetricsPill" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-600">IG 0 • CG 0</span>
+              </div>
+              <h3 id="verdictHeadline" class="text-sm font-extrabold text-slate-900 mt-0.5">Photographiez votre plat</h3>
+              <p id="verdictDescription" class="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                Dès la photo prise, GlucoScan calcule le grammage approximatif, les glucides nets et affiche son verdict santé.
+              </p>
+            </div>
+          </div>
+
+          <!-- Anneau Glucides Nets + Synthèse Bolus -->
+          <div class="grid grid-cols-12 gap-3 items-center">
+            <div class="col-span-5 flex justify-center">
+              <div class="relative w-28 h-28 flex items-center justify-center">
+                <svg class="w-full h-full" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="48" fill="none" stroke="#f1f5f9" stroke-width="10" />
+                  <circle id="carbRingCircle" class="ring-transition" cx="60" cy="60" r="48" fill="none"
+                    stroke="#10b981" stroke-width="10" stroke-linecap="round"
+                    stroke-dasharray="301.59" stroke-dashoffset="301.59" />
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <span class="text-[9px] font-extrabold uppercase text-slate-400">Glucides Nets</span>
+                  <div class="flex items-baseline gap-0.5">
+                    <span id="outNetCarbs" class="text-2xl font-extrabold font-mono text-slate-900">0</span>
+                    <span class="text-xs font-bold text-slate-500">g</span>
+                  </div>
+                  <span id="outTotalGrams" class="text-[10px] font-mono font-semibold text-slate-500">0g pesés</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-span-7 space-y-2">
+              <div class="grid grid-cols-2 gap-1.5">
+                <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-2">
+                  <span class="text-[10px] font-bold text-slate-400 block">Totaux</span>
+                  <span class="text-sm font-extrabold font-mono text-slate-800"><span id="outTotalCarbs">0</span>g</span>
+                </div>
+                <div class="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2">
+                  <span class="text-[10px] font-bold text-emerald-700 block">Fibres</span>
+                  <span class="text-sm font-extrabold font-mono text-emerald-700">-<span id="outTotalFiber">0</span>g</span>
+                </div>
+              </div>
+
+              <!-- Dose d'insuline recommandée -->
+              <div class="rounded-2xl bg-cyan-50 border border-cyan-200 p-2.5 flex items-center justify-between">
+                <div>
+                  <span class="text-[9px] font-extrabold uppercase tracking-wider text-cyan-800 block">Bolus Estimé</span>
+                  <div class="flex items-baseline gap-1">
+                    <span id="outTotalBolus" class="text-2xl font-extrabold font-mono text-cyan-700">0.0</span>
+                    <span class="text-xs font-bold text-cyan-700">UI</span>
+                  </div>
+                </div>
+                <div class="text-right text-[10px] font-mono text-cyan-900 space-y-0.5">
+                  <div>Repas: <strong id="outMealBolus">0.0</strong>u</div>
+                  <div>Corr: <strong id="outCorrBolus">+0.0</strong>u</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Glycémie pré-repas -->
+          <div class="bg-slate-50 rounded-2xl p-2.5 border border-slate-200/80 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center">
+                <i data-lucide="droplet" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <label for="inputBloodGlucose" class="text-xs font-bold text-slate-800 block">Glycémie avant repas</label>
+                <button type="button" id="btnSwitchBGUnit" class="text-[10px] font-mono font-bold text-cyan-700 underline">
+                  Mode <span id="lblBGUnit">mg/dL</span> (changer)
+                </button>
+              </div>
+            </div>
+            <div class="relative w-28">
+              <input id="inputBloodGlucose" type="number" inputmode="decimal" step="any" placeholder="120"
+                class="w-full bg-white border border-slate-300 focus:border-cyan-600 rounded-xl px-2.5 py-1.5 text-right font-mono font-extrabold text-sm text-slate-900 focus:outline-none pr-12" />
+              <span id="lblBGSuffix" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400">mg/dL</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODULE 3 : LISTE DES ALIMENTS RECONNUS & AJUSTEMENT DU GRAMMAGE -->
+        <div class="surface-card rounded-3xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+                <i data-lucide="scale" class="w-4 h-4 text-emerald-600"></i>
+                Aliments reconnus & Grammage (<span id="lblDetectedCount">0</span>)
+              </h3>
+              <p class="text-[11px] text-slate-500">Modifiez le poids en grammes si votre portion diffère</p>
+            </div>
+            <button id="btnOpenCatalogModal" type="button" class="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-extrabold flex items-center gap-1">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i> Ajouter
+            </button>
+          </div>
+
+          <div id="recognizedItemsContainer" class="space-y-2"></div>
+
+          <!-- Boutons Validation & Partage -->
+          <div id="scanFooterActions" class="hidden pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2">
+            <button id="btnSaveMealLog" type="button" class="py-3 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-sm">
+              <i data-lucide="bookmark-check" class="w-4 h-4 text-emerald-400"></i>
+              Enregistrer
+            </button>
+            <button id="btnShareSummary" type="button" class="py-3 px-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-extrabold text-xs flex items-center justify-center gap-1.5">
+              <i data-lucide="share-2" class="w-4 h-4 text-emerald-600"></i>
+              Copier / WhatsApp
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
+      <!-- VUE 2 : JOURNAL 7 JOURS                    -->
+      <!-- ========================================== -->
+      <section id="view-history" class="space-y-3.5 hidden">
+        <div class="surface-card rounded-3xl p-4 space-y-3.5">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-base font-extrabold text-slate-900">Historique 7 Jours</h2>
+              <p class="text-xs text-slate-500">100 % stocké sur votre téléphone</p>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button id="btnExportBackup" type="button" class="p-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold" title="Exporter JSON">
+                <i data-lucide="download" class="w-4 h-4"></i>
+              </button>
+              <label for="fileImportBackup" class="p-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold cursor-pointer" title="Importer JSON">
+                <i data-lucide="upload" class="w-4 h-4"></i>
+              </label>
+              <input id="fileImportBackup" type="file" accept="application/json" class="hidden" />
+            </div>
+          </div>
+
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] font-extrabold uppercase text-slate-400">Glucides Nets Quotidiens</span>
+              <span id="lblWeeklyAverage" class="text-xs font-mono font-bold text-emerald-700">Moyenne : 0g/j</span>
+            </div>
+            <div id="chartSevenDays" class="grid grid-cols-7 gap-1.5 items-end h-28 pt-4"></div>
+          </div>
+        </div>
+
+        <div id="historyLogsContainer" class="space-y-2.5"></div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- VUE 3 : PARAMÈTRES INSULINE & IA VISION    -->
+      <!-- ========================================== -->
+      <section id="view-settings" class="space-y-3.5 hidden">
+        <form id="formSettings" class="surface-card rounded-3xl p-4 space-y-4">
+          <div class="border-b border-slate-100 pb-2.5">
+            <h2 class="text-base font-extrabold text-slate-900">Paramètres Médicaux & Vision IA</h2>
+            <p class="text-xs text-slate-500">Ratios Insuline/Glucides, sensibilité et reconnaissance photo.</p>
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-xs font-extrabold uppercase text-slate-500 block">1. Ratio Insuline / Glucides (g pour 1 UI)</label>
+            <div class="grid grid-cols-3 gap-2">
+              <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                <span class="text-[11px] font-bold text-slate-600 block mb-1">🌅 Matin</span>
+                <input id="inpRatioMorning" type="number" step="0.5" min="1" max="100" required
+                  class="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
+              </div>
+              <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                <span class="text-[11px] font-bold text-slate-600 block mb-1">☀️ Midi</span>
+                <input id="inpRatioNoon" type="number" step="0.5" min="1" max="100" required
+                  class="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
+              </div>
+              <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                <span class="text-[11px] font-bold text-slate-600 block mb-1">🌙 Soir</span>
+                <input id="inpRatioEvening" type="number" step="0.5" min="1" max="100" required
+                  class="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
+              <label for="inpISF" class="text-xs font-bold text-slate-700 block">Sensibilité (FSI)</label>
+              <span class="text-[10px] text-slate-500 block mb-1">Baisse mg/dL pour 1 UI</span>
+              <input id="inpISF" type="number" step="1" min="5" max="300" required
+                class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
+            </div>
+            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
+              <label for="inpTargetBG" class="text-xs font-bold text-slate-700 block">Glycémie Cible</label>
+              <span class="text-[10px] text-slate-500 block mb-1">Cible en mg/dL</span>
+              <input id="inpTargetBG" type="number" step="1" min="70" max="200" required
+                class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
+            </div>
+          </div>
+
+          <div class="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-200 space-y-2">
+            <label for="inpGeminiKey" class="text-xs font-extrabold text-emerald-950 flex items-center gap-1.5">
+              <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
+              Clé API Gemini Vision (Optionnelle)
+            </label>
+            <p class="text-[11px] text-emerald-800 leading-relaxed">
+              Active la détection cloud Gemini 2.5 Flash sur vos photos. Sans clé, l'analyseur visuel local fonctionne à 100 % hors-ligne.
+            </p>
+            <input id="inpGeminiKey" type="password" autocomplete="off" placeholder="AIzaSy..."
+              class="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 focus:outline-none" />
+          </div>
+
+          <button type="submit" class="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md">
+            Sauvegarder mes paramètres
+          </button>
+        </form>
+      </section>
+
+    </main>
+
+    <!-- ========================================== -->
+    <!-- BOTTOM-SHEET 1 : ASSISTANT PHOTO HORS-LIGNE-->
+    <!-- ========================================== -->
+    <div id="modalPhotoMatcher" class="fixed inset-0 z-50 hidden items-end justify-center bg-slate-900/50 backdrop-blur-xs">
+      <div class="w-full max-w-[430px] bg-white rounded-t-3xl p-4 space-y-3 shadow-2xl border-t border-slate-200">
+        <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto"></div>
+        <div class="flex items-start justify-between">
+          <div>
+            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">Reconnaissance Visuelle</span>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-1">Quel plat figure sur votre photo ?</h3>
+            <p class="text-[11px] text-slate-500">Sélectionnez le plat détecté pour calibrer automatiquement les grammages :</p>
+          </div>
+          <button id="btnCloseMatcher" type="button" class="p-1.5 rounded-xl bg-slate-100 text-slate-600">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <div id="matcherOptionsList" class="space-y-2 max-h-72 overflow-y-auto"></div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- BOTTOM-SHEET 2 : AJOUTER UN ALIMENT        -->
+    <!-- ========================================== -->
+    <div id="modalFoodCatalog" class="fixed inset-0 z-50 hidden items-end justify-center bg-slate-900/50 backdrop-blur-xs">
+      <div class="w-full max-w-[430px] bg-white rounded-t-3xl p-4 max-h-[82dvh] flex flex-col shadow-2xl border-t border-slate-200">
+        <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-2.5"></div>
+        <div class="flex items-center justify-between pb-2.5 border-b border-slate-100">
+          <h3 class="text-sm font-extrabold text-slate-900">Ajouter un aliment à l'assiette</h3>
+          <button id="btnCloseCatalog" type="button" class="p-1.5 rounded-xl bg-slate-100 text-slate-600">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <div class="my-2 relative">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+          <input id="inpCatalogSearch" type="search" placeholder="Rechercher (Khobz, Msemen, Tajine, Harira, Tmar...)"
+            class="w-full bg-slate-100 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none" />
+        </div>
+        <div id="catalogItemsList" class="flex-1 overflow-y-auto space-y-2 py-1.5"></div>
+      </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toastBanner" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 translate-y-2 transition-all duration-300">
+      <div class="bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-xl text-xs font-bold flex items-center gap-2">
+        <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+        <span id="toastLabel">Action effectuée</span>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- NAVIGATION BAS MOBILE                      -->
+    <!-- ========================================== -->
+    <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-2 flex items-center justify-around">
+      <button type="button" data-view="scanner" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-4 rounded-2xl text-emerald-600">
+        <i data-lucide="camera" class="w-5 h-5"></i>
+        <span class="text-[11px] font-extrabold">Scanner Photo</span>
+      </button>
+      <button type="button" data-view="history" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-4 rounded-2xl text-slate-400">
+        <i data-lucide="calendar" class="w-5 h-5"></i>
+        <span class="text-[11px] font-bold">Journal 7j</span>
+      </button>
+      <button type="button" data-view="settings" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-4 rounded-2xl text-slate-400">
+        <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
+        <span class="text-[11px] font-bold">Paramètres</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- Entrée Modulaire ES6 -->
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

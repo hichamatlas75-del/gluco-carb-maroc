@@ -1,0 +1,87 @@
+:root {
+  color-scheme: light;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #e2e8f0;
+  color: #0f172a;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* Coque Mobile-First 100% Thème Clair */
+.mobile-app {
+  max-width: 430px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  background-color: #f8fafc;
+  position: relative;
+  box-shadow: 0 0 40px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+.surface-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.03);
+}
+
+/* Animation du faisceau laser lors du scan photo */
+@keyframes laserSweep {
+  0% {
+    top: 6%;
+    opacity: 0.85;
+  }
+  50% {
+    top: 90%;
+    opacity: 1;
+  }
+  100% {
+    top: 6%;
+    opacity: 0.85;
+  }
+}
+
+.scanner-laser {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #10b981, #06b6d4, #10b981, transparent);
+  box-shadow: 0 0 16px 3px rgba(16, 185, 129, 0.65);
+  border-radius: 999px;
+  animation: laserSweep 2s infinite ease-in-out;
+  z-index: 20;
+}
+
+/* Anneau SVG progressif */
+.ring-transition {
+  transition: stroke-dashoffset 0.5s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.3s ease;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+/* Masquage des barres de défilement horizontales */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Nettoyage des champs numériques */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
