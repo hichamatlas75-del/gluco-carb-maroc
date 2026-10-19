@@ -1,9 +1,11 @@
-import { FoodRepository } from '../data/foods.js?v=7';
+import { FoodRepository } from '../data/foods.js?v=8';
 
 /**
- * Service de Reconnaissance Alimentaire par IA Vision :
- * Course parallèle (Promise.any) entre Gemini 3.5 Flash et Gemma 4 26B Vision
- * avec MEDIA_RESOLUTION_LOW (266 tokens) pour une réponse ultra-rapide (~1.8s).
+ * Architecture API Vision Renforcée (4 Niveaux de Résilience) :
+ * 1. Proxy Serverless Cloudflare Edge (/api/analyze) + Appel Direct Client en parallèle
+ * 2. Schéma JSON OpenAPI Strict (responseSchema) imposé au moteur d'inférence
+ * 3. System Instruction de Calibrage Clinique (pesée visuelle & distinction pâtisseries/plats)
+ * 4. Course Multi-Modèles (gemini-3.5-flash + gemma-4-26b-a4b-it) avec Retry automatique
  */
 
 function normalizeCoord(val, fallback) {
@@ -12,6 +14,38 @@ function normalizeCoord(val, fallback) {
   const pct = n > 100 ? n / 10 : n;
   return Math.min(82, Math.max(18, Math.round(pct)));
 }
+
+const SYSTEM_INSTRUCTION = {
+  parts: [
+    {
+      text: "Tu es un expert en nutrition clinique et insulinotherapie. Estime le grammage exact en utilisant la taille standard d'une assiette (24-26cm) ou d'un verre (150ml). Distingue clairement les patisseries/gateaux (ex: Cheesecake San Sebastian, mille-feuille, tiramisu, croissant) des pains et plats marocains (khobz, msemen, tajine, couscous, harira)."
+    }
+  ]
+};
+
+const RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  required: ['items'],
+  properties: {
+    items: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        required: ['foodId', 'customName', 'grams', 'carbs100g', 'fiber100g', 'gi', 'x', 'y'],
+        properties: {
+          foodId: { type: 'STRING' },
+          customName: { type: 'STRING' },
+          grams: { type: 'NUMBER' },
+          carbs100g: { type: 'NUMBER' },
+          fiber100g: { type: 'NUMBER' },
+          gi: { type: 'NUMBER' },
+          x: { type: 'NUMBER' },
+          y: { type: 'NUMBER' }
+        }
+      }
+    }
+  }
+};
 
 export const VisionAnalyzer = {
   /**
@@ -62,55 +96,14 @@ export const VisionAnalyzer = {
   },
 
   /**
-   * Interroge un modèle Vision donné et retourne les items parsés
+   * Normalise et enrichit les items bruts retournés par l'API avec notre base calibrée
    */
-  async callSingleVisionModel(modelName, base64Data, apiKey, signal) {
-    const prompt = `Expert nutritionniste. Identifie TOUS les aliments, gateaux, patisseries ou plats visibles sur cette photo et estime leur poids en grammes. Reponds uniquement en JSON: {"items":[{"foodId":"id_ou_custom","customName":"Nom precis en francais","grams":130,"carbs100g":22.5,"fiber100g":0.5,"gi":52,"x":50,"y":50}]}`;
-
-    const generationConfig = modelName.startsWith('gemini')
-      ? {
-          responseMimeType: 'application/json',
-          temperature: 0.1,
-          mediaResolution: 'MEDIA_RESOLUTION_LOW',
-          thinkingConfig: { thinkingLevel: 'MINIMAL' }
-        }
-      : {
-          temperature: 0.1
-        };
-
-    const requestBody = JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: prompt },
-            { inlineData: { mimeType: 'image/jpeg', data: base64Data } }
-          ]
-        }
-      ],
-      generationConfig
-    });
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: requestBody,
-      signal
-    });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const json = await response.json();
-    const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON');
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    if (!Array.isArray(parsed.items) || parsed.items.length === 0) {
+  mapRawItems(rawItems) {
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
       throw new Error('Empty items');
     }
 
-    return parsed.items.map((item, idx) => {
+    return rawItems.map((item, idx) => {
       const dbFood = FoodRepository.getFoodById(item.foodId)
         || this.findLocalByName(item.customName)
         || this.findLocalByName(item.foodId);
@@ -146,17 +139,83 @@ export const VisionAnalyzer = {
   },
 
   /**
-   * Course parallèle (Promise.any) entre Gemini 3.5 Flash et Gemma 4 26B Vision
+   * Appel via le Proxy Serverless Cloudflare Edge (/api/analyze)
+   */
+  async callEdgeProxy(base64Data, apiKey, signal) {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: base64Data, apiKey }),
+      signal
+    });
+    if (!res.ok) throw new Error(`Edge HTTP ${res.status}`);
+    const data = await res.json();
+    return this.mapRawItems(data.items);
+  },
+
+  /**
+   * Appel direct d'un modèle Gemini / Gemma avec responseSchema strict et System Instruction
+   */
+  async callSingleVisionModel(modelName, base64Data, apiKey, signal) {
+    const prompt = `Identifie TOUS les aliments, gateaux, patisseries ou plats visibles sur cette photo et estime leur poids en grammes. Reponds uniquement en JSON: {"items":[{"foodId":"id_ou_custom","customName":"Nom precis en francais","grams":130,"carbs100g":22.5,"fiber100g":0.5,"gi":52,"x":50,"y":50}]}`;
+
+    const isGemini = modelName.startsWith('gemini');
+    const requestBody = JSON.stringify({
+      ...(isGemini ? { systemInstruction: SYSTEM_INSTRUCTION } : {}),
+      contents: [
+        {
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: 'image/jpeg', data: base64Data } }
+          ]
+        }
+      ],
+      generationConfig: isGemini
+        ? {
+            responseMimeType: 'application/json',
+            responseSchema: RESPONSE_SCHEMA,
+            temperature: 0.1,
+            mediaResolution: 'MEDIA_RESOLUTION_LOW',
+            thinkingConfig: { thinkingLevel: 'MINIMAL' }
+          }
+        : {
+            temperature: 0.1
+          }
+    });
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: requestBody,
+      signal
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const json = await response.json();
+    const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON');
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    return this.mapRawItems(parsed.items);
+  },
+
+  /**
+   * Course parallèle haute disponibilité (Edge Proxy + Gemini 3.5 Flash + Gemma 4 26B)
+   * avec Retry automatique en cas de micro-coupure mobile.
    */
   async detectWithGemini(compressedDataUrl, apiKey) {
     if (!apiKey) return null;
 
     const base64Data = compressedDataUrl.split(',')[1];
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 11000);
+    const timeoutId = setTimeout(() => controller.abort(), 11500);
 
     try {
       const winner = await Promise.any([
+        this.callEdgeProxy(base64Data, apiKey, controller.signal),
         this.callSingleVisionModel('gemini-3.5-flash', base64Data, apiKey, controller.signal),
         this.callSingleVisionModel('gemma-4-26b-a4b-it', base64Data, apiKey, controller.signal)
       ]);
@@ -165,7 +224,21 @@ export const VisionAnalyzer = {
       return winner;
     } catch {
       clearTimeout(timeoutId);
-      return null;
+      // Deuxième tentative rapide de secours (Auto-Retry) si micro-coupure 4G
+      try {
+        const retryController = new AbortController();
+        const retryTimer = setTimeout(() => retryController.abort(), 6000);
+        const retryResult = await this.callSingleVisionModel(
+          'gemini-3.5-flash',
+          base64Data,
+          apiKey,
+          retryController.signal
+        );
+        clearTimeout(retryTimer);
+        return retryResult;
+      } catch {
+        return null;
+      }
     }
   },
 

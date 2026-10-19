@@ -1,8 +1,8 @@
-import { FoodRepository } from './data/foods.js?v=7';
-import { StorageService } from './services/storage.js?v=7';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=7';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=7';
-import { UIRenderer, showToast } from './ui/renderer.js?v=7';
+import { FoodRepository } from './data/foods.js?v=8';
+import { StorageService } from './services/storage.js?v=8';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=8';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=8';
+import { UIRenderer, showToast } from './ui/renderer.js?v=8';
 
 /**
  * Contrôleur principal GlucoScan Maroc (v7 - Caméra Directe IA Vision)
