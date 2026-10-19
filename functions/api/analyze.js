@@ -6,7 +6,14 @@
 const DEFAULT_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
 async function callModel(modelName, base64Data, apiKey) {
-  const prompt = `Identifie tous les aliments, gateaux, patisseries ou boissons visibles sur cette photo et estime leur poids en grammes. Reponds uniquement en JSON: {"items":[{"foodId":"id","customName":"Nom precis en francais","grams":100,"carbs100g":40,"fiber100g":2,"gi":65,"x":50,"y":50}]}`;
+  const prompt = `Tu es un expert en nutrition clinique et diabétologie. Analyse cette photo de repas :
+1. Identifie uniquement les aliments et boissons caloriques consommés par UNE SEULE personne.
+2. EXCLUSION OBLIGATOIRE : NE PAS inclure l'eau pure (bouteille d'eau, verre d'eau minérale, carafe), ni les théières vides, couverts, serviettes ou objets sans calories.
+3. PORTION INDIVIDUELLE : Estime la portion réelle consommée par une personne pour son repas. Ne compte JAMAIS une corbeille entière de pain ni un pain géant de table : pour le pain (Khobz, pain céréales, baguette), compte la portion d'une personne soit 1 morceau (~60g à 80g max). Pour les œufs (omelette, khlii), compte la portion d'une personne (~120g à 180g max).
+4. Pour le pain aux céréales ou complet, les glucides nets sont de ~35g/100g (car riche en fibres).
+
+Réponds UNIQUEMENT en JSON strict avec ce format :
+{"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const res = await fetch(url, {
@@ -34,7 +41,16 @@ async function callModel(modelName, base64Data, apiKey) {
   if (!Array.isArray(parsed.items) || parsed.items.length === 0) {
     throw new Error('Empty items');
   }
-  return parsed.items;
+
+  // Filtrer l'eau pure ou objets non caloriques s'ils ont été retournés par inadvertance
+  const filtered = parsed.items.filter(it => {
+    const name = String(it.customName || it.foodId || '').toLowerCase();
+    const isWater = (name.includes('eau') || name.includes('water')) && !name.includes('gateau') && !name.includes('chapeau');
+    const isZeroCal = Number(it.carbs100g || 0) === 0 && Number(it.fiber100g || 0) === 0 && isWater;
+    return !isZeroCal;
+  });
+
+  return filtered.length > 0 ? filtered : parsed.items;
 }
 
 export async function onRequestPost(context) {

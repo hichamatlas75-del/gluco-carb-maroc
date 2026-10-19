@@ -65,12 +65,25 @@ export const VisionAnalyzer = {
   /**
    * Normalise et enrichit les items bruts retournés par l'API avec notre base calibrée
    */
+  /**
+   * Normalise et enrichit les items bruts retournés par l'API avec notre base calibrée
+   */
   mapRawItems(rawItems) {
     if (!Array.isArray(rawItems) || rawItems.length === 0) {
       throw new Error('Empty items');
     }
 
-    return rawItems.map((item, idx) => {
+    // Filtrer l'eau pure ou objets non caloriques s'ils ont été retournés par inadvertance
+    const validItems = rawItems.filter(it => {
+      const name = String(it.customName || it.foodId || '').toLowerCase();
+      const isWater = (name.includes('eau') || name.includes('water')) && !name.includes('gateau') && !name.includes('chapeau');
+      const isZeroCal = Number(it.carbs100g || 0) === 0 && Number(it.fiber100g || 0) === 0 && isWater;
+      return !isZeroCal;
+    });
+
+    const itemsToProcess = validItems.length > 0 ? validItems : rawItems;
+
+    return itemsToProcess.map((item, idx) => {
       const dbFood = FoodRepository.getFoodById(item.foodId)
         || this.findLocalByName(item.customName)
         || this.findLocalByName(item.foodId);
@@ -78,10 +91,16 @@ export const VisionAnalyzer = {
       const fallbackY = 30 + ((idx * 18) % 45);
 
       if (dbFood) {
+        // Pour le pain, si l'IA a compté toute une corbeille (> 120g), ramener à une portion individuelle raisonnable (max 90g)
+        let grams = Math.max(5, Math.round(Number(item.grams) || dbFood.defaultGrams));
+        if (dbFood.category === 'pains' && grams > 120) {
+          grams = Math.min(grams, 85);
+        }
+
         return {
           foodId: dbFood.id,
           customName: item.customName || dbFood.name,
-          grams: Math.max(5, Math.round(Number(item.grams) || dbFood.defaultGrams)),
+          grams,
           carbs100g: dbFood.carbs100g,
           fiber100g: dbFood.fiber100g,
           gi: dbFood.gi,
@@ -124,7 +143,14 @@ export const VisionAnalyzer = {
    * Appel direct ultra-rapide (~1.2s à 2.1s) sans responseMimeType bloquant
    */
   async callSingleVisionModel(modelName, base64Data, apiKey, signal) {
-    const prompt = `Identifie tous les aliments, gateaux, patisseries ou boissons visibles sur cette photo et estime leur poids en grammes. Reponds uniquement en JSON: {"items":[{"foodId":"id","customName":"Nom precis en francais","grams":100,"carbs100g":40,"fiber100g":2,"gi":65,"x":50,"y":50}]}`;
+    const prompt = `Tu es un expert en nutrition clinique et diabétologie. Analyse cette photo de repas :
+1. Identifie uniquement les aliments et boissons caloriques consommés par UNE SEULE personne.
+2. EXCLUSION OBLIGATOIRE : NE PAS inclure l'eau pure (bouteille d'eau, verre d'eau minérale, carafe), ni les théières vides, couverts, serviettes ou objets sans calories.
+3. PORTION INDIVIDUELLE : Estime la portion réelle consommée par une personne pour son repas. Ne compte JAMAIS une corbeille entière de pain ni un pain géant de table : pour le pain (Khobz, pain céréales, baguette), compte la portion d'une personne soit 1 morceau (~60g à 80g max). Pour les œufs (omelette, khlii), compte la portion d'une personne (~120g à 180g max).
+4. Pour le pain aux céréales ou complet, les glucides nets sont de ~35g/100g (car riche en fibres).
+
+Réponds UNIQUEMENT en JSON strict avec ce format :
+{"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
 
     const requestBody = JSON.stringify({
       contents: [
@@ -206,7 +232,34 @@ export const VisionAnalyzer = {
     if (q.includes('croissant') || q.includes('petit pain') || q.includes('pain au chocolat')) {
       return FoodRepository.getFoodById('croissant-petit-pain');
     }
-    if (q.includes('khobz') || q.includes('pain blanc') || q.includes('pain marocain')) {
+    if (q.includes('céréale') || q.includes('cereale') || q.includes('graine') || (q.includes('pain') && q.includes('noir'))) {
+      return FoodRepository.getFoodById('pain-cereales');
+    }
+    if (q.includes('complet') || q.includes('zraa') || q.includes('intégral') || q.includes('integral')) {
+      return FoodRepository.getFoodById('khobz-complet');
+    }
+    if (q.includes('orge') || q.includes('ch3ir') || q.includes('chayir')) {
+      return FoodRepository.getFoodById('khobz-ch3ir');
+    }
+    if (q.includes('oeuf') || q.includes('œuf') || q.includes('egg') || q.includes('baid') || q.includes('khlii') || q.includes('khlea') || q.includes('omelette')) {
+      return FoodRepository.getFoodById('oeufs-plat');
+    }
+    if (q.includes('jben') || q.includes('fromage frais') || q.includes('fromage blanc')) {
+      return FoodRepository.getFoodById('jben-huile-olive');
+    }
+    if (q.includes('sardine')) {
+      return FoodRepository.getFoodById('sardines-grillees');
+    }
+    if (q.includes('poulet') || q.includes('djaj')) {
+      return FoodRepository.getFoodById('poulet-grille');
+    }
+    if (q.includes('kefta') || q.includes('viande hachée')) {
+      return FoodRepository.getFoodById('kefta-grillee');
+    }
+    if (q.includes('salade') && (q.includes('marocaine') || q.includes('tomate') || q.includes('concombre'))) {
+      return FoodRepository.getFoodById('salade-marocaine');
+    }
+    if (q.includes('khobz') || q.includes('pain blanc') || q.includes('pain marocain') || q.includes('pain')) {
       return FoodRepository.getFoodById('khobz-blanc');
     }
     if (q.includes('msemen') || q.includes('msmen') || q.includes('rghaif')) return FoodRepository.getFoodById('msemen');
@@ -220,7 +273,7 @@ export const VisionAnalyzer = {
     if (q.includes('bissara')) return FoodRepository.getFoodById('bissara');
     if (q.includes('chebakia')) return FoodRepository.getFoodById('chebakia');
     if (q.includes('miel') || q.includes('honey') || q.includes('amlou')) return FoodRepository.getFoodById('miel-beurre');
-    if (q.includes('jus d\'orange') || q.includes('orange_juice') || q.includes('orange juice')) return FoodRepository.getFoodById('jus-orange');
+    if (q.includes('jus d\'orange') || q.includes('orange_juice') || q.includes('orange juice') || q.includes('jus orange')) return FoodRepository.getFoodById('jus-orange');
     if (q.includes('atay') || q.includes('thé à la menthe') || q.includes('the a la menthe') || q.includes('mint tea')) return FoodRepository.getFoodById('atay-sucre');
     if (q.includes('tacos')) return FoodRepository.getFoodById('tacos-marocain');
     if (q.includes('pizza')) return FoodRepository.getFoodById('pizza-part');

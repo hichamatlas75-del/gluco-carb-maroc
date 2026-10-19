@@ -119,10 +119,16 @@
               </p>
             </div>
 
-            <!-- Bouton Réorganiser les étiquettes (anti-superposition en 1 clic) -->
-            <button id="btnAutoArrangePins" type="button" class="hidden absolute top-3 left-3 z-20 bg-white/95 hover:bg-white text-emerald-800 border border-emerald-200 px-2.5 py-1.5 rounded-full text-[11px] font-extrabold shadow-md flex items-center gap-1 active:scale-95 transition-all">
-              <i data-lucide="move" class="w-3.5 h-3.5 text-emerald-600"></i> Réorganiser
-            </button>
+            <!-- Boutons en haut à gauche de la photo : Réorganiser et Masquer/Afficher les étiquettes -->
+            <div class="absolute top-3 left-3 z-20 flex items-center gap-1.5">
+              <button id="btnAutoArrangePins" type="button" class="hidden bg-white/95 hover:bg-white text-emerald-800 border border-emerald-200 px-2.5 py-1.5 rounded-full text-[10.5px] font-extrabold shadow-md flex items-center gap-1 active:scale-95 transition-all">
+                <i data-lucide="move" class="w-3.5 h-3.5 text-emerald-600"></i> Réorganiser
+              </button>
+              <button id="btnTogglePins" type="button" class="hidden bg-white/95 hover:bg-white text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-full text-[10.5px] font-extrabold shadow-md flex items-center gap-1 active:scale-95 transition-all">
+                <i data-lucide="eye" class="w-3.5 h-3.5 text-slate-500"></i>
+                <span id="lblTogglePins">Masquer</span>
+              </button>
+            </div>
 
             <!-- Bouton Nouvelle Photo -->
             <button id="btnClearPhoto" type="button" class="hidden absolute top-3 right-3 z-20 bg-white/95 text-slate-800 px-2.5 py-1.5 rounded-full text-[11px] font-extrabold shadow-md flex items-center gap-1">
@@ -1027,6 +1033,6 @@
   </div>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=13"></script>
+  <script type="module" src="./js/app.js?v=14"></script>
 </body>
 </html>

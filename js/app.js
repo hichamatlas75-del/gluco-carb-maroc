@@ -1,11 +1,11 @@
-import { FoodRepository } from './data/foods.js?v=13';
-import { StorageService } from './services/storage.js?v=13';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=13';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=13';
-import { UIRenderer, showToast } from './ui/renderer.js?v=13';
+import { FoodRepository } from './data/foods.js?v=14';
+import { StorageService } from './services/storage.js?v=14';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=14';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=14';
+import { UIRenderer, showToast } from './ui/renderer.js?v=14';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v13 - Étiquettes Photo Déplaçables au Doigt & Éditables en Direct)
+ * Contrôleur principal GlucoScan Maroc (v14 - Calibration Portion Individuelle, Anti-Superposition & Clarté Médicale)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
@@ -44,28 +44,30 @@ const state = {
   catalogCategory: 'all',
   replaceItemIndex: null,
   selectedPinIndex: null,
+  pinsVisible: true,
   customPresetGI: 50
 };
 
 /**
- * Écarte automatiquement les étiquettes (pins) sur la photo pour éviter toute superposition
- * et garantir une lisibilité parfaite dès le scan.
+ * Écarte automatiquement les étiquettes (pins) sur la photo de façon aérée et élégante
+ * pour éviter toute superposition et dégager la vue sur les aliments.
  */
 function spreadPinsAutomatically(items, forceAll = false) {
   if (!Array.isArray(items) || items.length === 0) return;
   if (items.length === 1) {
-    items[0].x = Math.min(72, Math.max(28, Number(items[0].x) || 50));
-    items[0].y = Math.min(76, Math.max(24, Number(items[0].y) || 50));
+    items[0].x = Math.min(68, Math.max(32, Number(items[0].x) || 50));
+    items[0].y = Math.min(74, Math.max(26, Number(items[0].y) || 50));
     return;
   }
 
-  // Détecte s'il y a collision verticale (< 13% d'écart vertical) entre 2 étiquettes
+  // Détecte s'il y a collision verticale (< 14% d'écart vertical) entre 2 étiquettes
   let hasCollision = forceAll;
   if (!hasCollision) {
     for (let i = 0; i < items.length; i++) {
       for (let j = i + 1; j < items.length; j++) {
         const dy = Math.abs((Number(items[i].y) || 50) - (Number(items[j].y) || 50));
-        if (dy < 13) {
+        const dx = Math.abs((Number(items[i].x) || 50) - (Number(items[j].x) || 50));
+        if (dy < 14 && dx < 30) {
           hasCollision = true;
           break;
         }
@@ -77,14 +79,15 @@ function spreadPinsAutomatically(items, forceAll = false) {
   if (!hasCollision) return;
 
   const n = items.length;
-  const minY = 20;
-  const maxY = 80;
-  const stepY = n > 1 ? (maxY - minY) / (n - 1) : 0;
+  // Répartition aérée en quinconce (alternance gauche-droite) pour ne pas masquer le centre du plat
+  const minY = 22;
+  const maxY = 78;
+  const stepY = (maxY - minY) / Math.max(1, n - 1);
 
   items.forEach((item, idx) => {
     item.y = Math.round(minY + idx * stepY);
-    // Légère alternance gauche/droite centrée pour ne jamais déborder hors de l'écran
-    item.x = idx % 2 === 0 ? 44 : 56;
+    // Alternance gauche/droite (38% et 62%) pour aérer le centre de l'image
+    item.x = idx % 2 === 0 ? 38 : 62;
   });
 }
 
@@ -535,12 +538,17 @@ function bindEvents() {
     });
   });
 
-  // Bouton Réorganiser les étiquettes (anti-superposition en 1 clic)
+  // Boutons Réorganiser et Masquer/Afficher les étiquettes
   document.getElementById('btnAutoArrangePins')?.addEventListener('click', () => {
     spreadPinsAutomatically(state.items, true);
     StorageService.save('glucoscan_items_v3', state.items);
     updateUI();
     showToast('↕️ Étiquettes réorganisées pour une lecture claire');
+  });
+
+  document.getElementById('btnTogglePins')?.addEventListener('click', () => {
+    state.pinsVisible = state.pinsVisible === false ? true : false;
+    updateUI();
   });
 
   // Déplacement au doigt / souris (Drag & Drop) et sélection des étiquettes sur la photo

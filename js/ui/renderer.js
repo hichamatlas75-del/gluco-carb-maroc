@@ -1,5 +1,5 @@
-import { FoodRepository } from '../data/foods.js?v=13';
-import { MetabolicEngine } from '../services/metabolicEngine.js?v=13';
+import { FoodRepository } from '../data/foods.js?v=14';
+import { MetabolicEngine } from '../services/metabolicEngine.js?v=14';
 
 /**
  * Fonctions de rendu DOM et protection XSS
@@ -71,9 +71,12 @@ export const UIRenderer = {
     document.getElementById('verdictHeadline').textContent = evaluation.verdict.headline;
     document.getElementById('verdictDescription').textContent = evaluation.verdict.description;
 
-    // Compteurs et Anneau SVG
+    // Compteurs et Anneau SVG (affichage sans équivoque du nombre d'aliments et poids global)
     document.getElementById('outNetCarbs').textContent = String(evaluation.netCarbs);
-    document.getElementById('outTotalGrams').textContent = `${evaluation.totalGrams}g pesés`;
+    const nItems = state.items.length;
+    document.getElementById('outTotalGrams').textContent = nItems > 1
+      ? `${evaluation.totalGrams}g (${nItems} aliments)`
+      : (nItems === 1 ? `${evaluation.totalGrams}g pesés` : '0g');
     document.getElementById('outTotalCarbs').textContent = String(evaluation.totalCarbs);
     document.getElementById('outTotalFiber').textContent = String(evaluation.totalFiber);
     document.getElementById('outTotalBolus').textContent = evaluation.totalBolus.toFixed(1);
@@ -89,7 +92,7 @@ export const UIRenderer = {
     document.getElementById('lblBGUnit').textContent = state.settings.bgUnit;
     document.getElementById('lblBGSuffix').textContent = state.settings.bgUnit;
 
-    this.renderPins(state.items, state.selectedPinIndex);
+    this.renderPins(state.items, state.selectedPinIndex, state.pinsVisible !== false);
     this.renderRecognizedList(state.items, state.selectedPinIndex);
 
     if (window.lucide) {
@@ -97,20 +100,32 @@ export const UIRenderer = {
     }
   },
 
-  renderPins(items, selectedPinIdx = null) {
+  renderPins(items, selectedPinIdx = null, pinsVisible = true) {
     const layer = document.getElementById('pinsLayer');
     const hasImage = !document.getElementById('plateImage').classList.contains('hidden');
     const arrangeBtn = document.getElementById('btnAutoArrangePins');
+    const toggleBtn = document.getElementById('btnTogglePins');
+    const toggleLbl = document.getElementById('lblTogglePins');
     const hintBanner = document.getElementById('pinsHintBanner');
 
     if (!hasImage || items.length === 0) {
       layer.innerHTML = '';
       if (arrangeBtn) arrangeBtn.classList.add('hidden');
+      if (toggleBtn) toggleBtn.classList.add('hidden');
       if (hintBanner) hintBanner.classList.add('hidden');
       return;
     }
 
     if (arrangeBtn) arrangeBtn.classList.toggle('hidden', items.length < 2);
+    if (toggleBtn) toggleBtn.classList.remove('hidden');
+    if (toggleLbl) toggleLbl.textContent = pinsVisible ? 'Masquer' : 'Afficher';
+
+    if (!pinsVisible) {
+      layer.innerHTML = '';
+      if (hintBanner) hintBanner.classList.add('hidden');
+      return;
+    }
+
     if (hintBanner) hintBanner.classList.remove('hidden');
 
     layer.innerHTML = items.map((item, idx) => {
@@ -128,13 +143,13 @@ export const UIRenderer = {
 
       return `
         <div data-pin-index="${idx}"
-             class="food-pin pointer-events-auto cursor-grab active:cursor-grabbing select-none absolute -translate-x-1/2 -translate-y-1/2 px-2 py-1 rounded-full shadow-lg border flex items-center gap-1 text-[11px] font-extrabold whitespace-nowrap transition-shadow ${borderStyle}"
+             class="food-pin pointer-events-auto cursor-grab active:cursor-grabbing select-none absolute -translate-x-1/2 -translate-y-1/2 px-2 py-0.5 rounded-full shadow-md border flex items-center gap-1 text-[10.5px] font-extrabold whitespace-nowrap transition-shadow ${borderStyle}"
              style="left:${x}%; top:${y}%; touch-action:none;">
           <span class="text-slate-400 text-[10px] leading-none font-mono pr-0.5" title="Glisser pour déplacer">⋮⋮</span>
-          <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
-          <span class="max-w-[135px] truncate">${escapeHTML(shortLabel)}</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
+          <span class="max-w-[125px] truncate">${escapeHTML(shortLabel)}</span>
           <span class="font-mono text-emerald-700">~${item.grams}g</span>
-          <span class="text-[10px] font-mono text-slate-500">(${Math.round(macros.netCarbs)}g)</span>
+          <span class="text-[9.5px] font-mono text-slate-500">(${Math.round(macros.netCarbs)}g)</span>
           <button type="button" data-edit-pin="${idx}" title="Modifier cette étiquette"
             class="ml-0.5 w-4 h-4 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-800 flex items-center justify-center text-[9px] leading-none">
             ✎

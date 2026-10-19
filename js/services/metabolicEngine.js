@@ -97,6 +97,10 @@ export const MetabolicEngine = {
       const topName = highestCarbContributor
         ? highestCarbContributor.food.name.split('(')[0].trim()
         : 'féculents';
+      const countLabel = items.length > 1 ? `Total repas (${items.length} aliments cumulés)` : `Total aliment`;
+      const topDetail = highestCarbContributor
+        ? ` (dont ~${Math.round(highestCarbContributor.netCarbs)}g provenant de : ${topName}, portion ${highestCarbContributor.grams}g)`
+        : '';
 
       if (totalGL < 14 && netCarbs <= 35 && avgGI < 58) {
         verdict = {
@@ -105,8 +109,8 @@ export const MetabolicEngine = {
           iconName: 'shield-check',
           ringColor: '#10b981',
           tag: '🟢 VERDICT : FEU VERT MÉTABOLIQUE',
-          headline: 'Portion équilibrée à libération lente',
-          description: `Charge glycémique faible (${totalGL.toFixed(1)}) et bon apport en fibres (${totalFiber.toFixed(1)}g). Courbe glycémique stable.`
+          headline: 'Repas équilibré à libération lente',
+          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail}. Charge glycémique faible (${totalGL.toFixed(1)}) et bon apport en fibres (${totalFiber.toFixed(1)}g).`
         };
       } else if (totalGL < 26 && netCarbs <= 65) {
         verdict = {
@@ -116,7 +120,7 @@ export const MetabolicEngine = {
           ringColor: '#f59e0b',
           tag: '🟠 VERDICT : IMPACT MODÉRÉ',
           headline: 'Hausse glycémique modérée prévue',
-          description: `Source principale : ${topName} (~${Math.round(highestCarbContributor.netCarbs)}g nets pour ${highestCarbContributor.grams}g). Associez des fibres ou protéines pour freiner l'absorption.`
+          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail}. Associez des fibres ou réduisez le féculent pour freiner l'absorption.`
         };
       } else {
         verdict = {
@@ -125,8 +129,8 @@ export const MetabolicEngine = {
           iconName: 'flame',
           ringColor: '#ef4444',
           tag: '🔴 VERDICT : ALERTE PIC GLYCÉMIQUE',
-          headline: 'Charge glucidique élevée détectée',
-          description: `Attention : ${Math.round(netCarbs)}g de glucides nets (${topName}). Réduisez le grammage ou validez votre bolus d'insuline.`
+          headline: 'Charge glucidique globale élevée',
+          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail}. Réduisez la portion de féculent ou boisson sucrée, ou validez votre bolus d'insuline.`
         };
       }
     }
