@@ -25,7 +25,7 @@ export function showToast(message) {
   toastTimer = setTimeout(() => {
     banner.classList.add('opacity-0', 'translate-y-2');
     banner.classList.remove('opacity-100', 'translate-y-0');
-  }, 2300);
+  }, 2500);
 }
 
 export const UIRenderer = {
@@ -90,7 +90,7 @@ export const UIRenderer = {
     }
 
     layer.innerHTML = items.map((item, idx) => {
-      const food = FoodRepository.getFoodById(item.foodId);
+      const food = MetabolicEngine.resolveFoodEntry(item);
       if (!food) return '';
       const macros = MetabolicEngine.computeFoodPortion(food, item.grams);
       const x = item.x || (25 + (idx * 24) % 55);
@@ -127,7 +127,7 @@ export const UIRenderer = {
 
     footer.classList.remove('hidden');
     container.innerHTML = items.map((item, idx) => {
-      const food = FoodRepository.getFoodById(item.foodId);
+      const food = MetabolicEngine.resolveFoodEntry(item);
       if (!food) return '';
       const macros = MetabolicEngine.computeFoodPortion(food, item.grams);
 

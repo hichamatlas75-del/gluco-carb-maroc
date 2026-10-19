@@ -3,8 +3,30 @@ import { FoodRepository } from '../data/foods.js';
 /**
  * Moteur de calcul des glucides nets, de la charge glycémique, du bolus d'insuline
  * et génération du Verdict Métabolique.
+ * Supporte à la fois les aliments du catalogue marocain et tout aliment libre reconnu par IA.
  */
 export const MetabolicEngine = {
+  resolveFoodEntry(entry) {
+    const dbFood = FoodRepository.getFoodById(entry.foodId);
+    if (dbFood) {
+      return {
+        ...dbFood,
+        name: entry.customName || dbFood.name
+      };
+    }
+    if (entry && typeof entry.carbs100g === 'number') {
+      return {
+        id: entry.foodId || 'custom',
+        name: entry.customName || 'Aliment détecté par IA',
+        carbs100g: entry.carbs100g,
+        fiber100g: entry.fiber100g || 0,
+        gi: entry.gi || 55,
+        refPortion: entry.refPortion || 'Portion estimée sur photo'
+      };
+    }
+    return null;
+  },
+
   computeFoodPortion(food, grams) {
     const factor = Math.max(0, Number(grams) || 0) / 100;
     const totalCarbs = food.carbs100g * factor;
@@ -24,7 +46,7 @@ export const MetabolicEngine = {
     let highestCarbContributor = null;
 
     for (const entry of items) {
-      const food = FoodRepository.getFoodById(entry.foodId);
+      const food = this.resolveFoodEntry(entry);
       if (!food) continue;
       const grams = Math.max(0, Number(entry.grams) || 0);
       const macros = this.computeFoodPortion(food, grams);
@@ -83,8 +105,8 @@ export const MetabolicEngine = {
           iconName: 'shield-check',
           ringColor: '#10b981',
           tag: '🟢 VERDICT : FEU VERT MÉTABOLIQUE',
-          headline: 'Assiette équilibrée à libération lente',
-          description: `Charge glycémique faible et bon apport en fibres (${totalFiber.toFixed(1)}g). Courbe glycémique post-repas stable.`
+          headline: 'Portion équilibrée à libération lente',
+          description: `Charge glycémique faible (${totalGL.toFixed(1)}) et bon apport en fibres (${totalFiber.toFixed(1)}g). Courbe glycémique stable.`
         };
       } else if (totalGL < 26 && netCarbs <= 65) {
         verdict = {
@@ -94,7 +116,7 @@ export const MetabolicEngine = {
           ringColor: '#f59e0b',
           tag: '🟠 VERDICT : IMPACT MODÉRÉ',
           headline: 'Hausse glycémique modérée prévue',
-          description: `Dominante glucidique : ${topName} (~${Math.round(highestCarbContributor.netCarbs)}g nets). Conseil : réduisez légèrement la portion de pain/semoule.`
+          description: `Source principale : ${topName} (~${Math.round(highestCarbContributor.netCarbs)}g nets pour ${highestCarbContributor.grams}g). Associez des fibres ou protéines pour freiner l'absorption.`
         };
       } else {
         verdict = {
@@ -104,7 +126,7 @@ export const MetabolicEngine = {
           ringColor: '#ef4444',
           tag: '🔴 VERDICT : ALERTE PIC GLYCÉMIQUE',
           headline: 'Charge glucidique élevée détectée',
-          description: `Attention : ${Math.round(netCarbs)}g de glucides nets (principalement ${topName}). Réduisez le grammage de moitié ou validez un pré-bolus.`
+          description: `Attention : ${Math.round(netCarbs)}g de glucides nets (${topName}). Réduisez le grammage ou validez votre bolus d'insuline.`
         };
       }
     }

@@ -347,7 +347,7 @@ function bindEvents() {
       netCarbs: ev.netCarbs,
       totalBolus: ev.totalBolus,
       items: state.items.map(i => {
-        const f = FoodRepository.getFoodById(i.foodId);
+        const f = MetabolicEngine.resolveFoodEntry(i);
         return { name: f ? f.name.split('(')[0].trim() : i.foodId, grams: i.grams };
       })
     });
@@ -364,7 +364,7 @@ function bindEvents() {
       getCurrentBGMgDl()
     );
     const lines = state.items.map(i => {
-      const f = FoodRepository.getFoodById(i.foodId);
+      const f = MetabolicEngine.resolveFoodEntry(i);
       const m = f ? MetabolicEngine.computeFoodPortion(f, i.grams) : { netCarbs: 0 };
       return `• ${f ? f.name.split('(')[0].trim() : i.foodId} (~${i.grams}g) : ${m.netCarbs.toFixed(1)}g nets`;
     }).join('\n');
