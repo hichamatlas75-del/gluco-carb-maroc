@@ -13,7 +13,7 @@ async function callModel(modelName, base64Data, apiKey) {
 4. Pour le pain aux céréales ou complet, les glucides nets sont de ~35g/100g (car riche en fibres).
 
 Réponds UNIQUEMENT en JSON strict avec ce format :
-{"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
+{"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const res = await fetch(url, {

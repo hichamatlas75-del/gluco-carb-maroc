@@ -1,8 +1,8 @@
-import { FoodRepository } from '../data/foods.js?v=15';
+import { FoodRepository } from '../data/foods.js?v=16';
 
 /**
- * Moteur de calcul des glucides nets, de la charge glycémique, du bolus d'insuline
- * et génération du Verdict Métabolique.
+ * Moteur de calcul des glucides nets, protéines, charge glycémique, bolus d'insuline
+ * et génération de l'Indice Protéique et du Verdict Métabolique.
  * Supporte à la fois les aliments du catalogue marocain et tout aliment libre reconnu par IA.
  */
 export const MetabolicEngine = {
@@ -11,7 +11,8 @@ export const MetabolicEngine = {
     if (dbFood) {
       return {
         ...dbFood,
-        name: entry.customName || dbFood.name
+        name: entry.customName || dbFood.name,
+        protein100g: typeof entry.protein100g === 'number' ? entry.protein100g : (dbFood.protein100g || 0)
       };
     }
     if (entry && typeof entry.carbs100g === 'number') {
@@ -19,6 +20,7 @@ export const MetabolicEngine = {
         id: entry.foodId || 'custom',
         name: entry.customName || 'Aliment détecté par IA',
         carbs100g: entry.carbs100g,
+        protein100g: typeof entry.protein100g === 'number' ? entry.protein100g : 0,
         fiber100g: entry.fiber100g || 0,
         gi: entry.gi || 55,
         refPortion: entry.refPortion || 'Portion estimée sur photo'
@@ -32,8 +34,9 @@ export const MetabolicEngine = {
     const totalCarbs = food.carbs100g * factor;
     const fiber = food.fiber100g * factor;
     const netCarbs = Math.max(0, totalCarbs - fiber);
+    const protein = (food.protein100g || 0) * factor;
     const glycemicLoad = (netCarbs * food.gi) / 100;
-    return { totalCarbs, fiber, netCarbs, glycemicLoad };
+    return { totalCarbs, fiber, netCarbs, protein, glycemicLoad };
   },
 
   evaluatePlate(items, settings, activeSlot, currentBGMgDl) {
@@ -41,6 +44,7 @@ export const MetabolicEngine = {
     let totalCarbs = 0;
     let totalFiber = 0;
     let netCarbs = 0;
+    let totalProtein = 0;
     let weightedGISum = 0;
     let totalGL = 0;
     let highestCarbContributor = null;
@@ -55,11 +59,64 @@ export const MetabolicEngine = {
       totalCarbs += macros.totalCarbs;
       totalFiber += macros.fiber;
       netCarbs += macros.netCarbs;
+      totalProtein += macros.protein;
       weightedGISum += macros.netCarbs * food.gi;
       totalGL += macros.glycemicLoad;
 
       if (!highestCarbContributor || macros.netCarbs > highestCarbContributor.netCarbs) {
         highestCarbContributor = { food, grams, netCarbs: macros.netCarbs };
+      }
+    }
+
+    const roundedProtein = Math.round(totalProtein * 10) / 10;
+    const roundedNetCarbs = Math.round(netCarbs * 10) / 10;
+    const ratioPG = roundedNetCarbs > 0
+      ? (roundedProtein / roundedNetCarbs)
+      : (roundedProtein > 0 ? 2.5 : 0);
+
+    // Calcul de l'Indice Protéique & Satiété
+    let proteinIndex = {
+      status: 'none',
+      label: 'En attente',
+      ratioText: 'P/G --',
+      badgeClass: 'bg-slate-100 text-slate-500 border-slate-200',
+      barColor: 'bg-slate-300',
+      pct: 0,
+      desc: 'Ajoutez ou photographiez vos aliments pour calculer le grammage protéique et l’indice satiété.'
+    };
+
+    if (items.length > 0) {
+      const pct = Math.min(100, Math.round((roundedProtein / 35) * 100));
+      if (roundedProtein >= 26 || (roundedProtein >= 20 && ratioPG >= 0.7)) {
+        proteinIndex = {
+          status: 'optimal',
+          label: 'Élevé 🟢',
+          ratioText: ratioPG >= 2.5 ? 'Pur Protéines' : `P/G ${ratioPG.toFixed(2)}`,
+          badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+          barColor: 'bg-emerald-500',
+          pct,
+          desc: 'Satiété longue durée (~5h) et puissant frein glycémique. Idéal pour préserver la masse musculaire et réussir le jeûne 18/6.'
+        };
+      } else if (roundedProtein >= 14 || ratioPG >= 0.40) {
+        proteinIndex = {
+          status: 'moderate',
+          label: 'Modéré 🟡',
+          ratioText: `P/G ${ratioPG.toFixed(2)}`,
+          badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
+          barColor: 'bg-amber-500',
+          pct,
+          desc: 'Apport protéique correct. Ralentit modérément la vidange gastrique et l’assimilation glucidique.'
+        };
+      } else {
+        proteinIndex = {
+          status: 'low',
+          label: 'Faible ⚪',
+          ratioText: `P/G ${ratioPG.toFixed(2)}`,
+          badgeClass: 'bg-rose-100 text-rose-800 border-rose-300',
+          barColor: 'bg-rose-400',
+          pct: Math.max(6, pct),
+          desc: 'Dominance glucidique. Risque de faim précoce et d’élévation glycémique rapide. Pensez à compléter avec œufs, volaille, poisson ou jben.'
+        };
       }
     }
 
@@ -139,7 +196,10 @@ export const MetabolicEngine = {
       totalGrams: Math.round(totalGrams),
       totalCarbs: Math.round(totalCarbs * 10) / 10,
       totalFiber: Math.round(totalFiber * 10) / 10,
-      netCarbs: Math.round(netCarbs * 10) / 10,
+      netCarbs: roundedNetCarbs,
+      totalProtein: roundedProtein,
+      ratioPG: Math.round(ratioPG * 100) / 100,
+      proteinIndex,
       avgGI,
       totalGL: Math.round(totalGL * 10) / 10,
       mealBolus: Math.round(mealBolus * 10) / 10,

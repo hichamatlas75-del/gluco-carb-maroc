@@ -1,5 +1,5 @@
-import { FoodRepository } from '../data/foods.js?v=15';
-import { MetabolicEngine } from '../services/metabolicEngine.js?v=15';
+import { FoodRepository } from '../data/foods.js?v=16';
+import { MetabolicEngine } from '../services/metabolicEngine.js?v=16';
 
 /**
  * Fonctions de rendu DOM et protection XSS
@@ -88,6 +88,32 @@ export const UIRenderer = {
     const pct = Math.min(1, evaluation.netCarbs / 80);
     ring.style.strokeDashoffset = (circumference * (1 - pct)).toFixed(2);
     ring.style.stroke = evaluation.verdict.ringColor;
+
+    // Bloc Protéines & Indice Satiété
+    const outProt = document.getElementById('outTotalProtein');
+    if (outProt) outProt.textContent = evaluation.totalProtein.toFixed(1);
+
+    const lblBadge = document.getElementById('lblProteinIndexBadge');
+    if (lblBadge && evaluation.proteinIndex) {
+      lblBadge.textContent = evaluation.proteinIndex.label;
+      lblBadge.className = `inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${evaluation.proteinIndex.badgeClass}`;
+    }
+
+    const lblRatio = document.getElementById('lblProteinIndexRatio');
+    if (lblRatio && evaluation.proteinIndex) {
+      lblRatio.textContent = evaluation.proteinIndex.ratioText;
+    }
+
+    const lblDesc = document.getElementById('lblProteinIndexDesc');
+    if (lblDesc && evaluation.proteinIndex) {
+      lblDesc.textContent = evaluation.proteinIndex.desc;
+    }
+
+    const barProt = document.getElementById('barProteinProgress');
+    if (barProt && evaluation.proteinIndex) {
+      barProt.style.width = `${evaluation.proteinIndex.pct}%`;
+      barProt.className = `h-full rounded-full transition-all duration-500 ${evaluation.proteinIndex.barColor}`;
+    }
 
     document.getElementById('lblBGUnit').textContent = state.settings.bgUnit;
     document.getElementById('lblBGSuffix').textContent = state.settings.bgUnit;
@@ -212,7 +238,7 @@ export const UIRenderer = {
                   title="Touchez pour modifier le nom de l'aliment"
                   class="w-full bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-slate-300 focus:border-emerald-500 rounded-lg px-1.5 py-0.5 -ml-1.5 text-xs font-extrabold text-slate-900 focus:outline-none transition-all" />
               </div>
-              <p class="text-[11px] text-slate-500">${escapeHTML(food.refPortion)} • IG ${food.gi} • Fibres ${macros.fiber.toFixed(1)}g</p>
+              <p class="text-[11px] text-slate-500">${escapeHTML(food.refPortion)} • <span class="font-bold text-emerald-800">${macros.protein.toFixed(1)}g prot</span> • IG ${food.gi} • Fibres ${macros.fiber.toFixed(1)}g</p>
             </div>
             <div class="text-right flex-shrink-0">
               <span class="text-sm font-extrabold font-mono text-emerald-700">${macros.netCarbs.toFixed(1)}g</span>
@@ -300,7 +326,7 @@ export const UIRenderer = {
         <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
           <div class="min-w-0 flex-1">
             <p class="text-xs font-extrabold text-slate-900 truncate">${escapeHTML(f.name)}</p>
-            <p class="text-[11px] text-slate-500 truncate">${escapeHTML(f.darija)} • ${f.defaultGrams}g (${m.netCarbs.toFixed(1)}g nets)</p>
+            <p class="text-[11px] text-slate-500 truncate">${escapeHTML(f.darija)} • ${f.defaultGrams}g (${m.netCarbs.toFixed(1)}g nets • ${m.protein.toFixed(1)}g prot)</p>
           </div>
           <button type="button" data-pick-food="${f.id}" class="${btnClass}">
             ${btnLabel}

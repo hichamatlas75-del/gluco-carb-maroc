@@ -1,4 +1,4 @@
-import { FoodRepository } from '../data/foods.js?v=15';
+import { FoodRepository } from '../data/foods.js?v=16';
 
 /**
  * Service de Reconnaissance Alimentaire Haute Définition (v9) :
@@ -65,9 +65,6 @@ export const VisionAnalyzer = {
   /**
    * Normalise et enrichit les items bruts retournés par l'API avec notre base calibrée
    */
-  /**
-   * Normalise et enrichit les items bruts retournés par l'API avec notre base calibrée
-   */
   mapRawItems(rawItems) {
     if (!Array.isArray(rawItems) || rawItems.length === 0) {
       throw new Error('Empty items');
@@ -102,6 +99,7 @@ export const VisionAnalyzer = {
           customName: item.customName || dbFood.name,
           grams,
           carbs100g: dbFood.carbs100g,
+          protein100g: typeof item.protein100g === 'number' ? item.protein100g : (dbFood.protein100g || 0),
           fiber100g: dbFood.fiber100g,
           gi: dbFood.gi,
           refPortion: dbFood.refPortion,
@@ -115,6 +113,7 @@ export const VisionAnalyzer = {
         customName: item.customName || 'Aliment détecté',
         grams: Math.max(5, Math.round(Number(item.grams) || 100)),
         carbs100g: Math.max(0, Number(item.carbs100g) ?? 22),
+        protein100g: Math.max(0, Number(item.protein100g) ?? 0),
         fiber100g: Math.max(0, Number(item.fiber100g) ?? 1),
         gi: Math.min(100, Math.max(0, Number(item.gi) ?? 55)),
         refPortion: 'Estimé par IA Vision',
@@ -150,7 +149,7 @@ export const VisionAnalyzer = {
 4. Pour le pain aux céréales ou complet, les glucides nets sont de ~35g/100g (car riche en fibres).
 
 Réponds UNIQUEMENT en JSON strict avec ce format :
-{"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
+{"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
 
     const requestBody = JSON.stringify({
       contents: [

@@ -1,11 +1,11 @@
-import { FoodRepository } from './data/foods.js?v=15';
-import { StorageService } from './services/storage.js?v=15';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=15';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=15';
-import { UIRenderer, showToast } from './ui/renderer.js?v=15';
+import { FoodRepository } from './data/foods.js?v=16';
+import { StorageService } from './services/storage.js?v=16';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=16';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=16';
+import { UIRenderer, showToast } from './ui/renderer.js?v=16';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v15 - Étiquettes Transparentes Vitrées & Haute Lisibilité)
+ * Contrôleur principal GlucoScan Maroc (v16 - Bloc Protéines & Indice Satiété Métabolique)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
@@ -897,9 +897,12 @@ function bindEvents() {
   document.querySelectorAll('.custom-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const carbs = btn.getAttribute('data-preset-carbs') || '15';
+      const protein = btn.getAttribute('data-preset-protein') || '5';
       const gi = parseInt(btn.getAttribute('data-preset-gi') || '50', 10);
       const inp = document.getElementById('inpCustomFoodCarbs100');
+      const inpProt = document.getElementById('inpCustomFoodProtein100');
       if (inp) inp.value = carbs;
+      if (inpProt) inpProt.value = protein;
       state.customPresetGI = gi;
       document.querySelectorAll('.custom-preset-btn').forEach(b => {
         b.classList.toggle('border-emerald-600', b === btn);
@@ -913,19 +916,22 @@ function bindEvents() {
     const nameInp = document.getElementById('inpCustomFoodName');
     const gramsInp = document.getElementById('inpCustomFoodGrams');
     const carbsInp = document.getElementById('inpCustomFoodCarbs100');
+    const protInp = document.getElementById('inpCustomFoodProtein100');
 
     const rawName = (nameInp?.value || '').trim() || 'Aliment personnalisé';
     const grams = Math.min(1500, Math.max(5, parseInt(gramsInp?.value || '100', 10) || 100));
     const carbs100g = Math.min(100, Math.max(0, parseFloat(carbsInp?.value || '0') || 0));
+    const protein100g = Math.min(100, Math.max(0, parseFloat(protInp?.value || '0') || 0));
 
     const customEntry = {
       foodId: 'custom_' + Date.now(),
       customName: rawName,
       grams,
       carbs100g,
+      protein100g,
       fiber100g: 0,
       gi: carbs100g === 0 ? 0 : (state.customPresetGI || 50),
-      refPortion: `Saisie manuelle (${carbs100g}g glucides/100g)`,
+      refPortion: `Saisie manuelle (${carbs100g}g glu • ${protein100g}g prot)`,
       x: 30 + Math.round(Math.random() * 40),
       y: 30 + Math.round(Math.random() * 40)
     };
@@ -962,6 +968,8 @@ function bindEvents() {
       verdictTag: ev.verdict.tag,
       totalGrams: ev.totalGrams,
       netCarbs: ev.netCarbs,
+      totalProtein: ev.totalProtein,
+      proteinIndexLabel: ev.proteinIndex.label,
       totalBolus: ev.totalBolus,
       items: state.items.map(i => {
         const f = MetabolicEngine.resolveFoodEntry(i);
@@ -982,11 +990,11 @@ function bindEvents() {
     );
     const lines = state.items.map(i => {
       const f = MetabolicEngine.resolveFoodEntry(i);
-      const m = f ? MetabolicEngine.computeFoodPortion(f, i.grams) : { netCarbs: 0 };
-      return `• ${f ? f.name.split('(')[0].trim() : i.foodId} (~${i.grams}g) : ${m.netCarbs.toFixed(1)}g nets`;
+      const m = f ? MetabolicEngine.computeFoodPortion(f, i.grams) : { netCarbs: 0, protein: 0 };
+      return `• ${f ? f.name.split('(')[0].trim() : i.foodId} (~${i.grams}g) : ${m.netCarbs.toFixed(1)}g nets • ${m.protein.toFixed(1)}g prot`;
     }).join('\n');
 
-    const text = `📸 *GlucoScan Maroc*\n${ev.verdict.tag}\n${lines}\n⚖️ Poids: ${ev.totalGrams}g | 🥗 *Glucides Nets: ${ev.netCarbs}g*\n💉 *Bolus Estimé: ${ev.totalBolus.toFixed(1)} UI*`;
+    const text = `📸 *GlucoScan Maroc*\n${ev.verdict.tag}\n${lines}\n⚖️ Poids: ${ev.totalGrams}g | 🥗 *Glucides Nets: ${ev.netCarbs}g*\n🥩 *Protéines: ${ev.totalProtein}g (${ev.proteinIndex.label})*\n💉 *Bolus Estimé: ${ev.totalBolus.toFixed(1)} UI*`;
     try {
       if (navigator.clipboard) await navigator.clipboard.writeText(text);
       showToast('Résumé copié !');
