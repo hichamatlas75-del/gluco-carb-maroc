@@ -78,8 +78,8 @@
           <span>🌿</span> <span class="truncate">Santé &amp; 18/6</span>
         </button>
       </div>
-      <button type="button" id="btnOpenAuthModal" class="py-1 px-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-emerald-700 shadow-2xs flex items-center gap-1.5 text-[10.5px] font-extrabold flex-shrink-0 transition-all" title="Gestion du Compte & Synchronisation Cloud Supabase">
-        <i data-lucide="cloud" class="w-3.5 h-3.5 text-emerald-600"></i>
+      <button type="button" id="btnOpenAuthModal" class="py-1 px-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-emerald-700 shadow-2xs flex items-center gap-1.5 text-[10.5px] font-extrabold flex-shrink-0 transition-all" title="Mon Profil Utilisateur &amp; Sauvegarde">
+        <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-600"></i>
         <span id="lblAuthStatusBadge">Invité</span>
       </button>
     </div>
@@ -1325,118 +1325,127 @@
     </nav>
 
     <!-- ========================================== -->
-    <!-- MODAL SUPABASE AUTH & SYNCHRONISATION CLOUD-->
+    <!-- MODAL PROFIL UTILISATEUR & SYNCHRONISATION -->
     <!-- ========================================== -->
     <div id="modalSupabaseAuth" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4">
       <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-100">
+        <!-- En-tête -->
         <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-              <i data-lucide="cloud" class="w-4 h-4"></i>
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+              <i data-lucide="user" class="w-4.5 h-4.5"></i>
             </div>
             <div>
-              <h3 class="text-sm font-extrabold text-slate-900">Compte &amp; Cloud Supabase</h3>
-              <p class="text-[10px] text-slate-500">Sauvegarde sécurisée de vos repas</p>
+              <h3 class="text-sm font-black text-slate-900">Mon Profil Utilisateur</h3>
+              <p class="text-[10px] text-slate-500">Accès direct par pseudo (sans email)</p>
             </div>
           </div>
-          <button type="button" id="btnCloseAuthModal" class="p-1 rounded-xl text-slate-400 hover:text-slate-700 bg-slate-100">
+          <button type="button" id="btnCloseAuthModal" class="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 bg-slate-100 active:scale-95 transition-all">
             <i data-lucide="x" class="w-4 h-4"></i>
           </button>
         </div>
 
-        <!-- État de connexion actuel -->
-        <div id="authStatusBanner" class="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-700">Statut :</span>
-            <span id="lblAuthModalState" class="font-extrabold font-mono text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
-              Mode Invité (Local)
-            </span>
+        <!-- ZONE 1 : Si l'utilisateur est CONNECTÉ (Profil actif) -->
+        <div id="panelProfileActive" class="hidden space-y-3.5">
+          <div class="bg-gradient-to-br from-emerald-50 to-slate-50 rounded-2xl p-4 border border-emerald-200/80 flex items-center gap-3.5">
+            <div id="activeProfileAvatar" class="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-black text-xl flex items-center justify-center shadow-md flex-shrink-0">
+              H
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1.5">
+                <h4 id="activeProfileName" class="text-base font-black text-slate-900 truncate">Hicham</h4>
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              </div>
+              <p id="activeProfileModeBadge" class="text-[11px] font-extrabold text-emerald-800 mt-0.5">
+                💉 Mode Diabète &amp; Insuline
+              </p>
+              <p id="activeProfileMealsCount" class="text-[10px] text-slate-500">
+                0 repas enregistrés
+              </p>
+            </div>
           </div>
-          <p id="lblAuthModalSub" class="text-[11px] text-slate-500 mt-1">
-            Vos repas sont stockés sur votre téléphone. Connectez-vous pour les synchroniser sur votre compte.
+
+          <button type="button" id="btnSyncProfileData" class="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition-all">
+            <i data-lucide="cloud" class="w-4 h-4"></i>
+            Sauvegarder mes repas dans le Cloud
+          </button>
+
+          <button type="button" id="btnLogoutProfile" class="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-98 transition-all">
+            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+            Changer de profil / Déconnexion
+          </button>
+        </div>
+
+        <!-- ZONE 2 : Si NON CONNECTÉ (Invité) : Formulaire Connexion / Inscription -->
+        <div id="panelProfileAuth" class="space-y-3">
+          <!-- Segmented Tab Switch : Connexion vs Nouveau Profil -->
+          <div class="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl text-[11px] font-extrabold">
+            <button type="button" id="tabProfileLogin" class="py-1.5 rounded-xl bg-white text-slate-900 shadow-2xs transition-all">
+              Se connecter
+            </button>
+            <button type="button" id="tabProfileRegister" class="py-1.5 rounded-xl text-slate-500 hover:text-slate-900 transition-all">
+              Nouveau profil
+            </button>
+          </div>
+
+          <!-- Formulaire 1 : Se connecter -->
+          <form id="formProfileLogin" class="space-y-2.5">
+            <div>
+              <label class="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Nom d'utilisateur / Pseudo :</label>
+              <input id="inpLoginUsername" type="text" placeholder="Ex: Hicham" required autocomplete="username"
+                class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none" />
+            </div>
+            <div>
+              <label class="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Mot de passe :</label>
+              <input id="inpLoginPassword" type="password" placeholder="••••••••" required autocomplete="current-password"
+                class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none" />
+            </div>
+            <button type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-xs shadow-xs transition-all flex items-center justify-center gap-2 mt-1">
+              <i data-lucide="log-in" class="w-4 h-4 text-emerald-400"></i>
+              Se connecter à mon profil
+            </button>
+          </form>
+
+          <!-- Formulaire 2 : Nouveau Profil -->
+          <form id="formProfileRegister" class="hidden space-y-2.5">
+            <div>
+              <label class="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Votre Pseudo / Prénom :</label>
+              <input id="inpRegUsername" type="text" placeholder="Ex: Hicham" required autocomplete="username"
+                class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none" />
+            </div>
+            <div>
+              <label class="text-[10px] font-extrabold uppercase text-slate-500 block mb-1">Mot de passe :</label>
+              <input id="inpRegPassword" type="password" placeholder="Min. 4 caractères" minlength="4" required autocomplete="new-password"
+                class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none" />
+            </div>
+
+            <div class="space-y-1.5 pt-0.5">
+              <label class="text-[10px] font-extrabold uppercase text-slate-500 block">Profil d'utilisation :</label>
+              <div class="grid grid-cols-2 gap-2">
+                <label id="lblChoiceInsulin" class="cursor-pointer border-2 border-emerald-500 bg-emerald-50/70 rounded-xl p-2 flex flex-col items-center text-center gap-0.5 transition-all">
+                  <input type="radio" name="radRegUserMode" value="insulin" checked class="sr-only">
+                  <span class="text-sm">💉</span>
+                  <span class="text-[11px] font-extrabold text-emerald-950">Diabète &amp; Insuline</span>
+                  <span class="text-[9px] text-emerald-700">Calculateur Bolus</span>
+                </label>
+                <label id="lblChoiceWellness" class="cursor-pointer border-2 border-slate-200 bg-slate-50 rounded-xl p-2 flex flex-col items-center text-center gap-0.5 transition-all opacity-70">
+                  <input type="radio" name="radRegUserMode" value="wellness" class="sr-only">
+                  <span class="text-sm">🌿</span>
+                  <span class="text-[11px] font-extrabold text-slate-800">Santé &amp; 18/6</span>
+                  <span class="text-[9px] text-slate-500">Chrono-jeûne &amp; Glucides</span>
+                </label>
+              </div>
+            </div>
+
+            <button type="submit" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-extrabold text-xs shadow-xs transition-all flex items-center justify-center gap-2 mt-1">
+              <i data-lucide="user-plus" class="w-4 h-4"></i>
+              Créer mon profil
+            </button>
+          </form>
+
+          <p class="text-[10px] text-slate-400 text-center pt-1">
+            🔒 Stocké directement sur votre appareil. Aucun email ni code requis.
           </p>
-        </div>
-
-        <!-- Formulaire Magic Link Email & Google -->
-        <div id="authActionsContainer" class="space-y-2.5">
-          <button type="button" id="btnGoogleSignIn" class="w-full py-2.5 px-3 rounded-2xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 font-extrabold text-xs flex items-center justify-center gap-2 shadow-2xs transition-all">
-            <svg class="w-4 h-4" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-            </svg>
-            Continuer avec Google
-          </button>
-
-          <div class="relative flex py-1 items-center">
-            <div class="flex-grow border-t border-slate-200"></div>
-            <span class="flex-shrink mx-2 text-[10px] font-extrabold uppercase text-slate-400">ou Email</span>
-            <div class="flex-grow border-t border-slate-200"></div>
-          </div>
-
-          <!-- Onglets Mode de Connexion : Magic Link vs Mot de passe -->
-          <div class="grid grid-cols-2 p-1 bg-slate-100 rounded-xl text-[11px] font-extrabold">
-            <button type="button" id="tabAuthMagic" class="py-1.5 rounded-lg bg-white text-slate-800 shadow-2xs transition-all">
-              Magic Link / Code
-            </button>
-            <button type="button" id="tabAuthPassword" class="py-1.5 rounded-lg text-slate-500 hover:text-slate-800 transition-all">
-              Mot de passe
-            </button>
-          </div>
-
-          <!-- Panneau 1 : Magic Link / OTP -->
-          <div id="panelAuthMagic" class="space-y-2">
-            <form id="formMagicLink" class="space-y-2">
-              <input id="inpMagicLinkEmail" type="email" placeholder="votre.email@exemple.com" required
-                class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none" />
-              <button type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-xs transition-all">
-                Recevoir le Magic Link &amp; Code
-              </button>
-            </form>
-
-            <!-- Saisie directe du Code OTP 6 chiffres sans quitter l'app -->
-            <form id="formVerifyOtp" class="hidden space-y-2 pt-2 border-t border-slate-100">
-              <label class="text-[10px] font-extrabold uppercase text-slate-500 block">Code à 6 chiffres reçu par email :</label>
-              <div class="flex items-center gap-2">
-                <input id="inpOtpCode" type="text" inputmode="numeric" maxlength="8" placeholder="123456" required
-                  class="flex-1 bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-center font-mono font-extrabold text-sm text-slate-900 focus:outline-none tracking-widest" />
-                <button type="submit" class="py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition-all">
-                  Valider
-                </button>
-              </div>
-              <p class="text-[10px] text-slate-400">Ou cliquez directement sur le lien reçu dans votre boîte mail.</p>
-            </form>
-          </div>
-
-          <!-- Panneau 2 : Mot de passe (Connexion instantanée sans email) -->
-          <div id="panelAuthPassword" class="hidden space-y-2">
-            <form id="formPasswordAuth" class="space-y-2">
-              <input id="inpPasswordEmail" type="email" placeholder="votre.email@exemple.com" required
-                class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none" />
-              <input id="inpPasswordVal" type="password" placeholder="Mot de passe (min 6 car.)" minlength="6" required
-                class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none" />
-              <div class="flex items-center gap-2 pt-1">
-                <button type="submit" id="btnSubmitPasswordLogin" class="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-xs transition-all">
-                  Se connecter
-                </button>
-                <button type="button" id="btnSubmitPasswordSignUp" class="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition-all">
-                  Créer compte
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        <!-- Bouton de Synchronisation des Repas Locaux vers Supabase -->
-        <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-          <button type="button" id="btnSyncLocalHistory" class="flex-1 py-2 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-extrabold text-[11px] flex items-center justify-center gap-1.5 transition-all">
-            <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-emerald-600"></i>
-            Synchroniser mes repas locaux
-          </button>
-          <button type="button" id="btnSignOutAuth" class="hidden py-2 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-[11px] transition-all">
-            Déconnexion
-          </button>
         </div>
       </div>
     </div>
@@ -1444,6 +1453,6 @@
   </div>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=20"></script>
+  <script type="module" src="./js/app.js?v=21"></script>
 </body>
 </html>

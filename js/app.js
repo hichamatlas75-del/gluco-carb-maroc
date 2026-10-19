@@ -4,6 +4,7 @@ import { MetabolicEngine } from './services/metabolicEngine.js?v=18';
 import { VisionAnalyzer } from './services/visionAnalyzer.js?v=18';
 import { UIRenderer, showToast } from './ui/renderer.js?v=18';
 import { SupabaseService } from './services/supabaseClient.js?v=18';
+import { ProfileService } from './services/profileService.js?v=21';
 
 /**
  * Contrôleur principal GlucoScan Maroc (v18 - Double Profil, Supabase Cloud & Garde-fous Maroc)
@@ -74,6 +75,23 @@ const state = {
   pinsVisible: true,
   customPresetGI: 50
 };
+
+// Restauration du profil utilisateur actif (si connecté)
+const activeProfileInit = ProfileService.init();
+if (activeProfileInit) {
+  const profileRecord = ProfileService.getProfileData();
+  if (profileRecord) {
+    if (profileRecord.settings) {
+      state.settings = { ...state.settings, ...profileRecord.settings };
+    }
+    if (Array.isArray(profileRecord.history) && profileRecord.history.length > 0) {
+      state.history = profileRecord.history;
+    }
+    if (profileRecord.mode) {
+      state.settings.userMode = profileRecord.mode;
+    }
+  }
+}
 
 /**
  * Écarte automatiquement les étiquettes (pins) sur la photo de façon aérée et élégante
@@ -492,6 +510,7 @@ function bindEvents() {
   document.getElementById('btnModeInsulin')?.addEventListener('click', () => {
     state.settings.userMode = 'insulin';
     StorageService.save('glucoscan_settings_v3', state.settings);
+    ProfileService.saveProfileData(state.settings, state.history);
     UIRenderer.renderUserMode('insulin');
     updateUI();
     showToast('Mode Diabète & Insuline actif');
@@ -500,6 +519,7 @@ function bindEvents() {
   document.getElementById('btnModeWellness')?.addEventListener('click', () => {
     state.settings.userMode = 'wellness';
     StorageService.save('glucoscan_settings_v3', state.settings);
+    ProfileService.saveProfileData(state.settings, state.history);
     UIRenderer.renderUserMode('wellness');
     updateUI();
     showToast('Mode Santé & 18/6 actif (Insuline masquée)');
@@ -530,33 +550,41 @@ function bindEvents() {
     }
   });
 
-  // Gestion du Compte Supabase & Synchronisation Cloud
+  // Gestion du Profil Utilisateur (Modèle Workout Home - Pseudo & Mot de passe sans email)
   const updateAuthUI = () => {
-    const isAuth = SupabaseService.isAuthenticated();
-    const user = SupabaseService.currentUser;
+    const isLogged = ProfileService.isLoggedIn();
+    const activeProfile = ProfileService.getActiveProfile();
     const badge = document.getElementById('lblAuthStatusBadge');
-    const modalState = document.getElementById('lblAuthModalState');
-    const modalSub = document.getElementById('lblAuthModalSub');
-    const signOutBtn = document.getElementById('btnSignOutAuth');
 
-    if (isAuth && user) {
-      if (badge) badge.textContent = user.email ? user.email.split('@')[0] : 'Connecté';
-      if (modalState) {
-        modalState.textContent = 'Connecté (Cloud)';
-        modalState.className = 'font-extrabold font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200';
+    const panelActive = document.getElementById('panelProfileActive');
+    const panelAuth = document.getElementById('panelProfileAuth');
+
+    if (isLogged && activeProfile) {
+      if (badge) badge.textContent = activeProfile.username;
+      panelActive?.classList.remove('hidden');
+      panelAuth?.classList.add('hidden');
+
+      const avatar = document.getElementById('activeProfileAvatar');
+      const name = document.getElementById('activeProfileName');
+      const modeBadge = document.getElementById('activeProfileModeBadge');
+      const countLabel = document.getElementById('activeProfileMealsCount');
+
+      if (avatar) avatar.textContent = (activeProfile.username[0] || 'U').toUpperCase();
+      if (name) name.textContent = activeProfile.username;
+      if (modeBadge) {
+        modeBadge.textContent = activeProfile.mode === 'wellness' ? '🌿 Mode Santé & 18/6' : '💉 Mode Diabète & Insuline';
       }
-      if (modalSub) modalSub.textContent = `Connecté avec ${user.email}. Synchronisation active.`;
-      if (signOutBtn) signOutBtn.classList.remove('hidden');
+      if (countLabel) {
+        countLabel.textContent = `${state.history.length} repas dans votre journal`;
+      }
     } else {
       if (badge) badge.textContent = 'Invité';
-      if (modalState) {
-        modalState.textContent = 'Mode Invité (Local)';
-        modalState.className = 'font-extrabold font-mono text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200';
-      }
-      if (modalSub) modalSub.textContent = 'Vos repas sont stockés sur votre téléphone. Connectez-vous pour sauvegarder dans le Cloud Supabase.';
-      if (signOutBtn) signOutBtn.classList.add('hidden');
+      panelActive?.classList.add('hidden');
+      panelAuth?.classList.remove('hidden');
     }
   };
+
+  updateAuthUI();
 
   document.getElementById('btnOpenAuthModal')?.addEventListener('click', () => {
     updateAuthUI();
@@ -570,129 +598,137 @@ function bindEvents() {
     document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
   });
 
-  document.getElementById('btnGoogleSignIn')?.addEventListener('click', async () => {
-    try {
-      await SupabaseService.signInWithOAuth('google');
-    } catch (_) {
-      showToast('Supabase non configuré pour Google OAuth');
-    }
+  // Basculement onglets : Se connecter vs Nouveau profil
+  const tabProfileLogin = document.getElementById('tabProfileLogin');
+  const tabProfileRegister = document.getElementById('tabProfileRegister');
+  const formProfileLogin = document.getElementById('formProfileLogin');
+  const formProfileRegister = document.getElementById('formProfileRegister');
+
+  tabProfileLogin?.addEventListener('click', () => {
+    tabProfileLogin.classList.add('bg-white', 'text-slate-900', 'shadow-2xs');
+    tabProfileLogin.classList.remove('text-slate-500');
+    tabProfileRegister.classList.remove('bg-white', 'text-slate-900', 'shadow-2xs');
+    tabProfileRegister.classList.add('text-slate-500');
+    formProfileLogin?.classList.remove('hidden');
+    formProfileRegister?.classList.add('hidden');
   });
 
-  // Basculement onglets Magic Link vs Mot de passe
-  const tabAuthMagic = document.getElementById('tabAuthMagic');
-  const tabAuthPassword = document.getElementById('tabAuthPassword');
-  const panelAuthMagic = document.getElementById('panelAuthMagic');
-  const panelAuthPassword = document.getElementById('panelAuthPassword');
-
-  tabAuthMagic?.addEventListener('click', () => {
-    tabAuthMagic.classList.add('bg-white', 'text-slate-800', 'shadow-2xs');
-    tabAuthMagic.classList.remove('text-slate-500');
-    tabAuthPassword.classList.remove('bg-white', 'text-slate-800', 'shadow-2xs');
-    tabAuthPassword.classList.add('text-slate-500');
-    panelAuthMagic?.classList.remove('hidden');
-    panelAuthPassword?.classList.add('hidden');
+  tabProfileRegister?.addEventListener('click', () => {
+    tabProfileRegister.classList.add('bg-white', 'text-slate-900', 'shadow-2xs');
+    tabProfileRegister.classList.remove('text-slate-500');
+    tabProfileLogin.classList.remove('bg-white', 'text-slate-900', 'shadow-2xs');
+    tabProfileLogin.classList.add('text-slate-500');
+    formProfileRegister?.classList.remove('hidden');
+    formProfileLogin?.classList.add('hidden');
   });
 
-  tabAuthPassword?.addEventListener('click', () => {
-    tabAuthPassword.classList.add('bg-white', 'text-slate-800', 'shadow-2xs');
-    tabAuthPassword.classList.remove('text-slate-500');
-    tabAuthMagic.classList.remove('bg-white', 'text-slate-800', 'shadow-2xs');
-    tabAuthMagic.classList.add('text-slate-500');
-    panelAuthPassword?.classList.remove('hidden');
-    panelAuthMagic?.classList.add('hidden');
-  });
-
-  document.getElementById('formMagicLink')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('inpMagicLinkEmail').value.trim();
-    if (!email) return;
-    try {
-      await SupabaseService.signInWithMagicLink(email);
-      showToast(`✉️ Email envoyé à ${email} !`);
-      const otpForm = document.getElementById('formVerifyOtp');
-      if (otpForm) otpForm.classList.remove('hidden');
-    } catch (err) {
-      console.error('Supabase magic link error:', err);
-      showToast(err?.message || 'Erreur Supabase lors de l’envoi');
-    }
-  });
-
-  document.getElementById('formVerifyOtp')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('inpMagicLinkEmail').value.trim();
-    const code = document.getElementById('inpOtpCode').value.trim();
-    if (!email || !code) return;
-    try {
-      await SupabaseService.verifyOtp(email, code);
-      updateAuthUI();
-      document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
-      document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
-      showToast('✅ Connecté avec succès pour toujours !');
-    } catch (err) {
-      console.error('Supabase OTP error:', err);
-      showToast(err?.message || 'Code invalide ou expiré');
-    }
-  });
-
-  // Connexion avec mot de passe
-  document.getElementById('formPasswordAuth')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('inpPasswordEmail').value.trim();
-    const password = document.getElementById('inpPasswordVal').value;
-    if (!email || !password) return;
-    try {
-      await SupabaseService.signInWithPassword(email, password);
-      updateAuthUI();
-      document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
-      document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
-      showToast('✅ Connecté avec succès !');
-    } catch (err) {
-      console.error('Supabase password sign in error:', err);
-      showToast(err?.message || 'Email ou mot de passe incorrect');
-    }
-  });
-
-  // Inscription avec mot de passe
-  document.getElementById('btnSubmitPasswordSignUp')?.addEventListener('click', async () => {
-    const email = document.getElementById('inpPasswordEmail').value.trim();
-    const password = document.getElementById('inpPasswordVal').value;
-    if (!email || !password) {
-      showToast('Veuillez renseigner votre email et mot de passe');
-      return;
-    }
-    if (password.length < 6) {
-      showToast('Le mot de passe doit comporter au moins 6 caractères');
-      return;
-    }
-    try {
-      const res = await SupabaseService.signUpWithPassword(email, password);
-      updateAuthUI();
-      if (SupabaseService.isAuthenticated()) {
-        document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
-        document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
-        showToast('✅ Compte créé et connecté !');
+  // Sélection visuelle radio Diabète vs Santé 18/6 dans formulaire Nouveau Profil
+  document.querySelectorAll('input[name="radRegUserMode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const isInsulin = e.target.value === 'insulin';
+      const lblInsulin = document.getElementById('lblChoiceInsulin');
+      const lblWellness = document.getElementById('lblChoiceWellness');
+      if (isInsulin) {
+        lblInsulin?.classList.add('border-emerald-500', 'bg-emerald-50/70');
+        lblInsulin?.classList.remove('border-slate-200', 'bg-slate-50', 'opacity-70');
+        lblWellness?.classList.add('border-slate-200', 'bg-slate-50', 'opacity-70');
+        lblWellness?.classList.remove('border-emerald-500', 'bg-emerald-50/70', 'border-cyan-600', 'bg-cyan-50/70');
       } else {
-        showToast('Compte créé ! Veuillez vous connecter.');
+        lblWellness?.classList.add('border-cyan-600', 'bg-cyan-50/70');
+        lblWellness?.classList.remove('border-slate-200', 'bg-slate-50', 'opacity-70');
+        lblInsulin?.classList.add('border-slate-200', 'bg-slate-50', 'opacity-70');
+        lblInsulin?.classList.remove('border-emerald-500', 'bg-emerald-50/70');
       }
+    });
+  });
+
+  // Connexion au profil existant
+  formProfileLogin?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('inpLoginUsername').value.trim();
+    const password = document.getElementById('inpLoginPassword').value;
+    if (!username || !password) return;
+
+    try {
+      const profile = await ProfileService.login(username, password);
+      // Charger réglages et historique du profil
+      if (profile.settings) {
+        state.settings = { ...state.settings, ...profile.settings };
+      }
+      if (Array.isArray(profile.history)) {
+        state.history = profile.history;
+      }
+      if (profile.mode) {
+        state.settings.userMode = profile.mode;
+        UIRenderer.renderUserMode(profile.mode);
+      }
+      StorageService.save('glucoscan_settings_v3', state.settings);
+      StorageService.save('glucoscan_history_v3', state.history);
+
+      updateAuthUI();
+      updateUI();
+      document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
+      document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
+      showToast(`👋 Bonjour ${profile.username} !`);
     } catch (err) {
-      console.error('Supabase signup error:', err);
-      showToast(err?.message || 'Erreur lors de la création du compte');
+      showToast(err.message || 'Erreur lors de la connexion');
     }
   });
 
-  document.getElementById('btnSyncLocalHistory')?.addEventListener('click', async () => {
-    if (!SupabaseService.isAuthenticated()) {
-      showToast('Connectez-vous d’abord pour envoyer vos repas sur Supabase');
+  // Création d'un nouveau profil (sans email)
+  formProfileRegister?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('inpRegUsername').value.trim();
+    const password = document.getElementById('inpRegPassword').value;
+    const mode = document.querySelector('input[name="radRegUserMode"]:checked')?.value || 'insulin';
+
+    if (!username || !password) return;
+
+    try {
+      const profile = await ProfileService.register(username, password, mode, state.settings, state.history);
+      state.settings.userMode = mode;
+      UIRenderer.renderUserMode(mode);
+      StorageService.save('glucoscan_settings_v3', state.settings);
+
+      updateAuthUI();
+      updateUI();
+      document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
+      document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
+      showToast(`🎉 Profil créé avec succès ! Bienvenue ${profile.username}.`);
+    } catch (err) {
+      showToast(err.message || 'Erreur lors de la création du profil');
+    }
+  });
+
+  // Sauvegarde / Synchronisation Cloud
+  document.getElementById('btnSyncProfileData')?.addEventListener('click', async () => {
+    const activeProfile = ProfileService.getActiveProfile();
+    if (!activeProfile) {
+      showToast('Connectez-vous d’abord à un profil');
       return;
     }
-    const res = await SupabaseService.syncLocalHistoryToCloud(state.history);
-    showToast(`☁️ ${res.synced} repas synchronisé(s) vers Supabase !`);
+    // Sauvegarder dans le profil local
+    ProfileService.saveProfileData(state.settings, state.history);
+
+    // Tenter également la synchro Supabase si disponible
+    try {
+      if (SupabaseService.isConfigured()) {
+        const res = await SupabaseService.syncLocalHistoryToCloud(state.history);
+        if (res?.synced > 0) {
+          showToast(`☁️ ${res.synced} repas sauvegardés dans le Cloud Supabase !`);
+          return;
+        }
+      }
+    } catch (_) {}
+
+    showToast(`✅ Vos ${state.history.length} repas sont sauvegardés en sécurité dans votre profil !`);
   });
 
-  document.getElementById('btnSignOutAuth')?.addEventListener('click', async () => {
-    await SupabaseService.signOut();
+  // Déconnexion / Changer de profil
+  document.getElementById('btnLogoutProfile')?.addEventListener('click', () => {
+    ProfileService.logout();
     updateAuthUI();
-    showToast('Déconnecté. Mode invité réactivé.');
+    showToast('Déconnecté. Vous êtes maintenant en mode invité.');
   });
 
   // Événements de l'onglet Mon 18/6 (Jeûne Intermittent 10h & 15h)
@@ -1289,6 +1325,7 @@ function bindEvents() {
     });
     state.history = state.history.slice(0, 150);
     StorageService.save('glucoscan_history_v3', state.history);
+    ProfileService.saveProfileData(state.settings, state.history);
     updateUI();
     showToast('Repas comptabilisé dans la synthèse du jour !');
   });
@@ -1303,6 +1340,7 @@ function bindEvents() {
     });
     const removedCount = countBefore - state.history.length;
     StorageService.save('glucoscan_history_v3', state.history);
+    ProfileService.saveProfileData(state.settings, state.history);
     updateUI();
     showToast(removedCount > 0 ? `Réinitialisé (${removedCount} repas retiré(s))` : 'Aucun repas à réinitialiser aujourd’hui');
   });
@@ -1345,6 +1383,7 @@ function bindEvents() {
     const enteredKey = document.getElementById('inpGeminiKey').value.trim();
     state.settings.geminiKey = enteredKey.length > 20 ? enteredKey : EMBEDDED_API_KEY;
     StorageService.save('glucoscan_settings_v3', state.settings);
+    ProfileService.saveProfileData(state.settings, state.history);
     updateUI();
     showToast('Paramètres & Objectifs enregistrés');
   });
