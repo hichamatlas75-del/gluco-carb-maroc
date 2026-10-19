@@ -1,11 +1,11 @@
-import { FoodRepository } from './data/foods.js?v=10';
-import { StorageService } from './services/storage.js?v=10';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=10';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=10';
-import { UIRenderer, showToast } from './ui/renderer.js?v=10';
+import { FoodRepository } from './data/foods.js?v=11';
+import { StorageService } from './services/storage.js?v=11';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=11';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=11';
+import { UIRenderer, showToast } from './ui/renderer.js?v=11';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v10 - Guide Nutrition & Besoins Journaliers Adultes)
+ * Contrôleur principal GlucoScan Maroc (v11 - Protocole Jeûne Intermittent 18/6 Personnalisé 10h & 15h)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
@@ -182,7 +182,6 @@ function updateDailyCarbCalculator() {
   const weight = Math.min(180, Math.max(35, parseFloat(weightEl.value) || 72));
   const profile = profileEl.value;
 
-  // Grammes de glucides nets par kg de poids corporel selon le profil adulte
   let factorPerKg = 2.1; // Diabète / Équilibre glycémique (~130-175g/j)
   if (profile === 'standard') factorPerKg = 3.0; // Adulte actif standard (~180-250g/j)
   if (profile === 'lowcarb') factorPerKg = 1.3;  // Low-Carb modéré (~85-120g/j)
@@ -198,36 +197,201 @@ function updateDailyCarbCalculator() {
   document.getElementById('guideOutEvening').textContent = `~${evening}g`;
 }
 
+/**
+ * Met à jour l'horloge métabolique 18/6 (10h00 - 16h00 alimentation, 16h00 - 10h00 jeûne)
+ * ainsi que le calcul en direct des glucides et protéines des 2 repas (10h et 15h).
+ */
+function updateFasting186View() {
+  const now = new Date();
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const timeStr = `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}`;
+
+  const timeEl = document.getElementById('fastingCurrentTime');
+  if (timeEl) timeEl.textContent = timeStr;
+
+  const totalMinutesNow = h * 60 + m;
+  const startEatMin = 10 * 60; // 10h00
+  const endEatMin = 16 * 60;   // 16h00
+
+  const cardEl = document.getElementById('fastingStatusCard');
+  const badgeEl = document.getElementById('fastingPhaseBadge');
+  const countEl = document.getElementById('fastingCountdown');
+  const titleEl = document.getElementById('fastingPhaseTitle');
+  const descEl = document.getElementById('fastingPhaseDesc');
+  const barEl = document.getElementById('fastingProgressBar');
+
+  if (cardEl && badgeEl && countEl && titleEl && descEl && barEl) {
+    if (totalMinutesNow >= startEatMin && totalMinutesNow < endEatMin) {
+      // Dans la fenêtre d'alimentation 6h (10h00 -> 16h00)
+      const elapsedEat = totalMinutesNow - startEatMin;
+      const remainEat = endEatMin - totalMinutesNow;
+      const remH = Math.floor(remainEat / 60);
+      const remM = remainEat % 60;
+      const pct = Math.min(100, Math.max(5, Math.round((elapsedEat / 360) * 100)));
+
+      cardEl.className = 'bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-2.5 transition-all';
+      badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-600 text-white';
+      badgeEl.textContent = 'Fenêtre Repas Active (6h)';
+      countEl.className = 'text-xs font-extrabold text-emerald-900 tabular-nums';
+      countEl.textContent = `Reste ${remH}h${String(remM).padStart(2, '0')} avant jeûne`;
+      titleEl.className = 'text-xs font-extrabold text-emerald-950';
+      titleEl.textContent = h < 13
+        ? 'Créneau Repas n°1 (10h00) : 2 Œufs + Pain Céréales + Jben & Huile d’Olive'
+        : 'Créneau Repas n°2 (15h00) : Protéine au choix + Morceau de Khobz';
+      descEl.className = 'text-[11px] text-emerald-800 mt-0.5 leading-relaxed';
+      descEl.textContent = 'Fenêtre nutritionnelle ouverte de 10h00 à 16h00. Fermeture métabolique à 16h00.';
+      barEl.className = 'h-full bg-emerald-500 rounded-full transition-all duration-500';
+      barEl.style.width = `${pct}%`;
+    } else {
+      // Dans la fenêtre de jeûne 18h (16h00 -> 10h00 le lendemain)
+      const elapsedFast = totalMinutesNow >= endEatMin
+        ? (totalMinutesNow - endEatMin)
+        : (24 * 60 - endEatMin + totalMinutesNow);
+      const remainFast = 18 * 60 - elapsedFast;
+      const remH = Math.floor(remainFast / 60);
+      const remM = remainFast % 60;
+      const elapsedH = Math.floor(elapsedFast / 60);
+      const pct = Math.min(100, Math.max(5, Math.round((elapsedFast / (18 * 60)) * 100)));
+
+      cardEl.className = 'bg-indigo-50 border border-indigo-200 rounded-xl p-3 mb-2.5 transition-all';
+      badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-600 text-white';
+      badgeEl.textContent = `En Jeûne Actif (${elapsedH}h / 18h)`;
+      countEl.className = 'text-xs font-extrabold text-indigo-900 tabular-nums';
+      countEl.textContent = `Prochain repas (10h) dans ${remH}h${String(remM).padStart(2, '0')}`;
+      titleEl.className = 'text-xs font-extrabold text-indigo-950';
+      titleEl.textContent = elapsedH >= 12
+        ? 'Phase Cétose & Autophagie Maximale (>12h de jeûne)'
+        : 'Phase Repos Pancréatique & Baisse de l’Insuline';
+      descEl.className = 'text-[11px] text-indigo-800 mt-0.5 leading-relaxed';
+      descEl.textContent = 'Hydratation autorisée sans glucides : eau, thé ou café sans sucre, tisane.';
+      barEl.className = 'h-full bg-indigo-600 rounded-full transition-all duration-500';
+      barEl.style.width = `${pct}%`;
+    }
+  }
+
+  // Calcul dynamique du Repas n°2 (15h00) et du Bilan Total Journalier
+  const protSel = document.getElementById('fastingSelectProtein15h');
+  const breadSel = document.getElementById('fastingSelectBread15h');
+  const breadGramsInp = document.getElementById('fastingInputBreadGrams');
+  if (!protSel || !breadSel || !breadGramsInp) return;
+
+  const protKey = protSel.value;
+  const breadId = breadSel.value;
+  const breadGrams = Math.min(250, Math.max(0, parseFloat(breadGramsInp.value) || 70));
+
+  const breadFood = FoodRepository.getFoodById(breadId);
+  const breadNetPer100 = breadFood ? Math.max(0, breadFood.carbsPer100g - breadFood.fiberPer100g) : 34.5;
+  const breadCarbs = (breadNetPer100 * breadGrams) / 100;
+  const saladCarbs = 3.1; // 140g salade marocaine
+  const keftaCarbs = protKey === 'kefta' ? 1.4 : 0;
+  const meal15hCarbs = Math.round((breadCarbs + saladCarbs + keftaCarbs) * 10) / 10;
+
+  let meal15hProtein = 52; // Poulet 200g (~54g) + pain (~6g)
+  if (protKey === 'sardine') meal15hProtein = 48;
+  if (protKey === 'kefta') meal15hProtein = 44;
+
+  const meal10hCarbs = 24.9; // 65g pain céréales (22g) + 2 oeufs (0.8g) + jben/huile (2.1g)
+  const meal10hProtein = 30; // 2 oeufs (15g) + pain céréales (6g) + jben (9g)
+
+  const totalDayCarbs = Math.round((meal10hCarbs + meal15hCarbs) * 10) / 10;
+  const totalDayProtein = meal10hProtein + meal15hProtein + Math.round(breadGrams * 0.085);
+
+  const out15h = document.getElementById('fastingOut15hCarbs');
+  if (out15h) out15h.textContent = `${meal15hCarbs.toFixed(1)} g nets`;
+
+  const outTotalCarbs = document.getElementById('fastingTotalDayCarbs');
+  if (outTotalCarbs) outTotalCarbs.textContent = `${totalDayCarbs.toFixed(1)} g nets`;
+
+  const outTotalProt = document.getElementById('fastingTotalDayProtein');
+  if (outTotalProt) outTotalProt.textContent = `~${totalDayProtein} g`;
+}
+
+function switchToTab(target) {
+  ['scanner', 'fasting', 'history', 'guide', 'settings'].forEach(v => {
+    const el = document.getElementById(`view-${v}`);
+    if (el) el.classList.toggle('hidden', v !== target);
+  });
+  document.querySelectorAll('.nav-tab').forEach(b => {
+    const active = b.getAttribute('data-view') === target;
+    b.classList.toggle('text-emerald-600', active);
+    b.classList.toggle('text-slate-400', !active);
+  });
+  if (target === 'fasting') {
+    updateFasting186View();
+    if (window.lucide) window.lucide.createIcons();
+  }
+  if (target === 'history') {
+    UIRenderer.renderHistoryView(state.history);
+  }
+  if (target === 'guide') {
+    updateDailyCarbCalculator();
+    if (window.lucide) window.lucide.createIcons();
+  }
+  if (target === 'settings') {
+    document.getElementById('inpRatioMorning').value = state.settings.ratioMorning;
+    document.getElementById('inpRatioNoon').value = state.settings.ratioNoon;
+    document.getElementById('inpRatioEvening').value = state.settings.ratioEvening;
+    document.getElementById('inpISF').value = state.settings.isf;
+    document.getElementById('inpTargetBG').value = state.settings.targetBG;
+    document.getElementById('inpGeminiKey').value = state.settings.geminiKey || '';
+  }
+}
+
 function bindEvents() {
-  // Navigation entre les 4 onglets (Scanner, Journal 7j, Guide & Besoins, Paramètres)
+  // Navigation entre les 5 onglets (Scanner, Mon 18/6, Journal 7j, Guide, Paramètres)
   document.querySelectorAll('.nav-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      const target = btn.getAttribute('data-view');
-      ['scanner', 'history', 'guide', 'settings'].forEach(v => {
-        const el = document.getElementById(`view-${v}`);
-        if (el) el.classList.toggle('hidden', v !== target);
-      });
-      document.querySelectorAll('.nav-tab').forEach(b => {
-        const active = b.getAttribute('data-view') === target;
-        b.classList.toggle('text-emerald-600', active);
-        b.classList.toggle('text-slate-400', !active);
-      });
-      if (target === 'history') {
-        UIRenderer.renderHistoryView(state.history);
-      }
-      if (target === 'guide') {
-        updateDailyCarbCalculator();
-        if (window.lucide) window.lucide.createIcons();
-      }
-      if (target === 'settings') {
-        document.getElementById('inpRatioMorning').value = state.settings.ratioMorning;
-        document.getElementById('inpRatioNoon').value = state.settings.ratioNoon;
-        document.getElementById('inpRatioEvening').value = state.settings.ratioEvening;
-        document.getElementById('inpISF').value = state.settings.isf;
-        document.getElementById('inpTargetBG').value = state.settings.targetBG;
-        document.getElementById('inpGeminiKey').value = state.settings.geminiKey || '';
-      }
+      switchToTab(btn.getAttribute('data-view'));
     });
+  });
+
+  // Événements de l'onglet Mon 18/6 (Jeûne Intermittent 10h & 15h)
+  document.getElementById('fastingSelectProtein15h')?.addEventListener('change', updateFasting186View);
+  document.getElementById('fastingSelectBread15h')?.addEventListener('change', updateFasting186View);
+  document.getElementById('fastingInputBreadGrams')?.addEventListener('input', updateFasting186View);
+
+  document.getElementById('btnLoadMeal10h')?.addEventListener('click', () => {
+    state.activeSlot = 'morning';
+    loadPresetPlate('jeune_10h', true);
+    switchToTab('scanner');
+    showToast('Repas 10h00 (2 œufs, pain céréales, jben & huile d’olive) chargé !');
+  });
+
+  document.getElementById('btnLoadMeal15h')?.addEventListener('click', () => {
+    state.activeSlot = 'noon';
+    const protKey = document.getElementById('fastingSelectProtein15h')?.value || 'poulet';
+    const breadId = document.getElementById('fastingSelectBread15h')?.value || 'khobz-complet';
+    const breadGrams = Math.min(250, Math.max(5, parseInt(document.getElementById('fastingInputBreadGrams')?.value, 10) || 70));
+
+    let protFoodId = 'poulet-grille';
+    let protGrams = 200;
+    let titleLabel = 'Repas 15h00 (Poulet + Khobz)';
+    if (protKey === 'sardine') {
+      protFoodId = 'sardines-grillees';
+      protGrams = 200;
+      titleLabel = 'Repas 15h00 (Sardines + Khobz)';
+    } else if (protKey === 'kefta') {
+      protFoodId = 'kefta-grillee';
+      protGrams = 180;
+      titleLabel = 'Repas 15h00 (Viande Hachée + Khobz)';
+    }
+
+    const img = document.getElementById('plateImage');
+    img.src = VisionAnalyzer.createDemoPlateIllustration(titleLabel);
+    img.classList.remove('hidden');
+    document.getElementById('emptyCameraState').classList.add('hidden');
+    document.getElementById('btnClearPhoto').classList.remove('hidden');
+
+    state.items = [
+      { foodId: protFoodId, grams: protGrams, x: 42, y: 46 },
+      { foodId: 'salade-marocaine', grams: 140, x: 72, y: 40 },
+      { foodId: breadId, grams: breadGrams, x: 25, y: 74 }
+    ];
+    StorageService.save('glucoscan_items_v3', state.items);
+    updateUI();
+    switchToTab('scanner');
+    showToast(`${titleLabel} chargé dans le calculateur !`);
   });
 
   // Simulateur de besoin journalier en glucides dans l'onglet Guide
@@ -470,4 +634,6 @@ function bindEvents() {
 document.addEventListener('DOMContentLoaded', () => {
   bindEvents();
   updateUI();
+  updateFasting186View();
+  setInterval(updateFasting186View, 30000);
 });

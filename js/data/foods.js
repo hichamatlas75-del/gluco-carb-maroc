@@ -15,6 +15,7 @@ export const MOROCCAN_FOODS = [
   { id: 'croissant-petit-pain', name: 'Croissant / Petit Pain au Chocolat (Krwasan)', darija: 'Krwasan / كرواصة أو بتي بان', category: 'patisseries', carbs100g: 46.0, fiber100g: 2.3, gi: 70, defaultGrams: 65, refPortion: '1 viennoiserie (~65g)' },
 
   // --- PAINS & GALETTES ---
+  { id: 'pain-cereales', name: 'Pain aux Céréales & Graines', darija: 'Khobz zرارع / خبز الزرارع والحبوب', category: 'pains', carbs100g: 42.0, fiber100g: 8.2, gi: 48, defaultGrams: 65, refPortion: 'Morceau (~65g)' },
   { id: 'khobz-blanc', name: 'Khobz de boulangerie (Pain blanc)', darija: 'Khobz souk / خبز عادي', category: 'pains', carbs100g: 52.0, fiber100g: 2.8, gi: 75, defaultGrams: 80, refPortion: '1/3 pain (~80g)' },
   { id: 'khobz-complet', name: 'Khobz Dar Complet (Blé entier)', darija: 'Khobz zraa / خبز القمح', category: 'pains', carbs100g: 43.0, fiber100g: 7.5, gi: 52, defaultGrams: 80, refPortion: '1/3 pain complet (~80g)' },
   { id: 'khobz-ch3ir', name: 'Pain d’Orge (Khobz Ch3ir)', darija: 'Khobz ch3ir / خبز الشعير', category: 'pains', carbs100g: 41.0, fiber100g: 8.5, gi: 46, defaultGrams: 80, refPortion: '1 part (~80g)' },
@@ -25,7 +26,12 @@ export const MOROCCAN_FOODS = [
   { id: 'baghrir', name: 'Baghrir (Crêpe mille trous)', darija: 'Baghrir / البغرير', category: 'pains', carbs100g: 43.0, fiber100g: 1.8, gi: 72, defaultGrams: 65, refPortion: '1 Baghrir (~65g)' },
   { id: 'krachel', name: 'Krachel / Qors (Brioche anis)', darija: 'Krachel / القراشل', category: 'pains', carbs100g: 54.0, fiber100g: 2.4, gi: 74, defaultGrams: 70, refPortion: '1 pièce (~70g)' },
 
-  // --- PLATS, TAJINES & SNACKS ---
+  // --- PROTÉINES, PLATS & TAJINES ---
+  { id: 'oeufs-plat', name: '2 Œufs (Au plat / Omelette / Dur)', darija: '2 Baid / جوج بيضات', category: 'plats', carbs100g: 1.1, fiber100g: 0.0, gi: 0, defaultGrams: 120, refPortion: '2 œufs (~120g)' },
+  { id: 'jben-huile-olive', name: 'Jben Beldi & Huile d’Olive Vierge', darija: 'Jben + Zit Zitoun / جبن بلدي وزيت العود', category: 'plats', carbs100g: 2.5, fiber100g: 0.0, gi: 15, defaultGrams: 65, refPortion: 'Portion Jben + Huile (~65g)' },
+  { id: 'poulet-grille', name: 'Poulet Grillé / Rôti / Mhamer', darija: 'Djaj mchwi / دجاج مشوي أو محمر', category: 'plats', carbs100g: 1.2, fiber100g: 0.0, gi: 0, defaultGrams: 200, refPortion: 'Filet / Cuisse (~200g)' },
+  { id: 'sardines-grillees', name: 'Sardines Grillées / Au Four (Chouwaya)', darija: 'Serdine mchwi / سردين مشوي أو في الفران', category: 'plats', carbs100g: 0.8, fiber100g: 0.0, gi: 0, defaultGrams: 200, refPortion: 'Portion (~200g)' },
+  { id: 'kefta-grillee', name: 'Viande Hachée (Kefta Grillée / Tajine)', darija: 'Kefta mchwiya / كفتة مشوية', category: 'plats', carbs100g: 1.8, fiber100g: 0.3, gi: 10, defaultGrams: 180, refPortion: 'Portion (~180g)' },
   { id: 'couscous-semoule', name: 'Semoule de Couscous cuite', darija: 'Smida kusksu / الكسكس', category: 'plats', carbs100g: 23.2, fiber100g: 2.2, gi: 65, defaultGrams: 200, refPortion: 'Semoule (~200g)' },
   { id: 'couscous-belboula', name: 'Couscous Belboula d’Orge', darija: 'Belboula / بلبولة الشعير', category: 'plats', carbs100g: 18.0, fiber100g: 4.6, gi: 47, defaultGrams: 200, refPortion: 'Belboula (~200g)' },
   { id: 'legumes-couscous', name: 'Légumes de Couscous & Bouillon', darija: 'Khodra / خضر الكسكس', category: 'plats', carbs100g: 7.5, fiber100g: 2.8, gi: 45, defaultGrams: 160, refPortion: 'Louche légumes (~160g)' },
@@ -41,7 +47,6 @@ export const MOROCCAN_FOODS = [
   { id: 'zaalouk', name: 'Zaalouk d’Aubergines', darija: 'Zaalouk / زعلوك', category: 'plats', carbs100g: 5.5, fiber100g: 2.8, gi: 25, defaultGrams: 120, refPortion: 'Coupelle (~120g)' },
   { id: 'taktouka', name: 'Taktouka Poivrons & Tomates', darija: 'Taktouka / التكتوكة', category: 'plats', carbs100g: 5.0, fiber100g: 1.9, gi: 25, defaultGrams: 120, refPortion: 'Coupelle (~120g)' },
   { id: 'salade-marocaine', name: 'Salade Marocaine (Tomates, Oignons, Concombre)', darija: 'Chlada / شلاظة مغربية', category: 'plats', carbs100g: 4.2, fiber100g: 1.5, gi: 20, defaultGrams: 150, refPortion: 'Assiette (~150g)' },
-  { id: 'oeufs-plat', name: 'Œufs au Plat / Omelette / Khli3', darija: 'Baid / البيض مقلي أو أومليط', category: 'plats', carbs100g: 1.1, fiber100g: 0.0, gi: 0, defaultGrams: 120, refPortion: '2 œufs (~120g)' },
   { id: 'briouate-salee', name: 'Briouates salées (Kefta/Fromage)', darija: 'Briouates / بريوات مالحين', category: 'plats', carbs100g: 24.0, fiber100g: 1.4, gi: 62, defaultGrams: 80, refPortion: '2 pièces (~80g)' },
   { id: 'tacos-marocain', name: 'Tacos Marocain / Panini Frites', darija: 'Tacos / طاكوس', category: 'plats', carbs100g: 31.0, fiber100g: 2.2, gi: 72, defaultGrams: 300, refPortion: '1 Tacos (~300g)' },
   { id: 'pizza-part', name: 'Pizza (Part moyenne)', darija: 'Pizza / بيتزا', category: 'plats', carbs100g: 33.0, fiber100g: 2.0, gi: 70, defaultGrams: 130, refPortion: '1 part (~130g)' },
@@ -72,17 +77,42 @@ export const MOROCCAN_FOODS = [
 ];
 
 export const PRESET_PLATES = {
+  jeune_10h: {
+    title: '🍳 Repas 10h (18/6) : 2 Œufs, Pain Céréales, Jben & Huile d’Olive',
+    items: [
+      { foodId: 'oeufs-plat', grams: 120, x: 35, y: 45 },
+      { foodId: 'pain-cereales', grams: 65, x: 68, y: 55 },
+      { foodId: 'jben-huile-olive', grams: 65, x: 45, y: 72 }
+    ]
+  },
+  jeune_15h_poulet: {
+    title: '🍗 Repas 15h (18/6) : Poulet Grillé, Salade & Morceau de Khobz',
+    items: [
+      { foodId: 'poulet-grille', grams: 200, x: 42, y: 45 },
+      { foodId: 'salade-marocaine', grams: 140, x: 66, y: 38 },
+      { foodId: 'khobz-complet', grams: 70, x: 28, y: 72 }
+    ]
+  },
+  jeune_15h_sardine: {
+    title: '🐟 Repas 15h (18/6) : Sardines Grillées, Salade & Morceau de Khobz',
+    items: [
+      { foodId: 'sardines-grillees', grams: 200, x: 42, y: 45 },
+      { foodId: 'salade-marocaine', grams: 140, x: 66, y: 38 },
+      { foodId: 'khobz-complet', grams: 70, x: 28, y: 72 }
+    ]
+  },
+  jeune_15h_kefta: {
+    title: '🥩 Repas 15h (18/6) : Viande Hachée (Kefta), Salade & Morceau de Khobz',
+    items: [
+      { foodId: 'kefta-grillee', grams: 180, x: 42, y: 45 },
+      { foodId: 'salade-marocaine', grams: 140, x: 66, y: 38 },
+      { foodId: 'khobz-complet', grams: 70, x: 28, y: 72 }
+    ]
+  },
   san_sebastian: {
     title: '🍰 Gâteau Cheesecake San Sebastian (1 part)',
     items: [
       { foodId: 'cheesecake-san-sebastian', grams: 135, x: 50, y: 50 }
-    ]
-  },
-  patisserie_cafe: {
-    title: '🥐 Mille-feuille / Pâtisserie & Verre d’Atay',
-    items: [
-      { foodId: 'mille-feuille', grams: 110, x: 45, y: 55 },
-      { foodId: 'atay-mesouss', grams: 150, x: 75, y: 30 }
     ]
   },
   tajine_khobz: {
@@ -116,13 +146,6 @@ export const PRESET_PLATES = {
       { foodId: 'harira', grams: 300, x: 36, y: 52 },
       { foodId: 'chebakia', grams: 35, x: 72, y: 62 },
       { foodId: 'datte-majhoul', grams: 24, x: 68, y: 30 }
-    ]
-  },
-  loubia_complet: {
-    title: '🫘 Assiette de Loubia & Pain d’Orge (Khobz Ch3ir)',
-    items: [
-      { foodId: 'loubia', grams: 260, x: 48, y: 50 },
-      { foodId: 'khobz-ch3ir', grams: 80, x: 25, y: 70 }
     ]
   }
 };

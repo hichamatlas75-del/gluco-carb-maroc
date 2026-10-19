@@ -1,5 +1,5 @@
-import { FoodRepository } from '../data/foods.js?v=10';
-import { MetabolicEngine } from '../services/metabolicEngine.js?v=10';
+import { FoodRepository } from '../data/foods.js?v=11';
+import { MetabolicEngine } from '../services/metabolicEngine.js?v=11';
 
 /**
  * Fonctions de rendu DOM et protection XSS

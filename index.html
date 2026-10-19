@@ -34,7 +34,7 @@
   </script>
 
   <!-- Feuille de style personnalisée -->
-  <link rel="stylesheet" href="./css/styles.css?v=10" />
+  <link rel="stylesheet" href="./css/styles.css?v=11" />
 
   <!-- Icônes Lucide CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -635,6 +635,183 @@
 
       </section>
 
+      <!-- ========================================== -->
+      <!-- VUE 5 : MON PROTOCOLE JEÛNE 18/6 (10H & 15H) -->
+      <!-- ========================================== -->
+      <section id="view-fasting" class="space-y-3.5 hidden">
+
+        <!-- CARTE 1 : HORLOGE MÉTABOLIQUE 18/6 EN TEMPS RÉEL -->
+        <div class="surface-card rounded-3xl p-4 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                <i data-lucide="timer" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h2 class="text-sm font-extrabold text-slate-900">Mon Protocole Jeûne 18/6</h2>
+                <p class="text-[11px] text-slate-500">2 Repas/jour : <strong>10h00</strong> (Ftour) &amp; <strong>15h00</strong> (Déjeuner)</p>
+              </div>
+            </div>
+            <span id="fastingCurrentTime" class="text-xs font-mono font-extrabold px-2.5 py-1 rounded-xl bg-slate-100 text-slate-800">12:00</span>
+          </div>
+
+          <!-- État en direct du cycle 18h Jeûne / 6h Repas -->
+          <div id="fastingStatusCard" class="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
+            <div class="flex items-center justify-between">
+              <span id="fastingPhaseBadge" class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-600 text-white">
+                Phase Active
+              </span>
+              <span id="fastingCountdown" class="text-xs font-mono font-extrabold text-emerald-900">Prochain repère</span>
+            </div>
+            <h3 id="fastingPhaseTitle" class="text-sm font-extrabold text-slate-900">Fenêtre d'alimentation (10h00 – 16h00)</h3>
+            <p id="fastingPhaseDesc" class="text-[11px] text-slate-600 leading-relaxed">
+              Vos 2 repas sont concentrés sur 6h en pleine journée, suivi de 18h de repos digestif et métabolique.
+            </p>
+            <div class="w-full h-2 bg-white rounded-full overflow-hidden border border-emerald-200">
+              <div id="fastingProgressBar" class="h-full bg-emerald-600 transition-all duration-500" style="width: 50%"></div>
+            </div>
+          </div>
+
+          <!-- Bilan Quotidien Cumulé (Repas 10h + Repas 15h) -->
+          <div class="grid grid-cols-3 gap-2 text-center">
+            <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+              <span class="text-[10px] font-bold text-slate-400 block">Total Jour (2 repas)</span>
+              <span id="fastingTotalDayCarbs" class="text-base font-extrabold font-mono text-emerald-700">53.5g</span>
+              <span class="text-[10px] text-slate-500 block">glucides nets</span>
+            </div>
+            <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+              <span class="text-[10px] font-bold text-slate-400 block">Protéines Jour</span>
+              <span id="fastingTotalDayProtein" class="text-base font-extrabold font-mono text-slate-900">~68g</span>
+              <span class="text-[10px] text-slate-500 block">haute satiété</span>
+            </div>
+            <div class="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200">
+              <span class="text-[10px] font-bold text-emerald-700 block">Verdict 24h</span>
+              <span class="text-xs font-extrabold text-emerald-800 block mt-0.5">🟢 Optimal</span>
+              <span class="text-[10px] text-emerald-700 block">Glycémie plate</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARTE 2 : REPAS 1 À 10H00 (2 ŒUFS + PAIN CÉRÉALES + JBEN + HUILE D'OLIVE) -->
+        <div class="surface-card rounded-3xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-1 rounded-xl bg-amber-100 text-amber-900 font-mono font-extrabold text-xs">10h00</span>
+              <div>
+                <h3 class="text-xs font-extrabold text-slate-900">1er Repas — Rupture du Jeûne</h3>
+                <p class="text-[10px] text-slate-500">Protéines + Lipides nobles + Glucides complexes</p>
+              </div>
+            </div>
+            <span class="text-sm font-mono font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">24.9g nets</span>
+          </div>
+
+          <div class="space-y-1.5 text-xs">
+            <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+              <div>
+                <span class="font-bold text-slate-900">🥚 2 Œufs (au plat / omelette)</span>
+                <span class="block text-[10px] text-slate-500">~120g • 15g protéines • IG 0</span>
+              </div>
+              <span class="font-mono font-bold text-slate-700">1.3g nets</span>
+            </div>
+
+            <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+              <div>
+                <span class="font-bold text-slate-900">🌾 Pain aux Céréales &amp; Graines</span>
+                <span class="block text-[10px] text-slate-500">Morceau ~65g • 5.3g fibres • IG Bas (48)</span>
+              </div>
+              <span class="font-mono font-bold text-emerald-700">22.0g nets</span>
+            </div>
+
+            <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+              <div>
+                <span class="font-bold text-slate-900">🧀 Jben Beldi + Huile d'Olive Vierge</span>
+                <span class="block text-[10px] text-slate-500">~50g Jben + 15ml Huile d'olive • Freine le pic</span>
+              </div>
+              <span class="font-mono font-bold text-slate-700">1.6g nets</span>
+            </div>
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-[11px] text-emerald-900 leading-relaxed">
+            <strong>Pourquoi ce repas à 10h est idéal :</strong> L'huile d'olive, le Jben et les 2 œufs ralentissent la vidange de l'estomac. Les 22g de glucides du pain aux céréales passent lentement dans le sang sans provoquer de pic glycémique ni de fringale à midi.
+          </div>
+
+          <button type="button" id="btnLoadMeal10h" class="w-full py-2.5 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs">
+            <i data-lucide="check-circle" class="w-4 h-4"></i>
+            Charger mon Repas de 10h dans le Calculateur
+          </button>
+        </div>
+
+        <!-- CARTE 3 : REPAS 2 VERS 15H00 (POULET / SARDINES / KEFTA + MORCEAU DE KHOBZ) -->
+        <div class="surface-card rounded-3xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-1 rounded-xl bg-cyan-100 text-cyan-900 font-mono font-extrabold text-xs">15h00</span>
+              <div>
+                <h3 class="text-xs font-extrabold text-slate-900">2e &amp; Dernier Repas avant Jeûne</h3>
+                <p class="text-[10px] text-slate-500">Protéine au choix + Légumes + Morceau de Khobz</p>
+              </div>
+            </div>
+            <span id="fastingOut15hCarbs" class="text-sm font-mono font-extrabold text-cyan-800 bg-cyan-50 px-2.5 py-1 rounded-xl border border-cyan-200">28.6g nets</span>
+          </div>
+
+          <!-- Choix de la protéine de 15h -->
+          <div class="space-y-2">
+            <label for="fastingSelectProtein15h" class="text-[11px] font-extrabold text-slate-700 block">1. Choisissez votre plat protidique de 15h :</label>
+            <select id="fastingSelectProtein15h" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none">
+              <option value="poulet" selected>🍗 Poulet Grillé / Rôti / Tajine (~200g) + Salade</option>
+              <option value="sardine">🐟 Sardines Grillées / Au Four (~200g, Oméga-3) + Salade</option>
+              <option value="kefta">🥩 Viande Hachée Kefta (~180g) + Salade</option>
+            </select>
+          </div>
+
+          <!-- Choix du morceau de Khobz de 15h -->
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label for="fastingSelectBread15h" class="text-[11px] font-extrabold text-slate-700 block mb-1">2. Type de Khobz :</label>
+              <select id="fastingSelectBread15h" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900">
+                <option value="khobz-complet" selected>🌾 Khobz Complet / Céréales</option>
+                <option value="khobz-ch3ir">🌿 Khobz d'Orge (Ch3ir)</option>
+                <option value="khobz-blanc">🥖 Khobz Blanc classique</option>
+              </select>
+            </div>
+            <div>
+              <label for="fastingInputBreadGrams" class="text-[11px] font-extrabold text-slate-700 block mb-1">Poids du morceau (g) :</label>
+              <input id="fastingInputBreadGrams" type="number" min="20" max="200" step="5" value="70"
+                class="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-center font-mono font-extrabold text-xs text-slate-900" />
+            </div>
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-cyan-50/70 border border-cyan-200 text-[11px] text-cyan-950 leading-relaxed">
+            <strong>Pourquoi finir à 15h00 est un atout majeur :</strong> En prenant votre dernier repas (poulet, sardines ou kefta + morceau de khobz) vers 15h, votre corps brûle la totalité du glucose pendant l'après-midi. Vous passez toute la soirée et la nuit avec une <strong>insuline basse</strong>, zéro stockage nocturne et un sommeil profond.
+          </div>
+
+          <button type="button" id="btnLoadMeal15h" class="w-full py-2.5 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs">
+            <i data-lucide="utensils" class="w-4 h-4 text-emerald-400"></i>
+            Charger mon Repas de 15h dans le Calculateur
+          </button>
+        </div>
+
+        <!-- CARTE 4 : ANALYSE MÉDICALE DE VOTRE PROTOCOLE 18/6 -->
+        <div class="surface-card rounded-3xl p-4 space-y-2.5">
+          <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Les 4 Bénéfices de votre rythme 10h / 15h</h3>
+          <div class="space-y-2 text-[11px] text-slate-700 leading-relaxed">
+            <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+              <strong class="text-slate-900 block">🔥 1. Sensibilité maximale à l'insuline (18h de repos)</strong>
+              De 16h00 à 10h00 le lendemain, votre pancréas est au repos complet : la résistance à l'insuline diminue fortement et la glycémie à jeun du matin se stabilise.
+            </div>
+            <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+              <strong class="text-slate-900 block">🐟 2. Synergie Sardines / Poulet / Œufs / Huile d'Olive</strong>
+              Vos deux repas apportent ~65 à 75g de protéines complètes et d'excellents acides gras (Oméga-3 des sardines, Oméga-9 de l'huile d'olive), préservant la masse musculaire pendant le jeûne.
+            </div>
+            <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+              <strong class="text-slate-900 block">💧 3. Conseil entre 16h00 et 10h00</strong>
+              Buvez suffisamment d'eau minérale, d'Atay sans sucre (<em>mesouss</em>) ou de tisane (verveine/camomille sans sucre) le soir pour soutenir l'élimination rénale et éviter toute déshydratation.
+            </div>
+          </div>
+        </div>
+
+      </section>
+
     </main>
 
     <!-- ========================================== -->
@@ -667,22 +844,26 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- NAVIGATION BAS MOBILE (4 ONGLETS)          -->
+    <!-- NAVIGATION BAS MOBILE (5 ONGLETS)          -->
     <!-- ========================================== -->
-    <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-2 flex items-center justify-around">
-      <button type="button" data-view="scanner" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-2xl text-emerald-600">
+    <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-1.5 py-2 flex items-center justify-around">
+      <button type="button" data-view="scanner" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-2 rounded-2xl text-emerald-600">
         <i data-lucide="camera" class="w-5 h-5"></i>
         <span class="text-[10px] font-extrabold">Scanner</span>
       </button>
-      <button type="button" data-view="history" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-2xl text-slate-400">
+      <button type="button" data-view="fasting" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-2 rounded-2xl text-slate-400">
+        <i data-lucide="flame" class="w-5 h-5"></i>
+        <span class="text-[10px] font-bold">Mon 18/6</span>
+      </button>
+      <button type="button" data-view="history" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-2 rounded-2xl text-slate-400">
         <i data-lucide="calendar" class="w-5 h-5"></i>
         <span class="text-[10px] font-bold">Journal 7j</span>
       </button>
-      <button type="button" data-view="guide" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-2xl text-slate-400">
+      <button type="button" data-view="guide" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-2 rounded-2xl text-slate-400">
         <i data-lucide="book-open" class="w-5 h-5"></i>
-        <span class="text-[10px] font-bold">Guide &amp; Besoins</span>
+        <span class="text-[10px] font-bold">Guide</span>
       </button>
-      <button type="button" data-view="settings" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-2xl text-slate-400">
+      <button type="button" data-view="settings" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-2 rounded-2xl text-slate-400">
         <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
         <span class="text-[10px] font-bold">Paramètres</span>
       </button>
@@ -691,6 +872,6 @@
   </div>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=10"></script>
+  <script type="module" src="./js/app.js?v=11"></script>
 </body>
 </html>
