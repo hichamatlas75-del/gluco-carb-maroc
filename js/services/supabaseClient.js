@@ -44,11 +44,20 @@ export const SupabaseService = {
     if (supabaseInstance) return supabaseInstance;
 
     try {
+      const clientOptions = {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          storage: window.localStorage
+        }
+      };
+
       if (window.supabase && window.supabase.createClient) {
-        supabaseInstance = window.supabase.createClient(this.config.url, this.config.anonKey);
+        supabaseInstance = window.supabase.createClient(this.config.url, this.config.anonKey, clientOptions);
       } else {
         const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
-        supabaseInstance = createClient(this.config.url, this.config.anonKey);
+        supabaseInstance = createClient(this.config.url, this.config.anonKey, clientOptions);
       }
 
       // Écouter les changements d'authentification
@@ -101,6 +110,24 @@ export const SupabaseService = {
     });
     if (error) throw error;
     return true;
+  },
+
+  async verifyOtp(email, token) {
+    const client = await this.createClientIfNeeded();
+    if (!client) throw new Error('Supabase non initialisé');
+
+    const { data, error } = await client.auth.verifyOtp({
+      email: email.trim(),
+      token: token.trim(),
+      type: 'email'
+    });
+    if (error) throw error;
+    if (data?.session) {
+      this.currentUser = data.user;
+      this.session = data.session;
+      localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify({ user: data.user, session: data.session }));
+    }
+    return data;
   },
 
   async signInWithOAuth(provider = 'google') {

@@ -584,9 +584,27 @@ function bindEvents() {
     if (!email) return;
     try {
       await SupabaseService.signInWithMagicLink(email);
-      showToast(`Magic Link envoyé à ${email} !`);
+      showToast(`✉️ Email envoyé à ${email} !`);
+      const otpForm = document.getElementById('formVerifyOtp');
+      if (otpForm) otpForm.classList.remove('hidden');
     } catch (_) {
-      showToast('Erreur Supabase : vérifiez l’URL et la clé');
+      showToast('Erreur Supabase : vérifiez l’adresse email');
+    }
+  });
+
+  document.getElementById('formVerifyOtp')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('inpMagicLinkEmail').value.trim();
+    const code = document.getElementById('inpOtpCode').value.trim();
+    if (!email || !code) return;
+    try {
+      await SupabaseService.verifyOtp(email, code);
+      updateAuthUI();
+      document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
+      document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
+      showToast('✅ Connecté avec succès pour toujours !');
+    } catch (_) {
+      showToast('Code invalide ou expiré, vérifiez votre boîte mail');
     }
   });
 

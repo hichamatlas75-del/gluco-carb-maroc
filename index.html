@@ -1379,8 +1379,21 @@
             <input id="inpMagicLinkEmail" type="email" placeholder="votre.email@exemple.com" required
               class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none" />
             <button type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-xs transition-all">
-              Recevoir un Magic Link par Email
+              Recevoir le Magic Link &amp; Code de connexion
             </button>
+          </form>
+
+          <!-- Saisie directe du Code OTP 6 chiffres sans quitter l'app -->
+          <form id="formVerifyOtp" class="hidden space-y-2 pt-2 border-t border-slate-100">
+            <label class="text-[10px] font-extrabold uppercase text-slate-500 block">Code à 6 chiffres reçu par email :</label>
+            <div class="flex items-center gap-2">
+              <input id="inpOtpCode" type="text" inputmode="numeric" maxlength="8" placeholder="123456" required
+                class="flex-1 bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-center font-mono font-extrabold text-sm text-slate-900 focus:outline-none tracking-widest" />
+              <button type="submit" class="py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition-all">
+                Valider
+              </button>
+            </div>
+            <p class="text-[10px] text-slate-400">Vous pouvez aussi cliquer sur le lien dans votre boîte mail.</p>
           </form>
         </div>
 
@@ -1400,6 +1413,6 @@
   </div>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=18"></script>
+  <script type="module" src="./js/app.js?v=19"></script>
 </body>
 </html>
