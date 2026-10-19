@@ -1,11 +1,11 @@
-import { FoodRepository } from './data/foods.js?v=5';
-import { StorageService } from './services/storage.js?v=5';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=5';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=5';
-import { UIRenderer, showToast } from './ui/renderer.js?v=5';
+import { FoodRepository } from './data/foods.js?v=6';
+import { StorageService } from './services/storage.js?v=6';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=6';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=6';
+import { UIRenderer, showToast } from './ui/renderer.js?v=6';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v5 - Gemini 3.5 Flash-Lite + Plan de Secours OpenFoodFacts Maroc)
+ * Contrôleur principal GlucoScan Maroc (v6 - Gemini 3.5 Flash MEDIA_RESOLUTION_LOW + OpenFoodFacts Maroc)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
@@ -32,7 +32,7 @@ const state = {
   settings: {
     ...DEFAULT_SETTINGS,
     ...savedSettings,
-    geminiKey: (savedSettings.geminiKey && savedSettings.geminiKey.trim())
+    geminiKey: (savedSettings.geminiKey && savedSettings.geminiKey.trim().length > 20)
       ? savedSettings.geminiKey.trim()
       : EMBEDDED_API_KEY
   },
@@ -118,14 +118,14 @@ async function handleImageSource(source) {
   empty.classList.add('hidden');
   clearBtn.classList.remove('hidden');
 
-  // Coupe-circuit de sécurité absolu (8.5 secondes max)
+  // Coupe-circuit de sécurité absolu (12 secondes max)
   const watchdog = setTimeout(() => {
     overlay.classList.add('hidden');
-  }, 8500);
+  }, 12000);
 
   try {
-    // 1. Compression immédiate en 384px JPEG (1 seule tuile Vision = 258 tokens, 3x plus rapide)
-    const compressedDataUrl = await VisionAnalyzer.compressImageSource(source, 384, 0.68);
+    // 1. Compression immédiate en 320px JPEG (~14 Ko)
+    const compressedDataUrl = await VisionAnalyzer.compressImageSource(source, 320, 0.65);
     img.src = compressedDataUrl;
     img.classList.remove('hidden');
 
@@ -507,7 +507,8 @@ function bindEvents() {
     state.settings.ratioEvening = Math.max(1, parseFloat(document.getElementById('inpRatioEvening').value) || 10);
     state.settings.isf = Math.max(5, parseFloat(document.getElementById('inpISF').value) || 50);
     state.settings.targetBG = Math.max(70, parseFloat(document.getElementById('inpTargetBG').value) || 100);
-    state.settings.geminiKey = document.getElementById('inpGeminiKey').value.trim();
+    const enteredKey = document.getElementById('inpGeminiKey').value.trim();
+    state.settings.geminiKey = enteredKey.length > 20 ? enteredKey : EMBEDDED_API_KEY;
     StorageService.save('glucoscan_settings_v3', state.settings);
     updateUI();
     showToast('Paramètres enregistrés');

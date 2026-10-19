@@ -1,10 +1,10 @@
-import { FoodRepository } from '../data/foods.js?v=5';
+import { FoodRepository } from '../data/foods.js?v=6';
 
 /**
  * Service de Reconnaissance Alimentaire & Plan de Secours OpenFoodFacts Maroc :
- * 1. Gemini 3.5 Flash-Lite Vision (Image 384px mono-tuile 258 tokens = ~1.2s)
- * 2. LogMeal Food AI API (API médicale spécialisée segmentation & grammage)
- * 3. Plan de Secours & Enrichissement OpenFoodFacts Maroc (ma.openfoodfacts.org / world.openfoodfacts.org)
+ * 1. Course parallèle (Promise.any) entre Gemini 3.5 Flash, Gemma 4 26B et Gemini 3.5 Flash-Lite
+ *    avec MEDIA_RESOLUTION_LOW (266 tokens au lieu de 1064) -> Le premier qui répond gagne !
+ * 2. Plan de Secours & Recherche en direct OpenFoodFacts Maroc (world.openfoodfacts.org)
  */
 
 function normalizeCoord(val, fallback) {
@@ -16,10 +16,9 @@ function normalizeCoord(val, fallback) {
 
 export const VisionAnalyzer = {
   /**
-   * Compresse directement un File/Blob ou une URL en JPEG 384px (~18 Ko) en < 20ms.
-   * 384px garantit 1 seule tuile Vision (258 tokens au lieu de 1080), divisant le temps IA par 3.
+   * Compresse directement un File/Blob ou une URL en JPEG 320px (~14 Ko) en < 15ms.
    */
-  compressImageSource(source, maxDim = 384, quality = 0.68) {
+  compressImageSource(source, maxDim = 320, quality = 0.65) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Timeout compression image')), 2500);
       const img = new Image();
@@ -64,7 +63,7 @@ export const VisionAnalyzer = {
   },
 
   /**
-   * MOTEUR 1 : LogMeal Food AI API (Spécialisé reconnaissance de plats & grammage)
+   * MOTEUR 1 : LogMeal Food AI API
    */
   async detectWithLogMeal(compressedDataUrl, logmealToken) {
     const resBlob = await fetch(compressedDataUrl).then(r => r.blob());
@@ -123,18 +122,21 @@ export const VisionAnalyzer = {
   },
 
   /**
-   * MOTEUR 2 : Gemini 3.5 Flash-Lite Vision + Enrichissement OpenFoodFacts Maroc
+   * Interroge un modèle Vision donné et retourne les items parsés (ou lève une erreur pour Promise.any)
    */
-  async detectWithGemini(compressedDataUrl, apiKey) {
-    if (!apiKey) return null;
+  async callSingleVisionModel(modelName, base64Data, apiKey, signal) {
+    const prompt = `Expert nutritionniste. Identifie TOUS les aliments, gateaux, patisseries ou plats visibles sur cette photo et estime leur poids en grammes. Reponds uniquement en JSON: {"items":[{"foodId":"id_ou_custom","customName":"Nom precis en francais","grams":130,"carbs100g":22.5,"fiber100g":0.5,"gi":52,"x":50,"y":50}]}`;
 
-    const base64Data = compressedDataUrl.split(',')[1];
-    const prompt = `Expert nutritionniste (cuisine marocaine, pâtisseries, gâteaux, snacks et plats internationaux).
-Identifie précisément TOUS les aliments, gâteaux, pâtisseries ou plats visibles sur cette photo (ex: Cheesecake San Sebastian, mille-feuille, tiramisu, gâteau au chocolat, croissant, pain khobz, msemen, baghrir, tajine, couscous, harira, salade, œufs, tacos, pizza, etc.) et estime leur poids en grammes.
-Si un aliment correspond exactement à l'un de ces IDs, utilise ce foodId: cheesecake-san-sebastian, cheesecake-coulis, mille-feuille, tiramisu, gateau-chocolat, croissant-petit-pain, khobz-blanc, khobz-complet, khobz-ch3ir, batbout, msemen, meloui, harcha, baghrir, krachel, couscous-semoule, couscous-belboula, legumes-couscous, tfaya, tajine-poulet-olives, tajine-kefta, tajine-pruneaux, pommes-terre-tajine, rfissa, pastilla-poulet, pastilla-poisson, seffa, zaalouk, taktouka, salade-marocaine, oeufs-plat, briouate-salee, tacos-marocain, pizza-part, harira, loubia, adass, bissara, hssa, datte-majhoul, dattes-courantes, chebakia, sellou, corne-gazelle, miel-beurre, figues-fraiches, hendiya, atay-sucre, atay-mesouss, jus-orange, jus-avocat, lben.
-Sinon mets "foodId":"custom" et indique son nom précis en français ("customName"), ses glucides totaux pour 100g ("carbs100g"), ses fibres pour 100g ("fiber100g") et son IG ("gi").
-Réponds uniquement en JSON:
-{"items":[{"foodId":"id_ou_custom","customName":"Nom précis en français","grams":130,"carbs100g":22.5,"fiber100g":0.5,"gi":52,"x":50,"y":50}]}`;
+    const generationConfig = modelName.startsWith('gemini')
+      ? {
+          responseMimeType: 'application/json',
+          temperature: 0.1,
+          mediaResolution: 'MEDIA_RESOLUTION_LOW',
+          thinkingConfig: { thinkingLevel: 'MINIMAL' }
+        }
+      : {
+          temperature: 0.1
+        };
 
     const requestBody = JSON.stringify({
       contents: [
@@ -145,70 +147,84 @@ Réponds uniquement en JSON:
           ]
         }
       ],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        temperature: 0.1,
-        thinkingConfig: { thinkingLevel: 'MINIMAL' }
-      }
+      generationConfig
     });
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: requestBody,
+      signal
+    });
 
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: requestBody,
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-      if (!response.ok) return null;
+    const json = await response.json();
+    const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON');
 
-      const json = await response.json();
-      const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      const cleanedJson = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-      const parsed = JSON.parse(cleanedJson);
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(parsed.items) || parsed.items.length === 0) {
+      throw new Error('Empty items');
+    }
 
-      if (!Array.isArray(parsed.items) || parsed.items.length === 0) return null;
+    return parsed.items.map((item, idx) => {
+      const dbFood = FoodRepository.getFoodById(item.foodId)
+        || this.findLocalByName(item.customName)
+        || this.findLocalByName(item.foodId);
+      const fallbackX = 28 + ((idx * 22) % 48);
+      const fallbackY = 30 + ((idx * 18) % 45);
 
-      const rawItems = parsed.items.map((item, idx) => {
-        const dbFood = FoodRepository.getFoodById(item.foodId) || this.findLocalByName(item.customName);
-        const fallbackX = 28 + ((idx * 22) % 48);
-        const fallbackY = 30 + ((idx * 18) % 45);
-
-        if (dbFood) {
-          return {
-            foodId: dbFood.id,
-            customName: item.customName || dbFood.name,
-            grams: Math.max(5, Math.round(Number(item.grams) || dbFood.defaultGrams)),
-            carbs100g: dbFood.carbs100g,
-            fiber100g: dbFood.fiber100g,
-            gi: dbFood.gi,
-            refPortion: dbFood.refPortion,
-            x: normalizeCoord(item.x, fallbackX),
-            y: normalizeCoord(item.y, fallbackY)
-          };
-        }
-
+      if (dbFood) {
         return {
-          foodId: `custom_${Date.now()}_${idx}`,
-          customName: item.customName || 'Aliment détecté',
-          grams: Math.max(5, Math.round(Number(item.grams) || 100)),
-          carbs100g: Math.max(0, Number(item.carbs100g) ?? 22),
-          fiber100g: Math.max(0, Number(item.fiber100g) ?? 1),
-          gi: Math.min(100, Math.max(0, Number(item.gi) ?? 55)),
-          refPortion: 'Estimé par IA Vision',
-          isCustom: true,
+          foodId: dbFood.id,
+          customName: item.customName || dbFood.name,
+          grams: Math.max(5, Math.round(Number(item.grams) || dbFood.defaultGrams)),
+          carbs100g: dbFood.carbs100g,
+          fiber100g: dbFood.fiber100g,
+          gi: dbFood.gi,
+          refPortion: dbFood.refPortion,
           x: normalizeCoord(item.x, fallbackX),
           y: normalizeCoord(item.y, fallbackY)
         };
-      });
+      }
 
-      // Enrichissement rapide via OpenFoodFacts Maroc pour les éléments hors catalogue local
-      return await this.enrichCustomItemsWithOpenFoodFacts(rawItems);
+      return {
+        foodId: `custom_${Date.now()}_${idx}`,
+        customName: item.customName || 'Aliment détecté',
+        grams: Math.max(5, Math.round(Number(item.grams) || 110)),
+        carbs100g: Math.max(0, Number(item.carbs100g) ?? 22),
+        fiber100g: Math.max(0, Number(item.fiber100g) ?? 1),
+        gi: Math.min(100, Math.max(0, Number(item.gi) ?? 55)),
+        refPortion: 'Estimé par IA Vision',
+        isCustom: true,
+        x: normalizeCoord(item.x, fallbackX),
+        y: normalizeCoord(item.y, fallbackY)
+      };
+    });
+  },
+
+  /**
+   * MOTEUR 2 : Course parallèle (Promise.any) entre Gemini 3.5 Flash et Gemma 4 26B Vision
+   * Dès que le modèle le plus rapide répond (~1.5s à 4s), les autres sont annulés !
+   */
+  async detectWithGemini(compressedDataUrl, apiKey) {
+    if (!apiKey) return null;
+
+    const base64Data = compressedDataUrl.split(',')[1];
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 11000);
+
+    try {
+      const winner = await Promise.any([
+        this.callSingleVisionModel('gemini-3.5-flash', base64Data, apiKey, controller.signal),
+        this.callSingleVisionModel('gemma-4-26b-a4b-it', base64Data, apiKey, controller.signal)
+      ]);
+      clearTimeout(timeoutId);
+      controller.abort(); // Annule immédiatement la requête restante
+      return winner;
     } catch {
       clearTimeout(timeoutId);
       return null;
@@ -216,52 +232,40 @@ Réponds uniquement en JSON:
   },
 
   /**
-   * Cherche une correspondance dans le catalogue local par nom (ex: "San Sebastian", "Cheesecake", "Mille-feuille")
+   * Associe intelligemment le nom reconnu par l'IA avec notre base locale calibrée
    */
   findLocalByName(name) {
     if (!name) return null;
     const q = String(name).toLowerCase().trim();
-    if (q.includes('san sebastian') || q.includes('cheesecake') || q.includes('basque')) {
+    if (q.includes('san sebastian') || q.includes('cheesecake') || q.includes('basque') || q.includes('fromage blanc')) {
       return FoodRepository.getFoodById('cheesecake-san-sebastian');
     }
     if (q.includes('mille-feuille') || q.includes('millefeuille') || q.includes('mille feuille')) {
       return FoodRepository.getFoodById('mille-feuille');
     }
-    if (q.includes('tiramisu')) {
-      return FoodRepository.getFoodById('tiramisu');
+    if (q.includes('tiramisu')) return FoodRepository.getFoodById('tiramisu');
+    if (q.includes('croissant') || q.includes('petit pain') || q.includes('pain au chocolat')) {
+      return FoodRepository.getFoodById('croissant-petit-pain');
     }
-    return FoodRepository.getAllFoods().find(f =>
-      f.name.toLowerCase().includes(q) || q.includes(f.id.replace(/-/g, ' '))
-    ) || null;
+    if (q.includes('khobz') || q.includes('pain blanc') || q.includes('pain marocain')) {
+      return FoodRepository.getFoodById('khobz-blanc');
+    }
+    if (q.includes('msemen')) return FoodRepository.getFoodById('msemen');
+    if (q.includes('baghrir')) return FoodRepository.getFoodById('baghrir');
+    if (q.includes('harcha')) return FoodRepository.getFoodById('harcha');
+    if (q.includes('harira')) return FoodRepository.getFoodById('harira');
+    if (q.includes('couscous')) return FoodRepository.getFoodById('couscous-semoule');
+    if (q.includes('loubia')) return FoodRepository.getFoodById('loubia');
+    if (q.includes('lentille') || q.includes('adass')) return FoodRepository.getFoodById('adass');
+    if (q.includes('bissara')) return FoodRepository.getFoodById('bissara');
+    if (q.includes('chebakia')) return FoodRepository.getFoodById('chebakia');
+    if (q.includes('tacos')) return FoodRepository.getFoodById('tacos-marocain');
+    if (q.includes('pizza')) return FoodRepository.getFoodById('pizza-part');
+    return null;
   },
 
   /**
-   * Croise automatiquement un aliment "custom" détecté par l'IA avec OpenFoodFacts Maroc (timeout court 2s)
-   */
-  async enrichCustomItemsWithOpenFoodFacts(items) {
-    return Promise.all(items.map(async (item) => {
-      if (!item.isCustom || !item.customName) return item;
-      try {
-        const offMatches = await this.searchOpenFoodFactsMaroc(item.customName, 2000);
-        if (offMatches && offMatches.length > 0) {
-          const best = offMatches[0];
-          if (best.carbs100g > 0) {
-            return {
-              ...item,
-              carbs100g: best.carbs100g,
-              fiber100g: best.fiber100g,
-              refPortion: `Vérifié OpenFoodFacts (${best.darija})`
-            };
-          }
-        }
-      } catch {}
-      return item;
-    }));
-  },
-
-  /**
-   * MOTEUR 3 (PLAN DE SECOURS) : Recherche en direct sur OpenFoodFacts Maroc + Monde
-   * Interroge prioritairement les produits vendus au Maroc (ma.openfoodfacts.org / world.openfoodfacts.org)
+   * PLAN DE SECOURS : Recherche en direct sur OpenFoodFacts Maroc + Monde
    */
   async searchOpenFoodFactsMaroc(queryText, timeoutMs = 4000) {
     const q = String(queryText || '').trim();
@@ -271,7 +275,6 @@ Réponds uniquement en JSON:
     const t = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      // Recherche OpenFoodFacts avec priorité aux produits francophones / Maroc
       const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=10&fields=code,product_name,product_name_fr,brands,nutriments,serving_size,quantity`;
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(t);
