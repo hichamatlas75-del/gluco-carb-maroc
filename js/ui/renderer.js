@@ -1,5 +1,5 @@
-import { FoodRepository } from '../data/foods.js?v=4';
-import { MetabolicEngine } from '../services/metabolicEngine.js?v=4';
+import { FoodRepository } from '../data/foods.js?v=5';
+import { MetabolicEngine } from '../services/metabolicEngine.js?v=5';
 
 /**
  * Fonctions de rendu DOM et protection XSS
@@ -25,15 +25,15 @@ export function showToast(message) {
   toastTimer = setTimeout(() => {
     banner.classList.add('opacity-0', 'translate-y-2');
     banner.classList.remove('opacity-100', 'translate-y-0');
-  }, 2500);
+  }, 2600);
 }
 
 export const UIRenderer = {
   renderDashboard(state, evaluation) {
-    // Badge moteur IA
+    // Badge moteur IA + Plan de secours
     document.getElementById('engineBadge').textContent = state.settings.geminiKey
-      ? 'Gemini Vision'
-      : 'Vision Locale';
+      ? 'IA + OpenFoodFacts'
+      : 'OpenFoodFacts Maroc';
 
     // Boutons Matin / Midi / Soir
     document.querySelectorAll('.slot-btn').forEach(btn => {
@@ -119,7 +119,7 @@ export const UIRenderer = {
       container.innerHTML = `
         <div class="text-center py-6 px-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200">
           <p class="text-xs font-bold text-slate-700">Aucun aliment scanné</p>
-          <p class="text-[11px] text-slate-500 mt-0.5">Utilisez le bouton « Prendre Photo » ou un plat type ci-dessus.</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">Utilisez « Prendre Photo », « Plan de Secours OpenFoodFacts » ou un plat ci-dessus.</p>
         </div>
       `;
       return;
@@ -166,32 +166,71 @@ export const UIRenderer = {
     }).join('');
   },
 
-  renderCatalogModal(searchQuery) {
-    const list = document.getElementById('catalogItemsList');
-    const q = (searchQuery || '').toLowerCase().trim();
-    const foods = FoodRepository.getAllFoods().filter(f =>
-      !q || (`${f.name} ${f.darija}`).toLowerCase().includes(q)
-    );
+  renderFoodRowHTML(f, actionAttr = 'data-pick-food', isOFF = false) {
+    const m = MetabolicEngine.computeFoodPortion(f, f.defaultGrams);
+    const payload = isOFF ? encodeURIComponent(JSON.stringify(f)) : f.id;
+    const attrName = isOFF ? `${actionAttr}-off` : actionAttr;
+    const badge = isOFF
+      ? `<span class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">OpenFoodFacts</span>`
+      : '';
 
-    list.innerHTML = foods.map(f => {
-      const m = MetabolicEngine.computeFoodPortion(f, f.defaultGrams);
-      return `
-        <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
-          <div>
-            <p class="text-xs font-extrabold text-slate-900">${escapeHTML(f.name)}</p>
-            <p class="text-[11px] text-slate-500">${escapeHTML(f.darija)} • ${f.defaultGrams}g (${m.netCarbs.toFixed(0)}g nets)</p>
+    return `
+      <div class="p-2.5 rounded-2xl ${isOFF ? 'bg-amber-50/60 border-amber-200' : 'bg-slate-50 border-slate-200'} border flex items-center justify-between gap-2">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <p class="text-xs font-extrabold text-slate-900 truncate">${escapeHTML(f.name)}</p>
+            ${badge}
           </div>
-          <button type="button" data-pick-food="${f.id}" class="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-extrabold">
-            + ${f.defaultGrams}g
-          </button>
+          <p class="text-[11px] text-slate-500 truncate">${escapeHTML(f.darija)} • ${f.defaultGrams}g (${m.netCarbs.toFixed(1)}g nets)</p>
         </div>
-      `;
-    }).join('');
+        <button type="button" ${attrName}="${escapeHTML(payload)}" class="px-3 py-1.5 rounded-xl ${isOFF ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white text-xs font-extrabold flex-shrink-0">
+          + ${f.defaultGrams}g
+        </button>
+      </div>
+    `;
   },
 
-  renderMatcherModal() {
+  renderCatalogModal(searchQuery, offItems = [], isLoadingOFF = false) {
+    const list = document.getElementById('catalogItemsList');
+    const q = (searchQuery || '').toLowerCase().trim();
+    const localFoods = FoodRepository.getAllFoods().filter(f =>
+      !q || (`${f.name} ${f.darija} ${f.id}`).toLowerCase().includes(q)
+    );
+
+    const localHTML = localFoods.map(f => this.renderFoodRowHTML(f, 'data-pick-food', false)).join('');
+    const offHTML = offItems.map(f => this.renderFoodRowHTML(f, 'data-pick-food', true)).join('');
+    const loadingHTML = isLoadingOFF
+      ? `<div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-800 flex items-center gap-2">
+           <span>🔎 Recherche en cours sur OpenFoodFacts Maroc...</span>
+         </div>`
+      : '';
+
+    list.innerHTML = loadingHTML + offHTML + localHTML;
+  },
+
+  renderMatcherModal(searchQuery = '', offItems = [], isLoadingOFF = false) {
     const list = document.getElementById('matcherOptionsList');
+    const offContainer = document.getElementById('matcherOFFResults');
     const plates = FoodRepository.getPlates();
+    const q = (searchQuery || '').toLowerCase().trim();
+
+    if (offContainer) {
+      if (!q && offItems.length === 0 && !isLoadingOFF) {
+        offContainer.innerHTML = '';
+      } else {
+        const localMatches = q
+          ? FoodRepository.getAllFoods().filter(f => (`${f.name} ${f.darija} ${f.id}`).toLowerCase().includes(q)).slice(0, 4)
+          : [];
+        const localHTML = localMatches.map(f => this.renderFoodRowHTML(f, 'data-match-food', false)).join('');
+        const offHTML = offItems.map(f => this.renderFoodRowHTML(f, 'data-match-food', true)).join('');
+        const loadingBanner = isLoadingOFF
+          ? `<div class="p-2 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-800">
+               🔎 Recherche sur OpenFoodFacts Maroc...
+             </div>`
+          : '';
+        offContainer.innerHTML = loadingBanner + localHTML + offHTML;
+      }
+    }
 
     list.innerHTML = Object.entries(plates).map(([key, plate]) => {
       const desc = plate.items.map(i => {
@@ -199,7 +238,7 @@ export const UIRenderer = {
         return f ? `${f.name.split('(')[0].trim()} (~${i.grams}g)` : '';
       }).join(' + ');
       return `
-        <button type="button" data-match-plate="${key}" class="w-full text-left p-3 rounded-2xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 flex items-center justify-between">
+        <button type="button" data-match-plate="${key}" class="w-full text-left p-2.5 rounded-2xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 flex items-center justify-between">
           <div>
             <p class="text-xs font-extrabold text-slate-900">${escapeHTML(plate.title)}</p>
             <p class="text-[11px] text-slate-500 mt-0.5">${escapeHTML(desc)}</p>

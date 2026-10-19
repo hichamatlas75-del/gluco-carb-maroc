@@ -1,11 +1,10 @@
-import { FoodRepository } from '../data/foods.js?v=4';
+import { FoodRepository } from '../data/foods.js?v=5';
 
 /**
- * Service de Reconnaissance Alimentaire & Nutritionnelle Multi-Moteurs :
- * 1. Gemini 3.5 Flash-Lite Vision (Ultra-rapide ~1s avec thinkingLevel: MINIMAL)
- * 2. LogMeal Food AI API (API médicale spécialisée segmentation & grammage d'assiette)
- * 3. Groq Llama-4 Vision (Inférence LPU en ~0.4s)
- * 4. Enrichissement croisé avec OpenFoodFacts Maroc (ma.openfoodfacts.org)
+ * Service de Reconnaissance Alimentaire & Plan de Secours OpenFoodFacts Maroc :
+ * 1. Gemini 3.5 Flash-Lite Vision (Image 384px mono-tuile 258 tokens = ~1.2s)
+ * 2. LogMeal Food AI API (API médicale spécialisée segmentation & grammage)
+ * 3. Plan de Secours & Enrichissement OpenFoodFacts Maroc (ma.openfoodfacts.org / world.openfoodfacts.org)
  */
 
 function normalizeCoord(val, fallback) {
@@ -17,10 +16,10 @@ function normalizeCoord(val, fallback) {
 
 export const VisionAnalyzer = {
   /**
-   * Compresse directement un File/Blob ou une URL en JPEG 480px (~25 Ko) en moins de 25ms
-   * Évite le blocage mémoire causé par FileReader sur les photos de 12 Mpx
+   * Compresse directement un File/Blob ou une URL en JPEG 384px (~18 Ko) en < 20ms.
+   * 384px garantit 1 seule tuile Vision (258 tokens au lieu de 1080), divisant le temps IA par 3.
    */
-  compressImageSource(source, maxDim = 480, quality = 0.70) {
+  compressImageSource(source, maxDim = 384, quality = 0.68) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Timeout compression image')), 2500);
       const img = new Image();
@@ -66,7 +65,6 @@ export const VisionAnalyzer = {
 
   /**
    * MOTEUR 1 : LogMeal Food AI API (Spécialisé reconnaissance de plats & grammage)
-   * Documentation : https:// docs.logmeal.com
    */
   async detectWithLogMeal(compressedDataUrl, logmealToken) {
     const resBlob = await fetch(compressedDataUrl).then(r => r.blob());
@@ -74,10 +72,9 @@ export const VisionAnalyzer = {
     formData.append('image', resBlob, 'plate.jpg');
 
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 5000);
+    const t = setTimeout(() => controller.abort(), 5500);
 
     try {
-      // 1. Segmentation et reconnaissance du plat + estimation des portions
       const segRes = await fetch('https://api.logmeal.com/v2/image/segmentation/complete', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${logmealToken}` },
@@ -87,7 +84,6 @@ export const VisionAnalyzer = {
       if (!segRes.ok) throw new Error('LogMeal segmentation error');
       const segData = await segRes.json();
 
-      // 2. Récupération des glucides, fibres et poids en grammes
       const nutRes = await fetch('https://api.logmeal.com/v2/nutrition/recipe/nutritionalInfo', {
         method: 'POST',
         headers: {
@@ -127,17 +123,18 @@ export const VisionAnalyzer = {
   },
 
   /**
-   * MOTEUR 2 : Gemini 3.5 Flash-Lite Vision (Réponse en ~1,1s avec thinkingLevel MINIMAL)
+   * MOTEUR 2 : Gemini 3.5 Flash-Lite Vision + Enrichissement OpenFoodFacts Maroc
    */
   async detectWithGemini(compressedDataUrl, apiKey) {
     if (!apiKey) return null;
 
     const base64Data = compressedDataUrl.split(',')[1];
-    const prompt = `Expert nutritionniste. Identifie TOUS les aliments visibles sur cette photo (pain, œufs, salade, gâteau, tajine, couscous, viande, etc.) et estime leur poids en grammes dans l'assiette.
-Si un aliment correspond au catalogue marocain, utilise son foodId exact parmi: khobz-blanc, khobz-complet, khobz-ch3ir, batbout, msemen, meloui, harcha, baghrir, krachel, couscous-semoule, couscous-belboula, legumes-couscous, tfaya, tajine-poulet-olives, tajine-kefta, tajine-pruneaux, pommes-terre-tajine, rfissa, pastilla-poulet, pastilla-poisson, seffa, zaalouk, taktouka, briouate-salee, harira, loubia, adass, bissara, hssa, datte-majhoul, dattes-courantes, chebakia, sellou, corne-gazelle, miel-beurre, figues-fraiches, hendiya, atay-sucre, atay-mesouss, jus-orange, jus-avocat, lben.
-Sinon mets "foodId":"custom" et indique son nom en français ("customName"), ses glucides totaux pour 100g ("carbs100g"), ses fibres pour 100g ("fiber100g") et son IG ("gi").
+    const prompt = `Expert nutritionniste (cuisine marocaine, pâtisseries, gâteaux, snacks et plats internationaux).
+Identifie précisément TOUS les aliments, gâteaux, pâtisseries ou plats visibles sur cette photo (ex: Cheesecake San Sebastian, mille-feuille, tiramisu, gâteau au chocolat, croissant, pain khobz, msemen, baghrir, tajine, couscous, harira, salade, œufs, tacos, pizza, etc.) et estime leur poids en grammes.
+Si un aliment correspond exactement à l'un de ces IDs, utilise ce foodId: cheesecake-san-sebastian, cheesecake-coulis, mille-feuille, tiramisu, gateau-chocolat, croissant-petit-pain, khobz-blanc, khobz-complet, khobz-ch3ir, batbout, msemen, meloui, harcha, baghrir, krachel, couscous-semoule, couscous-belboula, legumes-couscous, tfaya, tajine-poulet-olives, tajine-kefta, tajine-pruneaux, pommes-terre-tajine, rfissa, pastilla-poulet, pastilla-poisson, seffa, zaalouk, taktouka, salade-marocaine, oeufs-plat, briouate-salee, tacos-marocain, pizza-part, harira, loubia, adass, bissara, hssa, datte-majhoul, dattes-courantes, chebakia, sellou, corne-gazelle, miel-beurre, figues-fraiches, hendiya, atay-sucre, atay-mesouss, jus-orange, jus-avocat, lben.
+Sinon mets "foodId":"custom" et indique son nom précis en français ("customName"), ses glucides totaux pour 100g ("carbs100g"), ses fibres pour 100g ("fiber100g") et son IG ("gi").
 Réponds uniquement en JSON:
-{"items":[{"foodId":"id_ou_custom","customName":"Nom en français","grams":80,"carbs100g":45,"fiber100g":3,"gi":55,"x":50,"y":50}]}`;
+{"items":[{"foodId":"id_ou_custom","customName":"Nom précis en français","grams":130,"carbs100g":22.5,"fiber100g":0.5,"gi":52,"x":50,"y":50}]}`;
 
     const requestBody = JSON.stringify({
       contents: [
@@ -156,7 +153,7 @@ Réponds uniquement en JSON:
     });
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4500);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -177,8 +174,8 @@ Réponds uniquement en JSON:
 
       if (!Array.isArray(parsed.items) || parsed.items.length === 0) return null;
 
-      return parsed.items.map((item, idx) => {
-        const dbFood = FoodRepository.getFoodById(item.foodId);
+      const rawItems = parsed.items.map((item, idx) => {
+        const dbFood = FoodRepository.getFoodById(item.foodId) || this.findLocalByName(item.customName);
         const fallbackX = 28 + ((idx * 22) % 48);
         const fallbackY = 30 + ((idx * 18) % 45);
 
@@ -199,15 +196,19 @@ Réponds uniquement en JSON:
         return {
           foodId: `custom_${Date.now()}_${idx}`,
           customName: item.customName || 'Aliment détecté',
-          grams: Math.max(5, Math.round(Number(item.grams) || 90)),
-          carbs100g: Math.max(0, Number(item.carbs100g) ?? 20),
-          fiber100g: Math.max(0, Number(item.fiber100g) ?? 2),
-          gi: Math.min(100, Math.max(0, Number(item.gi) ?? 50)),
-          refPortion: 'Estimé sur photo',
+          grams: Math.max(5, Math.round(Number(item.grams) || 100)),
+          carbs100g: Math.max(0, Number(item.carbs100g) ?? 22),
+          fiber100g: Math.max(0, Number(item.fiber100g) ?? 1),
+          gi: Math.min(100, Math.max(0, Number(item.gi) ?? 55)),
+          refPortion: 'Estimé par IA Vision',
+          isCustom: true,
           x: normalizeCoord(item.x, fallbackX),
           y: normalizeCoord(item.y, fallbackY)
         };
       });
+
+      // Enrichissement rapide via OpenFoodFacts Maroc pour les éléments hors catalogue local
+      return await this.enrichCustomItemsWithOpenFoodFacts(rawItems);
     } catch {
       clearTimeout(timeoutId);
       return null;
@@ -215,30 +216,91 @@ Réponds uniquement en JSON:
   },
 
   /**
-   * MOTEUR 3 : Enrichissement OpenFoodFacts Maroc (100% Gratuit & Sans Clé)
-   * Permet de rechercher les vraies valeurs glucidiques d'un produit vendu au Maroc
+   * Cherche une correspondance dans le catalogue local par nom (ex: "San Sebastian", "Cheesecake", "Mille-feuille")
    */
-  async searchOpenFoodFactsMaroc(queryText) {
+  findLocalByName(name) {
+    if (!name) return null;
+    const q = String(name).toLowerCase().trim();
+    if (q.includes('san sebastian') || q.includes('cheesecake') || q.includes('basque')) {
+      return FoodRepository.getFoodById('cheesecake-san-sebastian');
+    }
+    if (q.includes('mille-feuille') || q.includes('millefeuille') || q.includes('mille feuille')) {
+      return FoodRepository.getFoodById('mille-feuille');
+    }
+    if (q.includes('tiramisu')) {
+      return FoodRepository.getFoodById('tiramisu');
+    }
+    return FoodRepository.getAllFoods().find(f =>
+      f.name.toLowerCase().includes(q) || q.includes(f.id.replace(/-/g, ' '))
+    ) || null;
+  },
+
+  /**
+   * Croise automatiquement un aliment "custom" détecté par l'IA avec OpenFoodFacts Maroc (timeout court 2s)
+   */
+  async enrichCustomItemsWithOpenFoodFacts(items) {
+    return Promise.all(items.map(async (item) => {
+      if (!item.isCustom || !item.customName) return item;
+      try {
+        const offMatches = await this.searchOpenFoodFactsMaroc(item.customName, 2000);
+        if (offMatches && offMatches.length > 0) {
+          const best = offMatches[0];
+          if (best.carbs100g > 0) {
+            return {
+              ...item,
+              carbs100g: best.carbs100g,
+              fiber100g: best.fiber100g,
+              refPortion: `Vérifié OpenFoodFacts (${best.darija})`
+            };
+          }
+        }
+      } catch {}
+      return item;
+    }));
+  },
+
+  /**
+   * MOTEUR 3 (PLAN DE SECOURS) : Recherche en direct sur OpenFoodFacts Maroc + Monde
+   * Interroge prioritairement les produits vendus au Maroc (ma.openfoodfacts.org / world.openfoodfacts.org)
+   */
+  async searchOpenFoodFactsMaroc(queryText, timeoutMs = 4000) {
+    const q = String(queryText || '').trim();
+    if (q.length < 2) return [];
+
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 3500);
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
-      const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(queryText)}&search_simple=1&action=process&json=1&page_size=5`;
+      // Recherche OpenFoodFacts avec priorité aux produits francophones / Maroc
+      const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=10&fields=code,product_name,product_name_fr,brands,nutriments,serving_size,quantity`;
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(t);
       if (!res.ok) return [];
+
       const data = await res.json();
       return (data.products || [])
-        .filter(p => p.product_name && p.nutriments)
-        .map((p, idx) => ({
-          id: `off_${p.code || idx}`,
-          name: p.product_name_fr || p.product_name,
-          darija: p.brands || 'OpenFoodFacts',
-          carbs100g: Math.round((Number(p.nutriments.carbohydrates_100g) || 0) * 10) / 10,
-          fiber100g: Math.round((Number(p.nutriments.fiber_100g) || 0) * 10) / 10,
-          gi: 55,
-          defaultGrams: 100,
-          refPortion: p.serving_size || '100g'
-        }));
+        .filter(p => (p.product_name_fr || p.product_name) && p.nutriments && p.nutriments.carbohydrates_100g !== undefined)
+        .slice(0, 6)
+        .map((p, idx) => {
+          const carbs = Math.max(0, Math.round((Number(p.nutriments.carbohydrates_100g) || 0) * 10) / 10);
+          const fiber = Math.max(0, Math.round((Number(p.nutriments.fiber_100g) || 0) * 10) / 10);
+          const parsedServing = parseInt(String(p.serving_size || ''), 10);
+          const defaultGrams = (!Number.isNaN(parsedServing) && parsedServing >= 15 && parsedServing <= 400)
+            ? parsedServing
+            : 100;
+
+          return {
+            id: `off_${p.code || idx}`,
+            name: p.product_name_fr || p.product_name,
+            darija: p.brands ? `OpenFoodFacts • ${p.brands}` : 'OpenFoodFacts Maroc',
+            category: 'openfoodfacts',
+            carbs100g: carbs,
+            fiber100g: fiber,
+            gi: carbs > 40 ? 68 : carbs > 15 ? 55 : 35,
+            defaultGrams,
+            refPortion: p.serving_size ? `Portion ${p.serving_size}` : '100g (OpenFoodFacts)'
+          };
+        });
     } catch {
       clearTimeout(t);
       return [];

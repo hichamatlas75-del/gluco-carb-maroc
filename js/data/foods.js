@@ -1,11 +1,19 @@
 /**
- * Base de données nutritionnelle marocaine et méditerranéenne
+ * Base de données nutritionnelle marocaine, méditerranéenne & pâtisseries courantes au Maroc
  * - carbs100g : Glucides totaux pour 100g
  * - fiber100g : Fibres alimentaires pour 100g
  * - gi        : Index Glycémique
  * - defaultGrams : Grammage moyen d'une portion visuelle servie dans l'assiette
  */
 export const MOROCCAN_FOODS = [
+  // --- PÂTISSERIES, GÂTEAUX & DESSERTS ---
+  { id: 'cheesecake-san-sebastian', name: 'Cheesecake San Sebastian (Gâteau Basque)', darija: 'San Sebastian / سان سيباستيان', category: 'patisseries', carbs100g: 22.5, fiber100g: 0.4, gi: 52, defaultGrams: 135, refPortion: '1 part triangulaire (~135g)' },
+  { id: 'cheesecake-coulis', name: 'Cheesecake San Sebastian au Chocolat/Caramel', darija: 'San Sebastian chocolat / بالشكلاط', category: 'patisseries', carbs100g: 29.0, fiber100g: 0.8, gi: 62, defaultGrams: 150, refPortion: '1 part + nappage (~150g)' },
+  { id: 'mille-feuille', name: 'Mille-feuille Pâtissier Marocain', darija: 'Mille-feuille / ميلفوي', category: 'patisseries', carbs100g: 42.0, fiber100g: 1.2, gi: 74, defaultGrams: 110, refPortion: '1 pièce (~110g)' },
+  { id: 'tiramisu', name: 'Tiramisu Classique / Spéculoos', darija: 'Tiramisu / تيراميسو', category: 'patisseries', carbs100g: 28.5, fiber100g: 0.9, gi: 60, defaultGrams: 130, refPortion: '1 part / verrine (~130g)' },
+  { id: 'gateau-chocolat', name: 'Fondant / Gâteau au Chocolat', darija: 'Kika b choklat / كيكة بالشكلاط', category: 'patisseries', carbs100g: 44.0, fiber100g: 2.5, gi: 65, defaultGrams: 110, refPortion: '1 part (~110g)' },
+  { id: 'croissant-petit-pain', name: 'Croissant / Petit Pain au Chocolat (Krwasan)', darija: 'Krwasan / كرواصة أو بتي بان', category: 'patisseries', carbs100g: 46.0, fiber100g: 2.3, gi: 70, defaultGrams: 65, refPortion: '1 viennoiserie (~65g)' },
+
   // --- PAINS & GALETTES ---
   { id: 'khobz-blanc', name: 'Khobz de boulangerie (Pain blanc)', darija: 'Khobz souk / خبز عادي', category: 'pains', carbs100g: 52.0, fiber100g: 2.8, gi: 75, defaultGrams: 80, refPortion: '1/3 pain (~80g)' },
   { id: 'khobz-complet', name: 'Khobz Dar Complet (Blé entier)', darija: 'Khobz zraa / خبز القمح', category: 'pains', carbs100g: 43.0, fiber100g: 7.5, gi: 52, defaultGrams: 80, refPortion: '1/3 pain complet (~80g)' },
@@ -17,7 +25,7 @@ export const MOROCCAN_FOODS = [
   { id: 'baghrir', name: 'Baghrir (Crêpe mille trous)', darija: 'Baghrir / البغرير', category: 'pains', carbs100g: 43.0, fiber100g: 1.8, gi: 72, defaultGrams: 65, refPortion: '1 Baghrir (~65g)' },
   { id: 'krachel', name: 'Krachel / Qors (Brioche anis)', darija: 'Krachel / القراشل', category: 'pains', carbs100g: 54.0, fiber100g: 2.4, gi: 74, defaultGrams: 70, refPortion: '1 pièce (~70g)' },
 
-  // --- PLATS & TAJINES ---
+  // --- PLATS, TAJINES & SNACKS ---
   { id: 'couscous-semoule', name: 'Semoule de Couscous cuite', darija: 'Smida kusksu / الكسكس', category: 'plats', carbs100g: 23.2, fiber100g: 2.2, gi: 65, defaultGrams: 200, refPortion: 'Semoule (~200g)' },
   { id: 'couscous-belboula', name: 'Couscous Belboula d’Orge', darija: 'Belboula / بلبولة الشعير', category: 'plats', carbs100g: 18.0, fiber100g: 4.6, gi: 47, defaultGrams: 200, refPortion: 'Belboula (~200g)' },
   { id: 'legumes-couscous', name: 'Légumes de Couscous & Bouillon', darija: 'Khodra / خضر الكسكس', category: 'plats', carbs100g: 7.5, fiber100g: 2.8, gi: 45, defaultGrams: 160, refPortion: 'Louche légumes (~160g)' },
@@ -32,7 +40,11 @@ export const MOROCCAN_FOODS = [
   { id: 'seffa', name: 'Seffa Medfouna (Vermicelles)', darija: 'Seffa / السفة', category: 'plats', carbs100g: 32.0, fiber100g: 1.8, gi: 73, defaultGrams: 220, refPortion: 'Portion (~220g)' },
   { id: 'zaalouk', name: 'Zaalouk d’Aubergines', darija: 'Zaalouk / زعلوك', category: 'plats', carbs100g: 5.5, fiber100g: 2.8, gi: 25, defaultGrams: 120, refPortion: 'Coupelle (~120g)' },
   { id: 'taktouka', name: 'Taktouka Poivrons & Tomates', darija: 'Taktouka / التكتوكة', category: 'plats', carbs100g: 5.0, fiber100g: 1.9, gi: 25, defaultGrams: 120, refPortion: 'Coupelle (~120g)' },
+  { id: 'salade-marocaine', name: 'Salade Marocaine (Tomates, Oignons, Concombre)', darija: 'Chlada / شلاظة مغربية', category: 'plats', carbs100g: 4.2, fiber100g: 1.5, gi: 20, defaultGrams: 150, refPortion: 'Assiette (~150g)' },
+  { id: 'oeufs-plat', name: 'Œufs au Plat / Omelette / Khli3', darija: 'Baid / البيض مقلي أو أومليط', category: 'plats', carbs100g: 1.1, fiber100g: 0.0, gi: 0, defaultGrams: 120, refPortion: '2 œufs (~120g)' },
   { id: 'briouate-salee', name: 'Briouates salées (Kefta/Fromage)', darija: 'Briouates / بريوات مالحين', category: 'plats', carbs100g: 24.0, fiber100g: 1.4, gi: 62, defaultGrams: 80, refPortion: '2 pièces (~80g)' },
+  { id: 'tacos-marocain', name: 'Tacos Marocain / Panini Frites', darija: 'Tacos / طاكوس', category: 'plats', carbs100g: 31.0, fiber100g: 2.2, gi: 72, defaultGrams: 300, refPortion: '1 Tacos (~300g)' },
+  { id: 'pizza-part', name: 'Pizza (Part moyenne)', darija: 'Pizza / بيتزا', category: 'plats', carbs100g: 33.0, fiber100g: 2.0, gi: 70, defaultGrams: 130, refPortion: '1 part (~130g)' },
 
   // --- LÉGUMINEUSES & SOUPES ---
   { id: 'harira', name: 'Harira Marocaine Traditionnelle', darija: 'Harira / الحريرة', category: 'legumineuses', carbs100g: 9.2, fiber100g: 1.8, gi: 56, defaultGrams: 300, refPortion: '1 bol (~300ml)' },
@@ -60,8 +72,21 @@ export const MOROCCAN_FOODS = [
 ];
 
 export const PRESET_PLATES = {
+  san_sebastian: {
+    title: '🍰 Gâteau Cheesecake San Sebastian (1 part)',
+    items: [
+      { foodId: 'cheesecake-san-sebastian', grams: 135, x: 50, y: 50 }
+    ]
+  },
+  patisserie_cafe: {
+    title: '🥐 Mille-feuille / Pâtisserie & Verre d’Atay',
+    items: [
+      { foodId: 'mille-feuille', grams: 110, x: 45, y: 55 },
+      { foodId: 'atay-mesouss', grams: 150, x: 75, y: 30 }
+    ]
+  },
   tajine_khobz: {
-    title: 'Tajine Poulet/Légumes & Khobz Blanc',
+    title: '🥘 Tajine Poulet/Légumes & Khobz Blanc',
     items: [
       { foodId: 'tajine-poulet-olives', grams: 220, x: 40, y: 46 },
       { foodId: 'pommes-terre-tajine', grams: 135, x: 64, y: 58 },
@@ -69,7 +94,7 @@ export const PRESET_PLATES = {
     ]
   },
   couscous_royal: {
-    title: 'Assiette de Couscous aux 7 Légumes & Lben',
+    title: '🍲 Assiette de Couscous aux 7 Légumes & Lben',
     items: [
       { foodId: 'couscous-semoule', grams: 220, x: 46, y: 56 },
       { foodId: 'legumes-couscous', grams: 160, x: 50, y: 34 },
@@ -77,7 +102,7 @@ export const PRESET_PLATES = {
     ]
   },
   ftour_marocain: {
-    title: 'Msemen, Baghrir au Miel & Verre d’Atay',
+    title: '🥞 Msemen, Baghrir au Miel & Verre d’Atay',
     items: [
       { foodId: 'msemen', grams: 95, x: 30, y: 56 },
       { foodId: 'baghrir', grams: 65, x: 65, y: 60 },
@@ -86,7 +111,7 @@ export const PRESET_PLATES = {
     ]
   },
   harira_chebakia: {
-    title: 'Ftour : Bol de Harira, Chebakia & Datte Majhoul',
+    title: '🥣 Ftour : Bol de Harira, Chebakia & Datte Majhoul',
     items: [
       { foodId: 'harira', grams: 300, x: 36, y: 52 },
       { foodId: 'chebakia', grams: 35, x: 72, y: 62 },
@@ -94,7 +119,7 @@ export const PRESET_PLATES = {
     ]
   },
   loubia_complet: {
-    title: 'Assiette de Loubia & Pain d’Orge (Khobz Ch3ir)',
+    title: '🫘 Assiette de Loubia & Pain d’Orge (Khobz Ch3ir)',
     items: [
       { foodId: 'loubia', grams: 260, x: 48, y: 50 },
       { foodId: 'khobz-ch3ir', grams: 80, x: 25, y: 70 }
