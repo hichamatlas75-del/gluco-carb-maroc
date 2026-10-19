@@ -47,7 +47,34 @@ const FASTING_186_IDS = new Set([
 ]);
 
 export const UIRenderer = {
+  renderUserMode(userMode = 'insulin') {
+    const isInsulin = userMode === 'insulin';
+    const btnInsulin = document.getElementById('btnModeInsulin');
+    const btnWellness = document.getElementById('btnModeWellness');
+
+    if (btnInsulin && btnWellness) {
+      if (isInsulin) {
+        btnInsulin.className = 'flex-1 py-1 px-1.5 rounded-xl text-[10.5px] font-extrabold flex items-center justify-center gap-1 transition-all bg-white text-emerald-800 shadow-xs';
+        btnWellness.className = 'flex-1 py-1 px-1.5 rounded-xl text-[10.5px] font-bold flex items-center justify-center gap-1 transition-all text-slate-500 hover:text-slate-900';
+      } else {
+        btnWellness.className = 'flex-1 py-1 px-1.5 rounded-xl text-[10.5px] font-extrabold flex items-center justify-center gap-1 transition-all bg-white text-emerald-800 shadow-xs';
+        btnInsulin.className = 'flex-1 py-1 px-1.5 rounded-xl text-[10.5px] font-bold flex items-center justify-center gap-1 transition-all text-slate-500 hover:text-slate-900';
+      }
+    }
+
+    document.querySelectorAll('.mode-insulin-only').forEach(el => {
+      el.classList.toggle('hidden', !isInsulin);
+    });
+
+    document.querySelectorAll('.mode-wellness-only').forEach(el => {
+      el.classList.toggle('hidden', isInsulin);
+    });
+  },
+
   renderDashboard(state, evaluation) {
+    // Mode d'utilisation (Diabète & Insuline vs Santé & 18/6)
+    this.renderUserMode(state.settings.userMode || 'insulin');
+
     // Badge moteur IA
     document.getElementById('engineBadge').textContent = 'IA Vision';
 
@@ -492,5 +519,159 @@ export const UIRenderer = {
         </div>
       `;
     }).join('');
+  },
+
+  renderCircularFastingClock(elapsedMin, remainMin, isEatingWindow) {
+    const circle = document.getElementById('fastingCircleProgress');
+    const titleEl = document.getElementById('fastingCirclePhase');
+    const timeEl = document.getElementById('fastingCircleTime');
+    const subEl = document.getElementById('fastingCircleSub');
+
+    if (!circle || !titleEl || !timeEl) return;
+
+    const totalWindowMin = isEatingWindow ? 360 : 1080;
+    const pct = Math.min(100, Math.max(0, Math.round((elapsedMin / totalWindowMin) * 100)));
+    const circumference = 314.16;
+    const offset = circumference * (1 - pct / 100);
+
+    circle.style.strokeDashoffset = offset.toFixed(2);
+    circle.style.stroke = isEatingWindow ? '#059669' : '#6366f1';
+
+    const h = Math.floor(remainMin / 60);
+    const m = remainMin % 60;
+    timeEl.textContent = `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
+
+    if (isEatingWindow) {
+      titleEl.textContent = 'Fenêtre 6h';
+      titleEl.className = 'text-[9px] font-extrabold uppercase tracking-wider text-emerald-800';
+      if (subEl) subEl.textContent = 'avant fermeture';
+    } else {
+      titleEl.textContent = 'Jeûne 18h';
+      titleEl.className = 'text-[9px] font-extrabold uppercase tracking-wider text-indigo-700';
+      if (subEl) subEl.textContent = 'avant ouverture';
+    }
+  },
+
+  exportMedicalReport(history, settings) {
+    if (!Array.isArray(history) || history.length === 0) {
+      showToast('Aucun repas dans le journal à exporter');
+      return;
+    }
+
+    const totalCarbs = history.reduce((sum, h) => sum + (Number(h.netCarbs) || 0), 0);
+    const totalProt = history.reduce((sum, h) => sum + (Number(h.totalProtein) || 0), 0);
+    const totalBolus = history.reduce((sum, h) => sum + (Number(h.totalBolus) || 0), 0);
+    const avgCarbs = Math.round(totalCarbs / history.length);
+    const avgProt = Math.round(totalProt / history.length);
+    const avgBolus = (totalBolus / history.length).toFixed(1);
+
+    const rows = history.slice(0, 30).map(h => {
+      const d = new Date(h.timestamp).toLocaleDateString('fr-FR', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+      });
+      const names = (h.items || []).map(i => `${i.name} (${i.grams}g)`).join(', ');
+      return `
+        <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+          <td style="padding: 8px 6px;"><strong>${d}</strong></td>
+          <td style="padding: 8px 6px;">${escapeHTML(names)}</td>
+          <td style="padding: 8px 6px; text-align: right;">${h.totalGrams}g</td>
+          <td style="padding: 8px 6px; text-align: right;"><strong>${h.netCarbs}g</strong></td>
+          <td style="padding: 8px 6px; text-align: right;">${h.totalProtein || '--'}g</td>
+          <td style="padding: 8px 6px; text-align: right; color: #0284c7;"><strong>${Number(h.totalBolus || 0).toFixed(1)} UI</strong></td>
+          <td style="padding: 8px 6px; text-align: center;">${escapeHTML(h.verdictTag || 'Normal')}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="fr">
+      <head>
+        <meta charset="UTF-8">
+        <title>Rapport Médical Glycémique &amp; Nutritionnel — GlucoScan Maroc</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; margin: 24px; line-height: 1.4; }
+          .header { border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+          .badge { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 12px; }
+          .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+          .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; text-align: center; }
+          .kpi-val { font-size: 20px; font-weight: 800; color: #0f172a; font-family: monospace; }
+          .kpi-lbl { font-size: 11px; color: #64748b; font-weight: bold; margin-top: 4px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          th { background: #f1f5f9; padding: 8px 6px; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569; }
+          .footer { margin-top: 40px; border-top: 1px dashed #cbd5e1; padding-top: 12px; font-size: 11px; color: #64748b; display: flex; justify-content: space-between; }
+          @media print { button { display: none !important; } body { margin: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1 style="margin: 0; font-size: 22px; color: #0f172a;">🩺 Rapport Médical Glycémique &amp; Nutritionnel</h1>
+            <p style="margin: 4px 0 0; font-size: 12px; color: #64748b;">Généré par GlucoScan Maroc • Dossier Patient</p>
+          </div>
+          <div style="text-align: right;">
+            <span class="badge">Export Médical Officiel</span>
+            <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;">Date: ${new Date().toLocaleDateString('fr-FR')}</p>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-val">${history.length}</div>
+            <div class="kpi-lbl">Repas Scannés</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val">${avgCarbs}g</div>
+            <div class="kpi-lbl">Glucides Moy. / Repas</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val">${avgProt}g</div>
+            <div class="kpi-lbl">Protéines Moy. / Repas</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val" style="color: #0284c7;">${avgBolus} UI</div>
+            <div class="kpi-lbl">Bolus Moyen Estimé</div>
+          </div>
+        </div>
+
+        <h3 style="font-size: 14px; margin-bottom: 8px;">Détail chronologique des repas journalisés</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Date &amp; Heure</th>
+              <th>Composition du Plat</th>
+              <th style="text-align: right;">Poids</th>
+              <th style="text-align: right;">Glucides</th>
+              <th style="text-align: right;">Protéines</th>
+              <th style="text-align: right;">Bolus</th>
+              <th style="text-align: center;">Verdict</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <div>Observations du Médecin / Diabétologue : _________________________________</div>
+          <div>Signature &amp; Cachet :</div>
+        </div>
+
+        <div style="margin-top: 24px; text-align: center;">
+          <button onclick="window.print()" style="padding: 10px 20px; background: #059669; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;">
+            🖨️ Imprimer ou Enregistrer en PDF
+          </button>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWin = window.open('', '_blank');
+    if (printWin) {
+      printWin.document.write(html);
+      printWin.document.close();
+    } else {
+      showToast('Autorisez les fenêtres pop-up pour afficher le PDF');
+    }
   }
 };

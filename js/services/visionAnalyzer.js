@@ -1,10 +1,11 @@
 import { FoodRepository } from '../data/foods.js?v=16';
+import { SupabaseService } from './supabaseClient.js?v=17';
 
 /**
- * Service de Reconnaissance Alimentaire Haute Définition (v9) :
+ * Service de Reconnaissance Alimentaire Haute Définition (v10) :
  * - Image d'affichage 100% Haute Définition (aucune dégradation visuelle à l'écran)
- * - Image d'analyse IA en 800px (qualité 0.85) : conserve tous les détails (trous du Baghrir, feuilletage Msemen, etc.)
- * - Moteur Gemini 3.5 Flash-Lite en mode direct (temperature: 0.1 sans FSM bloquante) = réponse en 1.2s à 2.1s !
+ * - Image d'analyse IA en 800px (qualité 0.85) : conserve tous les détails
+ * - Proxy Cloudflare Pages Functions /api/scan avec garde-fous sur les portions marocaines
  */
 
 function normalizeCoord(val, fallback) {
@@ -88,7 +89,7 @@ export const VisionAnalyzer = {
       const fallbackY = 30 + ((idx * 18) % 45);
 
       if (dbFood) {
-        // Pour le pain, si l'IA a compté toute une corbeille (> 120g), ramener à une portion individuelle raisonnable (max 90g)
+        // Garde-fou portion marocaine individuelle (max 90g pour le pain)
         let grams = Math.max(5, Math.round(Number(item.grams) || dbFood.defaultGrams));
         if (dbFood.category === 'pains' && grams > 120) {
           grams = Math.min(grams, 85);
@@ -104,7 +105,8 @@ export const VisionAnalyzer = {
           gi: dbFood.gi,
           refPortion: dbFood.refPortion,
           x: normalizeCoord(item.x, fallbackX),
-          y: normalizeCoord(item.y, fallbackY)
+          y: normalizeCoord(item.y, fallbackY),
+          portionWarning: item.portionWarning || null
         };
       }
 
@@ -118,24 +120,47 @@ export const VisionAnalyzer = {
         gi: Math.min(100, Math.max(0, Number(item.gi) ?? 55)),
         refPortion: 'Estimé par IA Vision',
         x: normalizeCoord(item.x, fallbackX),
-        y: normalizeCoord(item.y, fallbackY)
+        y: normalizeCoord(item.y, fallbackY),
+        portionWarning: item.portionWarning || null
       };
     });
   },
 
   /**
-   * Appel via le Proxy Serverless Cloudflare Edge (/api/analyze)
+   * Appel via le Proxy Serverless Cloudflare Pages Functions (/api/scan ou fallback /api/analyze)
    */
   async callEdgeProxy(base64Data, apiKey, signal) {
-    const res = await fetch('/api/analyze', {
+    const headers = { 'Content-Type': 'application/json' };
+    const token = SupabaseService.getAccessToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+      const res = await fetch('/api/scan', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ imageBase64: base64Data, apiKey }),
+        signal
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.items) && data.items.length > 0) {
+          return this.mapRawItems(data.items);
+        }
+      }
+    } catch (_) {}
+
+    // Fallback sur /api/analyze existant
+    const res2 = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageBase64: base64Data, apiKey }),
       signal
     });
-    if (!res.ok) throw new Error(`Edge HTTP ${res.status}`);
-    const data = await res.json();
-    return this.mapRawItems(data.items);
+    if (!res2.ok) throw new Error(`Edge HTTP ${res2.status}`);
+    const data2 = await res2.json();
+    return this.mapRawItems(data2.items);
   },
 
   /**
@@ -183,30 +208,29 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
   },
 
   /**
-   * Détection principale sur gemini-3.5-flash-lite (quota élevé, ~1.5s) + Proxy Edge Cloudflare
+   * Détection principale via Proxy Edge Cloudflare (/api/scan) et fallback direct
    */
   async detectWithGemini(compressedDataUrl, apiKey) {
-    if (!apiKey) return null;
-
     const base64Data = compressedDataUrl.split(',')[1];
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 11000);
+
+    const candidates = [this.callEdgeProxy(base64Data, apiKey || '', controller.signal)];
+    if (apiKey) {
+      candidates.push(this.callSingleVisionModel('gemini-3.5-flash-lite', base64Data, apiKey, controller.signal));
+    }
 
     try {
-      const winner = await Promise.any([
-        this.callSingleVisionModel('gemini-3.5-flash-lite', base64Data, apiKey, controller.signal),
-        this.callEdgeProxy(base64Data, apiKey, controller.signal)
-      ]);
+      const winner = await Promise.any(candidates);
       clearTimeout(timeoutId);
       controller.abort();
       return winner;
     } catch {
       clearTimeout(timeoutId);
-      // Fallback sur gemma-4-26b-a4b-it si gemini-3.5-flash-lite est indisponible
       try {
         const fallbackCtrl = new AbortController();
         const fallbackTimer = setTimeout(() => fallbackCtrl.abort(), 8000);
-        const res = await this.callSingleVisionModel('gemma-4-26b-a4b-it', base64Data, apiKey, fallbackCtrl.signal);
+        const res = await this.callEdgeProxy(base64Data, apiKey || '', fallbackCtrl.signal);
         clearTimeout(fallbackTimer);
         return res;
       } catch {

@@ -1,15 +1,17 @@
-import { FoodRepository } from './data/foods.js?v=17';
-import { StorageService } from './services/storage.js?v=17';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=17';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=17';
-import { UIRenderer, showToast } from './ui/renderer.js?v=17';
+import { FoodRepository } from './data/foods.js?v=18';
+import { StorageService } from './services/storage.js?v=18';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=18';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=18';
+import { UIRenderer, showToast } from './ui/renderer.js?v=18';
+import { SupabaseService } from './services/supabaseClient.js?v=18';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v17 - Jauges d'Objectif Journalier & Score d'Amorti Glycémique)
+ * Contrôleur principal GlucoScan Maroc (v18 - Double Profil, Supabase Cloud & Garde-fous Maroc)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
 const DEFAULT_SETTINGS = {
+  userMode: 'insulin',     // 'insulin' (Diabète & Insuline) ou 'wellness' (Santé & 18/6)
   ratioMorning: 8,
   ratioNoon: 10,
   ratioEvening: 10,
@@ -149,6 +151,21 @@ function syncQuickPinEditor() {
   }
   if (gramsInp && document.activeElement !== gramsInp) {
     gramsInp.value = String(item.grams || 100);
+  }
+
+  const warnEl = document.getElementById('pinPortionWarning');
+  const warnText = document.getElementById('pinPortionWarningText');
+  if (warnEl && warnText) {
+    const isBread = food.category === 'pains' || (food.name || '').toLowerCase().includes('pain') || (food.name || '').toLowerCase().includes('khobz');
+    if (item.portionWarning) {
+      warnText.textContent = item.portionWarning;
+      warnEl.classList.remove('hidden');
+    } else if (isBread && (item.grams || 100) > 180) {
+      warnText.textContent = `Portion élevée (${item.grams}g). Un quart de pain individuel pèse environ 65g.`;
+      warnEl.classList.remove('hidden');
+    } else {
+      warnEl.classList.add('hidden');
+    }
   }
 }
 
@@ -354,6 +371,7 @@ function updateFasting186View() {
       descEl.textContent = 'Fenêtre nutritionnelle ouverte de 10h00 à 16h00. Fermeture métabolique à 16h00.';
       barEl.className = 'h-full bg-emerald-500 rounded-full transition-all duration-500';
       barEl.style.width = `${pct}%`;
+      UIRenderer.renderCircularFastingClock(elapsedEat, remainEat, true);
     } else {
       // Dans la fenêtre de jeûne 18h (16h00 -> 10h00 le lendemain)
       const elapsedFast = totalMinutesNow >= endEatMin
@@ -378,6 +396,7 @@ function updateFasting186View() {
       descEl.textContent = 'Hydratation autorisée sans glucides : eau, thé ou café sans sucre, tisane.';
       barEl.className = 'h-full bg-indigo-600 rounded-full transition-all duration-500';
       barEl.style.width = `${pct}%`;
+      UIRenderer.renderCircularFastingClock(elapsedFast, remainFast, false);
     }
   }
 
@@ -446,6 +465,7 @@ function switchToTab(target) {
     if (cInp) cInp.value = state.settings.dailyTargetCarbs || 120;
     const todayTotals = getTodayTotals(state.history);
     UIRenderer.renderDailySynthesis(todayTotals, state.settings);
+    UIRenderer.renderUserMode(state.settings.userMode || 'insulin');
 
     document.getElementById('inpRatioMorning').value = state.settings.ratioMorning;
     document.getElementById('inpRatioNoon').value = state.settings.ratioNoon;
@@ -466,6 +486,123 @@ function bindEvents() {
 
   document.querySelectorAll('[data-switch-to-settings]').forEach(el => {
     el.addEventListener('click', () => switchToTab('settings'));
+  });
+
+  // Double Profil : Diabète & Insuline vs Santé & Jeûne 18/6
+  document.getElementById('btnModeInsulin')?.addEventListener('click', () => {
+    state.settings.userMode = 'insulin';
+    StorageService.save('glucoscan_settings_v3', state.settings);
+    UIRenderer.renderUserMode('insulin');
+    updateUI();
+    showToast('Mode Diabète & Insuline actif');
+  });
+
+  document.getElementById('btnModeWellness')?.addEventListener('click', () => {
+    state.settings.userMode = 'wellness';
+    StorageService.save('glucoscan_settings_v3', state.settings);
+    UIRenderer.renderUserMode('wellness');
+    updateUI();
+    showToast('Mode Santé & 18/6 actif (Insuline masquée)');
+  });
+
+  // Rapport Médical (PDF / Impression)
+  document.getElementById('btnExportMedicalReport')?.addEventListener('click', () => {
+    UIRenderer.exportMedicalReport(state.history, state.settings);
+  });
+
+  // Notifications Locales PWA pour le Jeûne 18/6
+  document.getElementById('btnToggleFastingNotifications')?.addEventListener('click', async () => {
+    if (!('Notification' in window)) {
+      showToast('Notifications non supportées par ce navigateur');
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') {
+      showToast('🔔 Rappels 10h (repas) et 15h45 (fin de fenêtre) activés !');
+      try {
+        new Notification('GlucoScan Maroc — Mon 18/6', {
+          body: 'Rappels actifs pour votre protocole 10h & 15h.',
+          icon: './manifest.json'
+        });
+      } catch (_) {}
+    } else {
+      showToast('Autorisation de notification refusée');
+    }
+  });
+
+  // Gestion du Compte Supabase & Synchronisation Cloud
+  const updateAuthUI = () => {
+    const isAuth = SupabaseService.isAuthenticated();
+    const user = SupabaseService.currentUser;
+    const badge = document.getElementById('lblAuthStatusBadge');
+    const modalState = document.getElementById('lblAuthModalState');
+    const modalSub = document.getElementById('lblAuthModalSub');
+    const signOutBtn = document.getElementById('btnSignOutAuth');
+
+    if (isAuth && user) {
+      if (badge) badge.textContent = user.email ? user.email.split('@')[0] : 'Connecté';
+      if (modalState) {
+        modalState.textContent = 'Connecté (Cloud)';
+        modalState.className = 'font-extrabold font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200';
+      }
+      if (modalSub) modalSub.textContent = `Connecté avec ${user.email}. Synchronisation active.`;
+      if (signOutBtn) signOutBtn.classList.remove('hidden');
+    } else {
+      if (badge) badge.textContent = 'Invité';
+      if (modalState) {
+        modalState.textContent = 'Mode Invité (Local)';
+        modalState.className = 'font-extrabold font-mono text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200';
+      }
+      if (modalSub) modalSub.textContent = 'Vos repas sont stockés sur votre téléphone. Connectez-vous pour sauvegarder dans le Cloud Supabase.';
+      if (signOutBtn) signOutBtn.classList.add('hidden');
+    }
+  };
+
+  document.getElementById('btnOpenAuthModal')?.addEventListener('click', () => {
+    updateAuthUI();
+    document.getElementById('modalSupabaseAuth')?.classList.remove('hidden');
+    document.getElementById('modalSupabaseAuth')?.classList.add('flex');
+    if (window.lucide) window.lucide.createIcons();
+  });
+
+  document.getElementById('btnCloseAuthModal')?.addEventListener('click', () => {
+    document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
+    document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
+  });
+
+  document.getElementById('btnGoogleSignIn')?.addEventListener('click', async () => {
+    try {
+      await SupabaseService.signInWithOAuth('google');
+    } catch (_) {
+      showToast('Supabase non configuré pour Google OAuth');
+    }
+  });
+
+  document.getElementById('formMagicLink')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('inpMagicLinkEmail').value.trim();
+    if (!email) return;
+    try {
+      await SupabaseService.signInWithMagicLink(email);
+      showToast(`Magic Link envoyé à ${email} !`);
+    } catch (_) {
+      showToast('Erreur Supabase : vérifiez l’URL et la clé');
+    }
+  });
+
+  document.getElementById('btnSyncLocalHistory')?.addEventListener('click', async () => {
+    if (!SupabaseService.isAuthenticated()) {
+      showToast('Connectez-vous d’abord pour envoyer vos repas sur Supabase');
+      return;
+    }
+    const res = await SupabaseService.syncLocalHistoryToCloud(state.history);
+    showToast(`☁️ ${res.synced} repas synchronisé(s) vers Supabase !`);
+  });
+
+  document.getElementById('btnSignOutAuth')?.addEventListener('click', async () => {
+    await SupabaseService.signOut();
+    updateAuthUI();
+    showToast('Déconnecté. Mode invité réactivé.');
   });
 
   // Événements de l'onglet Mon 18/6 (Jeûne Intermittent 10h & 15h)
@@ -724,6 +861,20 @@ function bindEvents() {
     state.items[idx].grams = Math.min(1500, (state.items[idx].grams || 50) + 10);
     StorageService.save('glucoscan_items_v3', state.items);
     updateUI();
+  });
+
+  // Raccourcis de portion marocaine calibrée (1/4 pain 65g, 1/2 pain 130g, msemen 85g, etc.)
+  document.querySelectorAll('.quick-gram-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const g = parseInt(btn.getAttribute('data-set-grams'), 10);
+      const idx = state.selectedPinIndex;
+      if (idx !== null && state.items[idx] && g > 0) {
+        state.items[idx].grams = g;
+        StorageService.save('glucoscan_items_v3', state.items);
+        updateUI();
+        showToast(`Portion ajustée à ${g}g`);
+      }
+    });
   });
 
   document.getElementById('btnQuickPinReplace')?.addEventListener('click', () => {
