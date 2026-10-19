@@ -1,11 +1,11 @@
-import { FoodRepository } from './data/foods.js';
-import { StorageService } from './services/storage.js';
-import { MetabolicEngine } from './services/metabolicEngine.js';
-import { VisionAnalyzer } from './services/visionAnalyzer.js';
-import { UIRenderer, showToast } from './ui/renderer.js';
+import { FoodRepository } from './data/foods.js?v=4';
+import { StorageService } from './services/storage.js?v=4';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=4';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=4';
+import { UIRenderer, showToast } from './ui/renderer.js?v=4';
 
 /**
- * Contrôleur principal de l'application GlucoScan Maroc
+ * Contrôleur principal GlucoScan Maroc (v4 - Multi-API : Gemini Flash-Lite + LogMeal + OpenFoodFacts)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
@@ -16,7 +16,8 @@ const DEFAULT_SETTINGS = {
   isf: 50,
   targetBG: 100,
   bgUnit: 'mg/dL',
-  geminiKey: EMBEDDED_API_KEY
+  geminiKey: EMBEDDED_API_KEY,
+  logmealKey: ''
 };
 
 function detectDefaultSlot() {
@@ -31,7 +32,9 @@ const state = {
   settings: {
     ...DEFAULT_SETTINGS,
     ...savedSettings,
-    geminiKey: (savedSettings.geminiKey && savedSettings.geminiKey.trim()) ? savedSettings.geminiKey.trim() : EMBEDDED_API_KEY
+    geminiKey: (savedSettings.geminiKey && savedSettings.geminiKey.trim())
+      ? savedSettings.geminiKey.trim()
+      : EMBEDDED_API_KEY
   },
   activeSlot: detectDefaultSlot(),
   items: StorageService.load('glucoscan_items_v3', []),
@@ -58,42 +61,69 @@ function updateUI() {
   UIRenderer.renderDashboard(state, evaluation);
 }
 
-async function handleImageCaptured(dataUrl) {
+/**
+ * Traite une photo (File, Blob ou DataURL) avec garantie absolue de non-blocage (try/finally + watchdog)
+ */
+async function handleImageSource(source) {
   stopWebRTC();
   const img = document.getElementById('plateImage');
   const empty = document.getElementById('emptyCameraState');
   const clearBtn = document.getElementById('btnClearPhoto');
   const overlay = document.getElementById('scanningOverlay');
 
-  img.src = dataUrl;
-  img.classList.remove('hidden');
+  overlay.classList.remove('hidden');
   empty.classList.add('hidden');
   clearBtn.classList.remove('hidden');
-  overlay.classList.remove('hidden');
 
-  if (state.settings.geminiKey) {
-    try {
-      const detected = await VisionAnalyzer.detectWithGemini(dataUrl, state.settings.geminiKey);
-      if (detected && detected.length > 0) {
-        overlay.classList.add('hidden');
-        state.items = detected;
-        StorageService.save('glucoscan_items_v3', state.items);
-        updateUI();
-        showToast(`${detected.length} aliments reconnus par Gemini Vision`);
-        return;
-      }
-    } catch {
-      // Fallback automatique sur le sélecteur local en cas d'erreur réseau/clé
+  // Coupe-circuit de sécurité absolu : l'overlay ne peut JAMAIS rester affiché plus de 5 secondes
+  const watchdog = setTimeout(() => {
+    overlay.classList.add('hidden');
+  }, 5000);
+
+  try {
+    // 1. Compression immédiate en 480px JPEG (~25 Ko) sans saturer la mémoire mobile
+    const compressedDataUrl = await VisionAnalyzer.compressImageSource(source, 480, 0.70);
+    img.src = compressedDataUrl;
+    img.classList.remove('hidden');
+
+    let detected = null;
+
+    // 2. Priorité 1 : LogMeal Food AI API si un token LogMeal est configuré
+    if (state.settings.logmealKey && state.settings.logmealKey.trim()) {
+      try {
+        detected = await VisionAnalyzer.detectWithLogMeal(compressedDataUrl, state.settings.logmealKey.trim());
+      } catch {}
     }
-  }
 
-  setTimeout(() => {
+    // 3. Priorité 2 : Gemini 3.5 Flash-Lite Vision (~1.1s)
+    if (!detected && state.settings.geminiKey) {
+      detected = await VisionAnalyzer.detectWithGemini(compressedDataUrl, state.settings.geminiKey);
+    }
+
+    clearTimeout(watchdog);
+    overlay.classList.add('hidden');
+
+    if (detected && detected.length > 0) {
+      state.items = detected;
+      StorageService.save('glucoscan_items_v3', state.items);
+      updateUI();
+      showToast(`${detected.length} aliment(s) reconnu(s) sur la photo !`);
+      return;
+    }
+
+    // 4. Fallback instantané : ouverture de l'assistant visuel si hors-ligne
+    UIRenderer.renderMatcherModal();
+    const modal = document.getElementById('modalPhotoMatcher');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  } catch {
+    clearTimeout(watchdog);
     overlay.classList.add('hidden');
     UIRenderer.renderMatcherModal();
     const modal = document.getElementById('modalPhotoMatcher');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-  }, 850);
+  }
 }
 
 function loadPresetPlate(key, replacePhotoWithSVG = false) {
@@ -148,7 +178,7 @@ function stopWebRTC() {
 }
 
 function bindEvents() {
-  // Navigation entre les 3 onglets (Scanner / Journal 7j / Paramètres)
+  // Navigation entre les 3 onglets
   document.querySelectorAll('.nav-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       const target = btn.getAttribute('data-view');
@@ -182,7 +212,7 @@ function bindEvents() {
     });
   });
 
-  // Boutons Appareil Photo & Galerie
+  // Boutons Appareil Photo & Galerie (compression directe du File sans FileReader lourd)
   document.getElementById('btnTakePhoto').addEventListener('click', () => {
     document.getElementById('fileCameraInput').click();
   });
@@ -193,9 +223,7 @@ function bindEvents() {
   const handleFileInput = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => handleImageCaptured(String(reader.result));
-    reader.readAsDataURL(file);
+    handleImageSource(file);
     e.target.value = '';
   };
 
@@ -208,10 +236,10 @@ function bindEvents() {
   document.getElementById('btnCaptureFrame').addEventListener('click', () => {
     const video = document.getElementById('cameraVideo');
     const canvas = document.getElementById('analysisCanvas');
-    canvas.width = video.videoWidth || 800;
-    canvas.height = video.videoHeight || 600;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    handleImageCaptured(canvas.toDataURL('image/jpeg', 0.85));
+    handleImageSource(canvas.toDataURL('image/jpeg', 0.75));
   });
 
   // Réinitialiser la photo
