@@ -1,5 +1,5 @@
-import { FoodRepository } from '../data/foods.js?v=16';
-import { MetabolicEngine } from '../services/metabolicEngine.js?v=16';
+import { FoodRepository } from '../data/foods.js?v=17';
+import { MetabolicEngine } from '../services/metabolicEngine.js?v=17';
 
 /**
  * Fonctions de rendu DOM et protection XSS
@@ -115,6 +115,30 @@ export const UIRenderer = {
       barProt.className = `h-full rounded-full transition-all duration-500 ${evaluation.proteinIndex.barColor}`;
     }
 
+    // Indicateur Intelligent : Amorti Glycémique (Ratio Protéines+Fibres / Glucides)
+    const amorti = evaluation.amorti;
+    const badgeAmorti = document.getElementById('lblAmortiBadge');
+    if (badgeAmorti && amorti) {
+      badgeAmorti.textContent = amorti.badgeText;
+      badgeAmorti.className = `inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-full border transition-all ${amorti.badgeClass}`;
+    }
+
+    const valRatio = document.getElementById('lblAmortiRatioValue');
+    if (valRatio && amorti) {
+      valRatio.textContent = amorti.ratioText;
+    }
+
+    const descAmorti = document.getElementById('lblAmortiDesc');
+    if (descAmorti && amorti) {
+      descAmorti.textContent = amorti.desc;
+    }
+
+    const barAmorti = document.getElementById('barAmortiProgress');
+    if (barAmorti && amorti) {
+      barAmorti.style.width = `${amorti.pct}%`;
+      barAmorti.className = `h-full rounded-full transition-all duration-500 ${amorti.barColor}`;
+    }
+
     document.getElementById('lblBGUnit').textContent = state.settings.bgUnit;
     document.getElementById('lblBGSuffix').textContent = state.settings.bgUnit;
 
@@ -123,6 +147,71 @@ export const UIRenderer = {
 
     if (window.lucide) {
       window.lucide.createIcons();
+    }
+  },
+
+  renderDailySynthesis(todayTotals, settings) {
+    const targetProt = Math.max(30, Number(settings.dailyTargetProtein) || 100);
+    const targetCarbs = Math.max(30, Number(settings.dailyTargetCarbs) || 120);
+
+    const protConsumed = Math.round(todayTotals.protein);
+    const carbsConsumed = Math.round(todayTotals.carbs);
+
+    const protPct = Math.round((protConsumed / targetProt) * 100);
+    const carbsPct = Math.round((carbsConsumed / targetCarbs) * 100);
+
+    const protText = `${protConsumed}g / ${targetProt}g (${protPct}%)`;
+    const carbsText = `${carbsConsumed}g / ${targetCarbs}g (${carbsPct}%)`;
+
+    const elProtText = document.getElementById('dailyOutProteinText');
+    if (elProtText) elProtText.textContent = protText;
+
+    const elCarbsText = document.getElementById('dailyOutCarbsText');
+    if (elCarbsText) elCarbsText.textContent = carbsText;
+
+    const qProt = document.getElementById('quickDailyProtText');
+    if (qProt) qProt.textContent = protText;
+
+    const qCarbs = document.getElementById('quickDailyCarbsText');
+    if (qCarbs) qCarbs.textContent = carbsText;
+
+    const barProt = document.getElementById('dailyBarProtein');
+    if (barProt) {
+      barProt.style.width = `${Math.min(100, protPct)}%`;
+      barProt.className = `h-full rounded-full transition-all duration-500 ${
+        protPct >= 100 ? 'bg-emerald-600' : 'bg-emerald-500'
+      }`;
+    }
+
+    const barCarbs = document.getElementById('dailyBarCarbs');
+    if (barCarbs) {
+      barCarbs.style.width = `${Math.min(100, carbsPct)}%`;
+      barCarbs.className = `h-full rounded-full transition-all duration-500 ${
+        carbsPct > 100 ? 'bg-rose-500' : (carbsPct >= 85 ? 'bg-amber-500' : 'bg-cyan-600')
+      }`;
+    }
+
+    const remProt = document.getElementById('dailyProteinRemaining');
+    if (remProt) {
+      const diff = targetProt - protConsumed;
+      remProt.textContent = diff > 0 ? `Reste ${diff}g` : `Objectif atteint ! 🎉`;
+    }
+
+    const remCarbs = document.getElementById('dailyCarbsRemaining');
+    if (remCarbs) {
+      const diff = targetCarbs - carbsConsumed;
+      remCarbs.textContent = diff >= 0 ? `Reste ${diff}g` : `Plafond dépassé (+${Math.abs(diff)}g)`;
+    }
+
+    const badgeCount = document.getElementById('lblDailyMealCountBadge');
+    if (badgeCount) {
+      badgeCount.textContent = `${todayTotals.mealCount} repas aujourd'hui`;
+    }
+
+    const lblDate = document.getElementById('lblDailyTodayDate');
+    if (lblDate) {
+      const options = { weekday: 'long', day: 'numeric', month: 'long' };
+      lblDate.textContent = new Date().toLocaleDateString('fr-FR', options);
     }
   },
 

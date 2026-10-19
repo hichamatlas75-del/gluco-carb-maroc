@@ -1,11 +1,11 @@
-import { FoodRepository } from './data/foods.js?v=16';
-import { StorageService } from './services/storage.js?v=16';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=16';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=16';
-import { UIRenderer, showToast } from './ui/renderer.js?v=16';
+import { FoodRepository } from './data/foods.js?v=17';
+import { StorageService } from './services/storage.js?v=17';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=17';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=17';
+import { UIRenderer, showToast } from './ui/renderer.js?v=17';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v16 - Bloc Protéines & Indice Satiété Métabolique)
+ * Contrôleur principal GlucoScan Maroc (v17 - Jauges d'Objectif Journalier & Score d'Amorti Glycémique)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
@@ -16,6 +16,8 @@ const DEFAULT_SETTINGS = {
   isf: 50,
   targetBG: 100,
   bgUnit: 'mg/dL',
+  dailyTargetProtein: 100, // Cible journalière protéines (ex: 100g)
+  dailyTargetCarbs: 120,   // Cible journalière glucides nets (ex: 120g)
   geminiKey: EMBEDDED_API_KEY
 };
 
@@ -24,6 +26,29 @@ function detectDefaultSlot() {
   if (hour >= 5 && hour < 11) return 'morning';
   if (hour >= 11 && hour < 17) return 'noon';
   return 'evening';
+}
+
+function getTodayTotals(history) {
+  const todayStr = new Date().toDateString();
+  let consumedCarbs = 0;
+  let consumedProtein = 0;
+  let mealCount = 0;
+
+  for (const log of (history || [])) {
+    if (!log.timestamp) continue;
+    const logDate = new Date(log.timestamp).toDateString();
+    if (logDate === todayStr) {
+      consumedCarbs += Number(log.netCarbs) || 0;
+      consumedProtein += Number(log.totalProtein || log.protein) || 0;
+      mealCount++;
+    }
+  }
+
+  return {
+    carbs: Math.round(consumedCarbs * 10) / 10,
+    protein: Math.round(consumedProtein * 10) / 10,
+    mealCount
+  };
 }
 
 const savedSettings = StorageService.load('glucoscan_settings_v3', {});
@@ -139,6 +164,8 @@ function updateUI() {
     getCurrentBGMgDl()
   );
   UIRenderer.renderDashboard(state, evaluation);
+  const todayTotals = getTodayTotals(state.history);
+  UIRenderer.renderDailySynthesis(todayTotals, state.settings);
 }
 
 /**
@@ -413,6 +440,13 @@ function switchToTab(target) {
     if (window.lucide) window.lucide.createIcons();
   }
   if (target === 'settings') {
+    const pInp = document.getElementById('inpDailyTargetProtein');
+    if (pInp) pInp.value = state.settings.dailyTargetProtein || 100;
+    const cInp = document.getElementById('inpDailyTargetCarbs');
+    if (cInp) cInp.value = state.settings.dailyTargetCarbs || 120;
+    const todayTotals = getTodayTotals(state.history);
+    UIRenderer.renderDailySynthesis(todayTotals, state.settings);
+
     document.getElementById('inpRatioMorning').value = state.settings.ratioMorning;
     document.getElementById('inpRatioNoon').value = state.settings.ratioNoon;
     document.getElementById('inpRatioEvening').value = state.settings.ratioEvening;
@@ -423,11 +457,15 @@ function switchToTab(target) {
 }
 
 function bindEvents() {
-  // Navigation entre les 5 onglets (Scanner, Mon 18/6, Journal 7j, Guide, Paramètres)
+  // Navigation entre les 5 onglets (Scanner, Mon 18/6, Journal 7j, Guide, Synthèse/Paramètres)
   document.querySelectorAll('.nav-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       switchToTab(btn.getAttribute('data-view'));
     });
+  });
+
+  document.querySelectorAll('[data-switch-to-settings]').forEach(el => {
+    el.addEventListener('click', () => switchToTab('settings'));
   });
 
   // Événements de l'onglet Mon 18/6 (Jeûne Intermittent 10h & 15h)
@@ -978,7 +1016,54 @@ function bindEvents() {
     });
     state.history = state.history.slice(0, 150);
     StorageService.save('glucoscan_history_v3', state.history);
+    updateUI();
     showToast('Repas enregistré dans le journal 7j');
+  });
+
+  // Bouton d'ajout direct du repas actuel à la synthèse journalière
+  document.getElementById('btnLogCurrentMealToDay')?.addEventListener('click', () => {
+    if (state.items.length === 0) {
+      showToast('Assiette vide : ajoutez d’abord des aliments');
+      return;
+    }
+    const ev = MetabolicEngine.evaluatePlate(
+      state.items,
+      state.settings,
+      state.activeSlot,
+      getCurrentBGMgDl()
+    );
+    state.history.unshift({
+      id: 'log_' + Date.now(),
+      timestamp: new Date().toISOString(),
+      verdictTag: ev.verdict.tag,
+      totalGrams: ev.totalGrams,
+      netCarbs: ev.netCarbs,
+      totalProtein: ev.totalProtein,
+      proteinIndexLabel: ev.proteinIndex.label,
+      totalBolus: ev.totalBolus,
+      items: state.items.map(i => {
+        const f = MetabolicEngine.resolveFoodEntry(i);
+        return { name: f ? f.name.split('(')[0].trim() : i.foodId, grams: i.grams };
+      })
+    });
+    state.history = state.history.slice(0, 150);
+    StorageService.save('glucoscan_history_v3', state.history);
+    updateUI();
+    showToast('Repas comptabilisé dans la synthèse du jour !');
+  });
+
+  // Réinitialiser les repas comptabilisés aujourd'hui
+  document.getElementById('btnResetTodayLogs')?.addEventListener('click', () => {
+    const todayStr = new Date().toDateString();
+    const countBefore = state.history.length;
+    state.history = state.history.filter(item => {
+      if (!item || !item.timestamp) return true;
+      return new Date(item.timestamp).toDateString() !== todayStr;
+    });
+    const removedCount = countBefore - state.history.length;
+    StorageService.save('glucoscan_history_v3', state.history);
+    updateUI();
+    showToast(removedCount > 0 ? `Réinitialisé (${removedCount} repas retiré(s))` : 'Aucun repas à réinitialiser aujourd’hui');
   });
 
   document.getElementById('btnShareSummary').addEventListener('click', async () => {
@@ -1009,6 +1094,8 @@ function bindEvents() {
   // Sauvegarde des paramètres
   document.getElementById('formSettings').addEventListener('submit', (e) => {
     e.preventDefault();
+    state.settings.dailyTargetProtein = Math.max(30, parseFloat(document.getElementById('inpDailyTargetProtein').value) || 100);
+    state.settings.dailyTargetCarbs = Math.max(30, parseFloat(document.getElementById('inpDailyTargetCarbs').value) || 120);
     state.settings.ratioMorning = Math.max(1, parseFloat(document.getElementById('inpRatioMorning').value) || 8);
     state.settings.ratioNoon = Math.max(1, parseFloat(document.getElementById('inpRatioNoon').value) || 10);
     state.settings.ratioEvening = Math.max(1, parseFloat(document.getElementById('inpRatioEvening').value) || 10);
@@ -1018,7 +1105,7 @@ function bindEvents() {
     state.settings.geminiKey = enteredKey.length > 20 ? enteredKey : EMBEDDED_API_KEY;
     StorageService.save('glucoscan_settings_v3', state.settings);
     updateUI();
-    showToast('Paramètres enregistrés');
+    showToast('Paramètres & Objectifs enregistrés');
   });
 
   // Export & Import JSON

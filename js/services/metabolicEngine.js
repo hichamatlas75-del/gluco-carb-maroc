@@ -69,10 +69,87 @@ export const MetabolicEngine = {
     }
 
     const roundedProtein = Math.round(totalProtein * 10) / 10;
+    const roundedFiber = Math.round(totalFiber * 10) / 10;
     const roundedNetCarbs = Math.round(netCarbs * 10) / 10;
     const ratioPG = roundedNetCarbs > 0
       ? (roundedProtein / roundedNetCarbs)
       : (roundedProtein > 0 ? 2.5 : 0);
+
+    // Score d'amorti glycémique = (Protéines + Fibres) / Glucides Nets
+    const bufferNutrients = roundedProtein + roundedFiber;
+    const amortiRatio = roundedNetCarbs > 0
+      ? (bufferNutrients / roundedNetCarbs)
+      : (bufferNutrients > 0 ? 3.0 : 0);
+
+    let amorti = {
+      status: 'none',
+      score: 0,
+      ratio: amortiRatio,
+      ratioText: '(P+F)/G : --',
+      badgeText: 'En attente',
+      badgeClass: 'bg-slate-100 text-slate-500 border-slate-200',
+      barColor: 'bg-slate-300',
+      pct: 0,
+      headline: 'Amorti en attente',
+      desc: 'Ajoutez ou scannez vos aliments pour évaluer le score d’amorti glycémique.'
+    };
+
+    if (items.length > 0) {
+      const pct = Math.min(100, Math.round((amortiRatio / 1.0) * 100));
+      if (roundedNetCarbs === 0 && bufferNutrients > 0) {
+        amorti = {
+          status: 'optimal',
+          score: 100,
+          ratio: amortiRatio,
+          ratioText: '(P+F)/G : Maximal',
+          badgeText: '🟢 Pic glycémique amorti',
+          badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+          barColor: 'bg-emerald-500',
+          pct: 100,
+          headline: 'Amorti maximal (Zéro pic)',
+          desc: 'Repas sans glucides nets. Les protéines et lipides assurent une glycémie parfaitement stable.'
+        };
+      } else if (amortiRatio >= 0.70) {
+        amorti = {
+          status: 'optimal',
+          score: Math.min(100, Math.round(amortiRatio * 75)),
+          ratio: amortiRatio,
+          ratioText: `(P+F)/G : ${amortiRatio.toFixed(2)}`,
+          badgeText: '🟢 Pic glycémique amorti',
+          badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+          barColor: 'bg-emerald-500',
+          pct: Math.min(100, Math.max(70, pct)),
+          headline: 'Amorti optimal : Pic de glucose évité',
+          desc: `La matrice de protéines (${roundedProtein}g) et de fibres (${roundedFiber}g) freine fortement l'absorption des ${roundedNetCarbs}g de glucides. La montée glycémique est progressive et amortie.`
+        };
+      } else if (amortiRatio >= 0.35) {
+        amorti = {
+          status: 'moderate',
+          score: Math.round(amortiRatio * 75),
+          ratio: amortiRatio,
+          ratioText: `(P+F)/G : ${amortiRatio.toFixed(2)}`,
+          badgeText: '🟡 Amorti modéré',
+          badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
+          barColor: 'bg-amber-500',
+          pct: Math.min(69, Math.max(35, pct)),
+          headline: 'Amorti modéré',
+          desc: `Freinage partiel de la vidange gastrique. Associez plus de fibres (salade) ou de protéines pour un amorti optimal.`
+        };
+      } else {
+        amorti = {
+          status: 'risk',
+          score: Math.max(10, Math.round(amortiRatio * 75)),
+          ratio: amortiRatio,
+          ratioText: `(P+F)/G : ${amortiRatio.toFixed(2)}`,
+          badgeText: '🔴 Risque de pic glycémique',
+          badgeClass: 'bg-rose-100 text-rose-800 border-rose-300',
+          barColor: 'bg-rose-500',
+          pct: Math.max(12, Math.min(34, pct)),
+          headline: 'Risque de pic glycémique rapide',
+          desc: `Le repas contient une forte proportion de glucides pour très peu de protéines/fibres. Le sucre passe vite dans le sang (risque de pic brutal).`
+        };
+      }
+    }
 
     // Calcul de l'Indice Protéique & Satiété
     let proteinIndex = {
@@ -139,7 +216,7 @@ export const MetabolicEngine = {
 
     const totalBolus = Math.max(0, mealBolus + corrBolus);
 
-    // Arbre de décision du Verdict Métabolique
+    // Arbre de décision du Verdict Métabolique (intégrant le Score d'Amorti)
     let verdict = {
       boxClass: 'bg-slate-50 border-slate-200',
       iconClass: 'bg-slate-200 text-slate-600',
@@ -159,17 +236,27 @@ export const MetabolicEngine = {
         ? ` (dont ~${Math.round(highestCarbContributor.netCarbs)}g provenant de : ${topName}, portion ${highestCarbContributor.grams}g)`
         : '';
 
-      if (totalGL < 14 && netCarbs <= 35 && avgGI < 58) {
+      if (amorti.status === 'optimal' && totalGL < 24) {
         verdict = {
           boxClass: 'bg-emerald-50/90 border-emerald-200',
           iconClass: 'bg-emerald-600 text-white',
           iconName: 'shield-check',
           ringColor: '#10b981',
-          tag: '🟢 VERDICT : FEU VERT MÉTABOLIQUE',
-          headline: 'Repas équilibré à libération lente',
-          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail}. Charge glycémique faible (${totalGL.toFixed(1)}) et bon apport en fibres (${totalFiber.toFixed(1)}g).`
+          tag: '🟢 VERDICT : PIC GLYCÉMIQUE AMORTI',
+          headline: 'Repas stabilisé par les protéines & fibres',
+          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail}. Excellent amorti ((P+F)/G: ${amortiRatio.toFixed(2)}) avec ${roundedProtein}g de protéines et ${roundedFiber}g de fibres : le pic est freiné.`
         };
-      } else if (totalGL < 26 && netCarbs <= 65) {
+      } else if (amorti.status === 'risk' || totalGL >= 26 || netCarbs > 65) {
+        verdict = {
+          boxClass: 'bg-rose-50/95 border-rose-200',
+          iconClass: 'bg-rose-600 text-white',
+          iconName: 'flame',
+          ringColor: '#ef4444',
+          tag: '🔴 VERDICT : RISQUE DE PIC GLYCÉMIQUE',
+          headline: 'Charge glucidique élevée & faible amorti',
+          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail}. Ratio d'amorti insuffisant ((P+F)/G: ${amortiRatio.toFixed(2)}). Ajoutez des protéines (œufs, poulet, sardines) ou réduisez le féculent.`
+        };
+      } else {
         verdict = {
           boxClass: 'bg-amber-50/90 border-amber-200',
           iconClass: 'bg-amber-500 text-white',
@@ -177,17 +264,7 @@ export const MetabolicEngine = {
           ringColor: '#f59e0b',
           tag: '🟠 VERDICT : IMPACT MODÉRÉ',
           headline: 'Hausse glycémique modérée prévue',
-          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail}. Associez des fibres ou réduisez le féculent pour freiner l'absorption.`
-        };
-      } else {
-        verdict = {
-          boxClass: 'bg-rose-50/95 border-rose-200',
-          iconClass: 'bg-rose-600 text-white',
-          iconName: 'flame',
-          ringColor: '#ef4444',
-          tag: '🔴 VERDICT : ALERTE PIC GLYCÉMIQUE',
-          headline: 'Charge glucidique globale élevée',
-          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail}. Réduisez la portion de féculent ou boisson sucrée, ou validez votre bolus d'insuline.`
+          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail}. Ratio d'amorti intermédiaire ((P+F)/G: ${amortiRatio.toFixed(2)}). Associez plus de fibres pour freiner encore l'absorption.`
         };
       }
     }
@@ -195,10 +272,12 @@ export const MetabolicEngine = {
     return {
       totalGrams: Math.round(totalGrams),
       totalCarbs: Math.round(totalCarbs * 10) / 10,
-      totalFiber: Math.round(totalFiber * 10) / 10,
+      totalFiber: roundedFiber,
       netCarbs: roundedNetCarbs,
       totalProtein: roundedProtein,
       ratioPG: Math.round(ratioPG * 100) / 100,
+      amortiRatio: Math.round(amortiRatio * 100) / 100,
+      amorti,
       proteinIndex,
       avgGI,
       totalGL: Math.round(totalGL * 10) / 10,
