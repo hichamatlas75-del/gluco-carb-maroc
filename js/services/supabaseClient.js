@@ -1,17 +1,20 @@
 /**
  * Service Supabase Client (Hybride Invité / Authentifié)
- * Gère l'authentification OAuth/Magic Link et la synchronisation automatique des repas.
+ * Projet: gluco scan maroc (plrqzuwbnuryxtsmimyt)
  */
 
 const STORAGE_KEY_AUTH = 'glucoscan_supabase_auth_v1';
 const STORAGE_KEY_CONFIG = 'glucoscan_supabase_config_v1';
 
+const DEFAULT_SUPABASE_URL = 'https://plrqzuwbnuryxtsmimyt.supabase.co';
+const DEFAULT_SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBscnF6dXdibnVyeXh0c21pbXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0Mzk2OTcsImV4cCI6MjEwODAxNTY5N30.Wzx1Lsh1GGETK_RidTTND1t4Ix3EjhS3qQvlGn-Xglc';
+
 let supabaseInstance = null;
 
 export const SupabaseService = {
   config: {
-    url: '',
-    anonKey: ''
+    url: DEFAULT_SUPABASE_URL,
+    anonKey: DEFAULT_SUPABASE_ANON
   },
   currentUser: null,
   session: null,
@@ -20,7 +23,10 @@ export const SupabaseService = {
     try {
       const savedConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
       if (savedConfig) {
-        this.config = JSON.parse(savedConfig);
+        const parsed = JSON.parse(savedConfig);
+        if (parsed.url && parsed.anonKey) {
+          this.config = parsed;
+        }
       }
       const savedAuth = localStorage.getItem(STORAGE_KEY_AUTH);
       if (savedAuth) {
@@ -30,7 +36,6 @@ export const SupabaseService = {
       }
     } catch (_) {}
 
-    // Initialiser le client si la lib est disponible ou via dynamic import
     this.createClientIfNeeded();
   },
 
@@ -39,13 +44,34 @@ export const SupabaseService = {
     if (supabaseInstance) return supabaseInstance;
 
     try {
-      // Chargement dynamique du SDK Supabase v2
       if (window.supabase && window.supabase.createClient) {
         supabaseInstance = window.supabase.createClient(this.config.url, this.config.anonKey);
       } else {
         const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
         supabaseInstance = createClient(this.config.url, this.config.anonKey);
       }
+
+      // Écouter les changements d'authentification
+      supabaseInstance.auth.onAuthStateChange((event, session) => {
+        if (session && session.user) {
+          this.currentUser = session.user;
+          this.session = session;
+          localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify({ user: session.user, session }));
+        } else if (event === 'SIGNED_OUT') {
+          this.currentUser = null;
+          this.session = null;
+          localStorage.removeItem(STORAGE_KEY_AUTH);
+        }
+      });
+
+      // Synchroniser la session existante
+      const { data } = await supabaseInstance.auth.getSession();
+      if (data?.session) {
+        this.currentUser = data.session.user;
+        this.session = data.session;
+        localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify({ user: data.session.user, session: data.session }));
+      }
+
       return supabaseInstance;
     } catch (e) {
       console.warn('Supabase SDK non chargé:', e);
@@ -65,16 +91,9 @@ export const SupabaseService = {
     return this.session?.access_token || null;
   },
 
-  saveConfig(url, anonKey) {
-    this.config = { url: url.trim(), anonKey: anonKey.trim() };
-    localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(this.config));
-    supabaseInstance = null;
-    return this.createClientIfNeeded();
-  },
-
   async signInWithMagicLink(email) {
     const client = await this.createClientIfNeeded();
-    if (!client) throw new Error('Supabase non configuré');
+    if (!client) throw new Error('Supabase non initialisé');
 
     const { error } = await client.auth.signInWithOtp({
       email,
@@ -86,7 +105,7 @@ export const SupabaseService = {
 
   async signInWithOAuth(provider = 'google') {
     const client = await this.createClientIfNeeded();
-    if (!client) throw new Error('Supabase non configuré');
+    if (!client) throw new Error('Supabase non initialisé');
 
     const { data, error } = await client.auth.signInWithOAuth({
       provider,

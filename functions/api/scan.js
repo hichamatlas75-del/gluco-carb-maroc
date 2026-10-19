@@ -4,6 +4,8 @@
  */
 
 const FALLBACK_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
+const FALLBACK_SUPABASE_URL = 'https://plrqzuwbnuryxtsmimyt.supabase.co';
+const FALLBACK_SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBscnF6dXdibnVyeXh0c21pbXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0Mzk2OTcsImV4cCI6MjEwODAxNTY5N30.Wzx1Lsh1GGETK_RidTTND1t4Ix3EjhS3qQvlGn-Xglc';
 
 const MOROCCAN_PORTION_SAFEGUARDS = {
   pains: { maxSafeGrams: 200, normalPortion: 70, label: '1/4 de pain individuel' },
@@ -15,6 +17,8 @@ const MOROCCAN_PORTION_SAFEGUARDS = {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+  const supabaseUrl = env?.SUPABASE_URL || FALLBACK_SUPABASE_URL;
+  const supabaseAnon = env?.SUPABASE_ANON_KEY || FALLBACK_SUPABASE_ANON;
 
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -32,13 +36,13 @@ export async function onRequestPost(context) {
     let isGuest = true;
     let userId = 'guest_' + (request.headers.get('CF-Connecting-IP') || 'anonymous');
 
-    if (authHeader.startsWith('Bearer ') && env?.SUPABASE_URL && env?.SUPABASE_ANON_KEY) {
+    if (authHeader.startsWith('Bearer ') && supabaseUrl && supabaseAnon) {
       const token = authHeader.replace('Bearer ', '').trim();
       try {
-        const verifyRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+        const verifyRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'apikey': env.SUPABASE_ANON_KEY
+            'apikey': supabaseAnon
           }
         });
         if (verifyRes.ok) {
