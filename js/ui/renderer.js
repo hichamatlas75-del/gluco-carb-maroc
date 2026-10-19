@@ -1,5 +1,5 @@
-import { FoodRepository } from '../data/foods.js?v=14';
-import { MetabolicEngine } from '../services/metabolicEngine.js?v=14';
+import { FoodRepository } from '../data/foods.js?v=15';
+import { MetabolicEngine } from '../services/metabolicEngine.js?v=15';
 
 /**
  * Fonctions de rendu DOM et protection XSS
@@ -137,25 +137,26 @@ export const UIRenderer = {
       const isSelected = selectedPinIdx === idx;
       const shortLabel = food.name.split('(')[0].trim();
 
-      const borderStyle = isSelected
-        ? 'bg-emerald-50 text-slate-950 ring-2 ring-emerald-500 border-emerald-600 z-30 scale-105'
-        : 'bg-white/95 text-slate-900 border-emerald-500/50 z-10 hover:z-20';
+      // Fond transparent vitré (glassmorphism) : n'obstrue pas l'image du plat derrière
+      const glassStyle = isSelected
+        ? 'backdrop-blur-md bg-emerald-950/75 border-emerald-400 ring-2 ring-emerald-400 text-white z-30 scale-105 shadow-xl'
+        : 'backdrop-blur-md bg-slate-950/50 border-white/30 text-white z-10 hover:z-20 hover:bg-slate-950/65 shadow-lg';
 
       return `
         <div data-pin-index="${idx}"
-             class="food-pin pointer-events-auto cursor-grab active:cursor-grabbing select-none absolute -translate-x-1/2 -translate-y-1/2 px-2 py-0.5 rounded-full shadow-md border flex items-center gap-1 text-[10.5px] font-extrabold whitespace-nowrap transition-shadow ${borderStyle}"
-             style="left:${x}%; top:${y}%; touch-action:none;">
-          <span class="text-slate-400 text-[10px] leading-none font-mono pr-0.5" title="Glisser pour déplacer">⋮⋮</span>
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>
-          <span class="max-w-[125px] truncate">${escapeHTML(shortLabel)}</span>
-          <span class="font-mono text-emerald-700">~${item.grams}g</span>
-          <span class="text-[9.5px] font-mono text-slate-500">(${Math.round(macros.netCarbs)}g)</span>
+             class="food-pin pointer-events-auto cursor-grab active:cursor-grabbing select-none absolute -translate-x-1/2 -translate-y-1/2 px-2.5 py-1 rounded-full border flex items-center gap-1.5 text-[10.5px] font-extrabold whitespace-nowrap transition-all ${glassStyle}"
+             style="left:${x}%; top:${y}%; touch-action:none; -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);">
+          <span class="text-white/50 text-[10px] leading-none font-mono pr-0.5" title="Glisser pour déplacer">⋮⋮</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.9)]"></span>
+          <span class="max-w-[125px] truncate text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">${escapeHTML(shortLabel)}</span>
+          <span class="font-mono text-emerald-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">~${item.grams}g</span>
+          <span class="text-[9.5px] font-mono text-cyan-200/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">(${Math.round(macros.netCarbs)}g)</span>
           <button type="button" data-edit-pin="${idx}" title="Modifier cette étiquette"
-            class="ml-0.5 w-4 h-4 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-800 flex items-center justify-center text-[9px] leading-none">
+            class="ml-0.5 w-4 h-4 rounded-full bg-white/20 hover:bg-white/35 text-white flex items-center justify-center text-[9px] leading-none border border-white/20">
             ✎
           </button>
           <button type="button" data-remove-pin="${idx}" title="Supprimer cet aliment"
-            class="w-4 h-4 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-700 flex items-center justify-center text-[10px] font-extrabold leading-none">
+            class="w-4 h-4 rounded-full bg-rose-500/40 hover:bg-rose-500/70 text-rose-100 flex items-center justify-center text-[10px] font-extrabold leading-none border border-rose-300/30">
             ×
           </button>
         </div>

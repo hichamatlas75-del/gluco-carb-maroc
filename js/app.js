@@ -1,11 +1,11 @@
-import { FoodRepository } from './data/foods.js?v=14';
-import { StorageService } from './services/storage.js?v=14';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=14';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=14';
-import { UIRenderer, showToast } from './ui/renderer.js?v=14';
+import { FoodRepository } from './data/foods.js?v=15';
+import { StorageService } from './services/storage.js?v=15';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=15';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=15';
+import { UIRenderer, showToast } from './ui/renderer.js?v=15';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v14 - Calibration Portion Individuelle, Anti-Superposition & Clarté Médicale)
+ * Contrôleur principal GlucoScan Maroc (v15 - Étiquettes Transparentes Vitrées & Haute Lisibilité)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 

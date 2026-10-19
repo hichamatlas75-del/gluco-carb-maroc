@@ -1,4 +1,4 @@
-import { FoodRepository } from '../data/foods.js?v=13';
+import { FoodRepository } from '../data/foods.js?v=15';
 
 /**
  * Service de Reconnaissance Alimentaire Haute Définition (v9) :
