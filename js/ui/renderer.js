@@ -1,5 +1,5 @@
-import { FoodRepository } from '../data/foods.js?v=6';
-import { MetabolicEngine } from '../services/metabolicEngine.js?v=6';
+import { FoodRepository } from '../data/foods.js?v=7';
+import { MetabolicEngine } from '../services/metabolicEngine.js?v=7';
 
 /**
  * Fonctions de rendu DOM et protection XSS
@@ -30,10 +30,8 @@ export function showToast(message) {
 
 export const UIRenderer = {
   renderDashboard(state, evaluation) {
-    // Badge moteur IA + Plan de secours
-    document.getElementById('engineBadge').textContent = state.settings.geminiKey
-      ? 'IA + OpenFoodFacts'
-      : 'OpenFoodFacts Maroc';
+    // Badge moteur IA
+    document.getElementById('engineBadge').textContent = 'IA Vision';
 
     // Boutons Matin / Midi / Soir
     document.querySelectorAll('.slot-btn').forEach(btn => {
@@ -119,7 +117,7 @@ export const UIRenderer = {
       container.innerHTML = `
         <div class="text-center py-6 px-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200">
           <p class="text-xs font-bold text-slate-700">Aucun aliment scanné</p>
-          <p class="text-[11px] text-slate-500 mt-0.5">Utilisez « Prendre Photo », « Plan de Secours OpenFoodFacts » ou un plat ci-dessus.</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">Utilisez « Prendre Photo » ou « Galerie Photo » ci-dessus.</p>
         </div>
       `;
       return;
@@ -166,91 +164,27 @@ export const UIRenderer = {
     }).join('');
   },
 
-  renderFoodRowHTML(f, actionAttr = 'data-pick-food', isOFF = false) {
-    const m = MetabolicEngine.computeFoodPortion(f, f.defaultGrams);
-    const payload = isOFF ? encodeURIComponent(JSON.stringify(f)) : f.id;
-    const attrName = isOFF ? `${actionAttr}-off` : actionAttr;
-    const badge = isOFF
-      ? `<span class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">OpenFoodFacts</span>`
-      : '';
-
-    return `
-      <div class="p-2.5 rounded-2xl ${isOFF ? 'bg-amber-50/60 border-amber-200' : 'bg-slate-50 border-slate-200'} border flex items-center justify-between gap-2">
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <p class="text-xs font-extrabold text-slate-900 truncate">${escapeHTML(f.name)}</p>
-            ${badge}
-          </div>
-          <p class="text-[11px] text-slate-500 truncate">${escapeHTML(f.darija)} • ${f.defaultGrams}g (${m.netCarbs.toFixed(1)}g nets)</p>
-        </div>
-        <button type="button" ${attrName}="${escapeHTML(payload)}" class="px-3 py-1.5 rounded-xl ${isOFF ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white text-xs font-extrabold flex-shrink-0">
-          + ${f.defaultGrams}g
-        </button>
-      </div>
-    `;
-  },
-
-  renderCatalogModal(searchQuery, offItems = [], isLoadingOFF = false) {
+  renderCatalogModal(searchQuery) {
     const list = document.getElementById('catalogItemsList');
     const q = (searchQuery || '').toLowerCase().trim();
     const localFoods = FoodRepository.getAllFoods().filter(f =>
       !q || (`${f.name} ${f.darija} ${f.id}`).toLowerCase().includes(q)
     );
 
-    const localHTML = localFoods.map(f => this.renderFoodRowHTML(f, 'data-pick-food', false)).join('');
-    const offHTML = offItems.map(f => this.renderFoodRowHTML(f, 'data-pick-food', true)).join('');
-    const loadingHTML = isLoadingOFF
-      ? `<div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-800 flex items-center gap-2">
-           <span>🔎 Recherche en cours sur OpenFoodFacts Maroc...</span>
-         </div>`
-      : '';
-
-    list.innerHTML = loadingHTML + offHTML + localHTML;
-  },
-
-  renderMatcherModal(searchQuery = '', offItems = [], isLoadingOFF = false) {
-    const list = document.getElementById('matcherOptionsList');
-    const offContainer = document.getElementById('matcherOFFResults');
-    const plates = FoodRepository.getPlates();
-    const q = (searchQuery || '').toLowerCase().trim();
-
-    if (offContainer) {
-      if (!q && offItems.length === 0 && !isLoadingOFF) {
-        offContainer.innerHTML = '';
-      } else {
-        const localMatches = q
-          ? FoodRepository.getAllFoods().filter(f => (`${f.name} ${f.darija} ${f.id}`).toLowerCase().includes(q)).slice(0, 4)
-          : [];
-        const localHTML = localMatches.map(f => this.renderFoodRowHTML(f, 'data-match-food', false)).join('');
-        const offHTML = offItems.map(f => this.renderFoodRowHTML(f, 'data-match-food', true)).join('');
-        const loadingBanner = isLoadingOFF
-          ? `<div class="p-2 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-800">
-               🔎 Recherche sur OpenFoodFacts Maroc...
-             </div>`
-          : '';
-        offContainer.innerHTML = loadingBanner + localHTML + offHTML;
-      }
-    }
-
-    list.innerHTML = Object.entries(plates).map(([key, plate]) => {
-      const desc = plate.items.map(i => {
-        const f = FoodRepository.getFoodById(i.foodId);
-        return f ? `${f.name.split('(')[0].trim()} (~${i.grams}g)` : '';
-      }).join(' + ');
+    list.innerHTML = localFoods.map(f => {
+      const m = MetabolicEngine.computeFoodPortion(f, f.defaultGrams);
       return `
-        <button type="button" data-match-plate="${key}" class="w-full text-left p-2.5 rounded-2xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 flex items-center justify-between">
-          <div>
-            <p class="text-xs font-extrabold text-slate-900">${escapeHTML(plate.title)}</p>
-            <p class="text-[11px] text-slate-500 mt-0.5">${escapeHTML(desc)}</p>
+        <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-extrabold text-slate-900 truncate">${escapeHTML(f.name)}</p>
+            <p class="text-[11px] text-slate-500 truncate">${escapeHTML(f.darija)} • ${f.defaultGrams}g (${m.netCarbs.toFixed(1)}g nets)</p>
           </div>
-          <i data-lucide="chevron-right" class="w-4 h-4 text-emerald-600"></i>
-        </button>
+          <button type="button" data-pick-food="${f.id}" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold flex-shrink-0">
+            + ${f.defaultGrams}g
+          </button>
+        </div>
       `;
     }).join('');
-
-    if (window.lucide) {
-      window.lucide.createIcons();
-    }
   },
 
   renderHistoryView(history) {

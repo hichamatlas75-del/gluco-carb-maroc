@@ -1,10 +1,9 @@
-import { FoodRepository } from '../data/foods.js?v=6';
+import { FoodRepository } from '../data/foods.js?v=7';
 
 /**
- * Service de Reconnaissance Alimentaire & Plan de Secours OpenFoodFacts Maroc :
- * 1. Course parallèle (Promise.any) entre Gemini 3.5 Flash, Gemma 4 26B et Gemini 3.5 Flash-Lite
- *    avec MEDIA_RESOLUTION_LOW (266 tokens au lieu de 1064) -> Le premier qui répond gagne !
- * 2. Plan de Secours & Recherche en direct OpenFoodFacts Maroc (world.openfoodfacts.org)
+ * Service de Reconnaissance Alimentaire par IA Vision :
+ * Course parallèle (Promise.any) entre Gemini 3.5 Flash et Gemma 4 26B Vision
+ * avec MEDIA_RESOLUTION_LOW (266 tokens) pour une réponse ultra-rapide (~1.8s).
  */
 
 function normalizeCoord(val, fallback) {
@@ -63,66 +62,7 @@ export const VisionAnalyzer = {
   },
 
   /**
-   * MOTEUR 1 : LogMeal Food AI API
-   */
-  async detectWithLogMeal(compressedDataUrl, logmealToken) {
-    const resBlob = await fetch(compressedDataUrl).then(r => r.blob());
-    const formData = new FormData();
-    formData.append('image', resBlob, 'plate.jpg');
-
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 5500);
-
-    try {
-      const segRes = await fetch('https://api.logmeal.com/v2/image/segmentation/complete', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${logmealToken}` },
-        body: formData,
-        signal: controller.signal
-      });
-      if (!segRes.ok) throw new Error('LogMeal segmentation error');
-      const segData = await segRes.json();
-
-      const nutRes = await fetch('https://api.logmeal.com/v2/nutrition/recipe/nutritionalInfo', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${logmealToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ imageId: segData.imageId }),
-        signal: controller.signal
-      });
-      clearTimeout(t);
-      if (!nutRes.ok) throw new Error('LogMeal nutrition error');
-      const nutData = await nutRes.json();
-
-      const items = (nutData.nutritional_info_per_item || []).map((item, idx) => {
-        const grams = Math.round(item.serving_size || 100);
-        const totalCarbsItem = item.nutritional_info?.totalNutrients?.CHOCDF?.quantity || 20;
-        const fiberItem = item.nutritional_info?.totalNutrients?.FIBTG?.quantity || 2;
-        const factor = grams > 0 ? 100 / grams : 1;
-
-        return {
-          foodId: `logmeal_${idx}`,
-          customName: item.food_name || nutData.foodName?.[idx] || 'Aliment détecté (LogMeal)',
-          grams,
-          carbs100g: Math.round(totalCarbsItem * factor * 10) / 10,
-          fiber100g: Math.round(fiberItem * factor * 10) / 10,
-          gi: 55,
-          refPortion: 'Portion mesurée LogMeal AI',
-          x: 35 + ((idx * 22) % 45),
-          y: 35 + ((idx * 18) % 40)
-        };
-      });
-
-      return items.length > 0 ? items : null;
-    } finally {
-      clearTimeout(t);
-    }
-  },
-
-  /**
-   * Interroge un modèle Vision donné et retourne les items parsés (ou lève une erreur pour Promise.any)
+   * Interroge un modèle Vision donné et retourne les items parsés
    */
   async callSingleVisionModel(modelName, base64Data, apiKey, signal) {
     const prompt = `Expert nutritionniste. Identifie TOUS les aliments, gateaux, patisseries ou plats visibles sur cette photo et estime leur poids en grammes. Reponds uniquement en JSON: {"items":[{"foodId":"id_ou_custom","customName":"Nom precis en francais","grams":130,"carbs100g":22.5,"fiber100g":0.5,"gi":52,"x":50,"y":50}]}`;
@@ -199,7 +139,6 @@ export const VisionAnalyzer = {
         fiber100g: Math.max(0, Number(item.fiber100g) ?? 1),
         gi: Math.min(100, Math.max(0, Number(item.gi) ?? 55)),
         refPortion: 'Estimé par IA Vision',
-        isCustom: true,
         x: normalizeCoord(item.x, fallbackX),
         y: normalizeCoord(item.y, fallbackY)
       };
@@ -207,8 +146,7 @@ export const VisionAnalyzer = {
   },
 
   /**
-   * MOTEUR 2 : Course parallèle (Promise.any) entre Gemini 3.5 Flash et Gemma 4 26B Vision
-   * Dès que le modèle le plus rapide répond (~1.5s à 4s), les autres sont annulés !
+   * Course parallèle (Promise.any) entre Gemini 3.5 Flash et Gemma 4 26B Vision
    */
   async detectWithGemini(compressedDataUrl, apiKey) {
     if (!apiKey) return null;
@@ -223,7 +161,7 @@ export const VisionAnalyzer = {
         this.callSingleVisionModel('gemma-4-26b-a4b-it', base64Data, apiKey, controller.signal)
       ]);
       clearTimeout(timeoutId);
-      controller.abort(); // Annule immédiatement la requête restante
+      controller.abort();
       return winner;
     } catch {
       clearTimeout(timeoutId);
@@ -262,52 +200,6 @@ export const VisionAnalyzer = {
     if (q.includes('tacos')) return FoodRepository.getFoodById('tacos-marocain');
     if (q.includes('pizza')) return FoodRepository.getFoodById('pizza-part');
     return null;
-  },
-
-  /**
-   * PLAN DE SECOURS : Recherche en direct sur OpenFoodFacts Maroc + Monde
-   */
-  async searchOpenFoodFactsMaroc(queryText, timeoutMs = 4000) {
-    const q = String(queryText || '').trim();
-    if (q.length < 2) return [];
-
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=10&fields=code,product_name,product_name_fr,brands,nutriments,serving_size,quantity`;
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(t);
-      if (!res.ok) return [];
-
-      const data = await res.json();
-      return (data.products || [])
-        .filter(p => (p.product_name_fr || p.product_name) && p.nutriments && p.nutriments.carbohydrates_100g !== undefined)
-        .slice(0, 6)
-        .map((p, idx) => {
-          const carbs = Math.max(0, Math.round((Number(p.nutriments.carbohydrates_100g) || 0) * 10) / 10);
-          const fiber = Math.max(0, Math.round((Number(p.nutriments.fiber_100g) || 0) * 10) / 10);
-          const parsedServing = parseInt(String(p.serving_size || ''), 10);
-          const defaultGrams = (!Number.isNaN(parsedServing) && parsedServing >= 15 && parsedServing <= 400)
-            ? parsedServing
-            : 100;
-
-          return {
-            id: `off_${p.code || idx}`,
-            name: p.product_name_fr || p.product_name,
-            darija: p.brands ? `OpenFoodFacts • ${p.brands}` : 'OpenFoodFacts Maroc',
-            category: 'openfoodfacts',
-            carbs100g: carbs,
-            fiber100g: fiber,
-            gi: carbs > 40 ? 68 : carbs > 15 ? 55 : 35,
-            defaultGrams,
-            refPortion: p.serving_size ? `Portion ${p.serving_size}` : '100g (OpenFoodFacts)'
-          };
-        });
-    } catch {
-      clearTimeout(t);
-      return [];
-    }
   },
 
   createDemoPlateIllustration(title) {

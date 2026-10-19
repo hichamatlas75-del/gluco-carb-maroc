@@ -34,7 +34,7 @@
   </script>
 
   <!-- Feuille de style personnalisée -->
-  <link rel="stylesheet" href="./css/styles.css?v=6" />
+  <link rel="stylesheet" href="./css/styles.css?v=7" />
 
   <!-- Icônes Lucide CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -136,12 +136,6 @@
                 Galerie Photo
               </button>
             </div>
-
-            <!-- Bouton Plan de Secours OpenFoodFacts Maroc -->
-            <button id="btnOpenFallbackOFF" type="button" class="w-full py-2.5 px-3 rounded-2xl bg-amber-50 hover:bg-amber-100 active:scale-[0.99] text-amber-900 border border-amber-200 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all">
-              <i data-lucide="life-buoy" class="w-4 h-4 text-amber-600"></i>
-              Plan de Secours : OpenFoodFacts Maroc &amp; Recherche
-            </button>
 
             <!-- Déclencheur Flux Vidéo Direct -->
             <div id="liveStreamActions" class="hidden flex items-center gap-2">
@@ -404,58 +398,20 @@
     </main>
 
     <!-- ========================================== -->
-    <!-- BOTTOM-SHEET 1 : PLAN DE SECOURS OPENFOODFACTS MAROC -->
-    <!-- ========================================== -->
-    <div id="modalPhotoMatcher" class="fixed inset-0 z-50 hidden items-end justify-center bg-slate-900/50 backdrop-blur-xs">
-      <div class="w-full max-w-[430px] bg-white rounded-t-3xl p-4 max-h-[85dvh] flex flex-col space-y-2.5 shadow-2xl border-t border-slate-200">
-        <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto"></div>
-        <div class="flex items-start justify-between">
-          <div>
-            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">🛟 Plan de Secours • OpenFoodFacts Maroc</span>
-            <h3 class="text-sm font-extrabold text-slate-900 mt-1">Recherche directe ou choix rapide du plat</h3>
-            <p class="text-[11px] text-slate-500">Tapez n'importe quel gâteau, produit marocain ou plat :</p>
-          </div>
-          <button id="btnCloseMatcher" type="button" class="p-1.5 rounded-xl bg-slate-100 text-slate-600">
-            <i data-lucide="x" class="w-4 h-4"></i>
-          </button>
-        </div>
-
-        <!-- Barre de recherche en direct OpenFoodFacts Maroc + Base Locale -->
-        <div class="relative">
-          <i data-lucide="search" class="w-4 h-4 text-amber-600 absolute left-3 top-1/2 -translate-y-1/2"></i>
-          <input id="inpMatcherSearch" type="search" placeholder="Ex: San Sebastian, Cheesecake, Bimo, Merendina, Pain..."
-            class="w-full bg-amber-50/60 border border-amber-300 rounded-xl pl-9 pr-3 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:border-emerald-600 focus:outline-none" />
-        </div>
-
-        <!-- Résultats OpenFoodFacts Maroc en direct -->
-        <div id="matcherOFFResults" class="space-y-1.5 max-h-44 overflow-y-auto"></div>
-
-        <!-- Plats & Pâtisseries en 1 clic -->
-        <div class="pt-1 border-t border-slate-100 flex-1 overflow-y-auto space-y-2">
-          <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">Ou calibrer en 1 clic :</span>
-          <div id="matcherOptionsList" class="space-y-1.5"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ========================================== -->
-    <!-- BOTTOM-SHEET 2 : AJOUTER UN ALIMENT (+ OPENFOODFACTS) -->
+    <!-- BOTTOM-SHEET : AJOUTER UN ALIMENT          -->
     <!-- ========================================== -->
     <div id="modalFoodCatalog" class="fixed inset-0 z-50 hidden items-end justify-center bg-slate-900/50 backdrop-blur-xs">
       <div class="w-full max-w-[430px] bg-white rounded-t-3xl p-4 max-h-[82dvh] flex flex-col shadow-2xl border-t border-slate-200">
         <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-2.5"></div>
         <div class="flex items-center justify-between pb-2.5 border-b border-slate-100">
-          <div>
-            <h3 class="text-sm font-extrabold text-slate-900">Ajouter un aliment à l'assiette</h3>
-            <p class="text-[10px] text-slate-500">Base Marocaine + Recherche OpenFoodFacts Maroc en direct</p>
-          </div>
+          <h3 class="text-sm font-extrabold text-slate-900">Ajouter un aliment à l'assiette</h3>
           <button id="btnCloseCatalog" type="button" class="p-1.5 rounded-xl bg-slate-100 text-slate-600">
             <i data-lucide="x" class="w-4 h-4"></i>
           </button>
         </div>
         <div class="my-2 relative">
           <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
-          <input id="inpCatalogSearch" type="search" placeholder="Rechercher (San Sebastian, Khobz, Bimo, Centrale, Tajine...)"
+          <input id="inpCatalogSearch" type="search" placeholder="Rechercher (San Sebastian, Khobz, Msemen, Tajine, Harira...)"
             class="w-full bg-slate-100 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none" />
         </div>
         <div id="catalogItemsList" class="flex-1 overflow-y-auto space-y-2 py-1.5"></div>
@@ -491,6 +447,6 @@
   </div>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=5"></script>
+  <script type="module" src="./js/app.js?v=7"></script>
 </body>
 </html>

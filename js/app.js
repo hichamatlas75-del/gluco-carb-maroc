@@ -1,11 +1,11 @@
-import { FoodRepository } from './data/foods.js?v=6';
-import { StorageService } from './services/storage.js?v=6';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=6';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=6';
-import { UIRenderer, showToast } from './ui/renderer.js?v=6';
+import { FoodRepository } from './data/foods.js?v=7';
+import { StorageService } from './services/storage.js?v=7';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=7';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=7';
+import { UIRenderer, showToast } from './ui/renderer.js?v=7';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v6 - Gemini 3.5 Flash MEDIA_RESOLUTION_LOW + OpenFoodFacts Maroc)
+ * Contrôleur principal GlucoScan Maroc (v7 - Caméra Directe IA Vision)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
@@ -16,8 +16,7 @@ const DEFAULT_SETTINGS = {
   isf: 50,
   targetBG: 100,
   bgUnit: 'mg/dL',
-  geminiKey: EMBEDDED_API_KEY,
-  logmealKey: ''
+  geminiKey: EMBEDDED_API_KEY
 };
 
 function detectDefaultSlot() {
@@ -40,12 +39,8 @@ const state = {
   items: StorageService.load('glucoscan_items_v3', []),
   history: StorageService.load('glucoscan_history_v3', []),
   mediaStream: null,
-  catalogFilter: '',
-  matcherFilter: ''
+  catalogFilter: ''
 };
-
-let offCatalogDebounce = null;
-let offMatcherDebounce = null;
 
 function getCurrentBGMgDl() {
   const el = document.getElementById('inputBloodGlucose');
@@ -65,47 +60,8 @@ function updateUI() {
   UIRenderer.renderDashboard(state, evaluation);
 }
 
-function openFallbackMatcherModal() {
-  state.matcherFilter = '';
-  const inp = document.getElementById('inpMatcherSearch');
-  if (inp) inp.value = '';
-  UIRenderer.renderMatcherModal('', [], false);
-  const modal = document.getElementById('modalPhotoMatcher');
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-}
-
-function closeFallbackMatcherModal() {
-  const modal = document.getElementById('modalPhotoMatcher');
-  modal.classList.add('hidden');
-  modal.classList.remove('flex');
-}
-
-function addFoodItemToPlate(foodObj, replaceExisting = false) {
-  const newItem = {
-    foodId: foodObj.id,
-    customName: foodObj.name,
-    grams: foodObj.defaultGrams || 100,
-    carbs100g: foodObj.carbs100g,
-    fiber100g: foodObj.fiber100g || 0,
-    gi: foodObj.gi || 55,
-    refPortion: foodObj.refPortion || '100g',
-    x: replaceExisting ? 50 : (28 + Math.round(Math.random() * 44)),
-    y: replaceExisting ? 50 : (28 + Math.round(Math.random() * 44))
-  };
-
-  if (replaceExisting) {
-    state.items = [newItem];
-  } else {
-    state.items.push(newItem);
-  }
-  StorageService.save('glucoscan_items_v3', state.items);
-  updateUI();
-  showToast(`${foodObj.name.split('(')[0].trim()} (~${newItem.grams}g) calibré !`);
-}
-
 /**
- * Traite une photo (File, Blob ou DataURL) avec reconnaissance IA + Plan de Secours OpenFoodFacts Maroc
+ * Traite une photo (File, Blob ou DataURL) par reconnaissance directe IA Vision
  */
 async function handleImageSource(source) {
   stopWebRTC();
@@ -118,30 +74,19 @@ async function handleImageSource(source) {
   empty.classList.add('hidden');
   clearBtn.classList.remove('hidden');
 
-  // Coupe-circuit de sécurité absolu (12 secondes max)
   const watchdog = setTimeout(() => {
     overlay.classList.add('hidden');
   }, 12000);
 
   try {
-    // 1. Compression immédiate en 320px JPEG (~14 Ko)
     const compressedDataUrl = await VisionAnalyzer.compressImageSource(source, 320, 0.65);
     img.src = compressedDataUrl;
     img.classList.remove('hidden');
 
-    let detected = null;
-
-    // 2. Priorité 1 : LogMeal Food AI API si configuré
-    if (state.settings.logmealKey && state.settings.logmealKey.trim()) {
-      try {
-        detected = await VisionAnalyzer.detectWithLogMeal(compressedDataUrl, state.settings.logmealKey.trim());
-      } catch {}
-    }
-
-    // 3. Priorité 2 : Gemini 3.5 Flash-Lite Vision + Enrichissement OpenFoodFacts Maroc
-    if (!detected && state.settings.geminiKey) {
-      detected = await VisionAnalyzer.detectWithGemini(compressedDataUrl, state.settings.geminiKey);
-    }
+    const detected = await VisionAnalyzer.detectWithGemini(
+      compressedDataUrl,
+      state.settings.geminiKey || EMBEDDED_API_KEY
+    );
 
     clearTimeout(watchdog);
     overlay.classList.add('hidden');
@@ -154,12 +99,11 @@ async function handleImageSource(source) {
       return;
     }
 
-    // 4. Plan de Secours automatique : ouverture d'OpenFoodFacts Maroc + Catalogue
-    openFallbackMatcherModal();
+    showToast('Aucun aliment détecté, réessayez ou cliquez sur + Ajouter');
   } catch {
     clearTimeout(watchdog);
     overlay.classList.add('hidden');
-    openFallbackMatcherModal();
+    showToast('Erreur réseau lors de l’analyse photo');
   }
 }
 
@@ -257,12 +201,6 @@ function bindEvents() {
     document.getElementById('fileGalleryInput').click();
   });
 
-  // Bouton Plan de Secours OpenFoodFacts Maroc
-  document.getElementById('btnOpenFallbackOFF').addEventListener('click', () => {
-    openFallbackMatcherModal();
-    setTimeout(() => document.getElementById('inpMatcherSearch')?.focus(), 100);
-  });
-
   const handleFileInput = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -302,55 +240,6 @@ function bindEvents() {
       loadPresetPlate(btn.getAttribute('data-demo'), true);
     });
   });
-
-  // Recherche en direct dans le Plan de Secours OpenFoodFacts Maroc
-  document.getElementById('inpMatcherSearch').addEventListener('input', (e) => {
-    const q = e.target.value;
-    state.matcherFilter = q;
-    UIRenderer.renderMatcherModal(q, [], q.trim().length >= 2);
-
-    if (offMatcherDebounce) clearTimeout(offMatcherDebounce);
-    if (q.trim().length < 2) return;
-
-    offMatcherDebounce = setTimeout(async () => {
-      const offResults = await VisionAnalyzer.searchOpenFoodFactsMaroc(q);
-      if (state.matcherFilter === q) {
-        UIRenderer.renderMatcherModal(q, offResults, false);
-      }
-    }, 320);
-  });
-
-  // Sélection d'un aliment local ou OpenFoodFacts dans le Plan de Secours
-  document.getElementById('matcherOFFResults').addEventListener('click', (e) => {
-    const localBtn = e.target.closest('[data-match-food]');
-    if (localBtn) {
-      const food = FoodRepository.getFoodById(localBtn.getAttribute('data-match-food'));
-      if (food) {
-        closeFallbackMatcherModal();
-        addFoodItemToPlate(food, true);
-      }
-      return;
-    }
-
-    const offBtn = e.target.closest('[data-match-food-off]');
-    if (offBtn) {
-      try {
-        const foodObj = JSON.parse(decodeURIComponent(offBtn.getAttribute('data-match-food-off')));
-        closeFallbackMatcherModal();
-        addFoodItemToPlate(foodObj, true);
-      } catch {}
-    }
-  });
-
-  // Sélection d'un plat type en 1 clic dans le Plan de Secours
-  document.getElementById('matcherOptionsList').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-match-plate]');
-    if (!btn) return;
-    closeFallbackMatcherModal();
-    loadPresetPlate(btn.getAttribute('data-match-plate'), false);
-  });
-
-  document.getElementById('btnCloseMatcher').addEventListener('click', closeFallbackMatcherModal);
 
   // Ajustement des grammages (-20g, -5g, +5g, +20g, suppression)
   document.getElementById('recognizedItemsContainer').addEventListener('click', (e) => {
@@ -401,9 +290,9 @@ function bindEvents() {
     updateUI();
   });
 
-  // Catalogue d'ajout d'aliment (+ Recherche OpenFoodFacts Maroc en direct)
+  // Catalogue d'ajout manuel (+ Ajouter)
   document.getElementById('btnOpenCatalogModal').addEventListener('click', () => {
-    UIRenderer.renderCatalogModal(state.catalogFilter, [], false);
+    UIRenderer.renderCatalogModal(state.catalogFilter);
     const modal = document.getElementById('modalFoodCatalog');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -416,36 +305,24 @@ function bindEvents() {
   });
 
   document.getElementById('inpCatalogSearch').addEventListener('input', (e) => {
-    const q = e.target.value;
-    state.catalogFilter = q;
-    UIRenderer.renderCatalogModal(q, [], q.trim().length >= 2);
-
-    if (offCatalogDebounce) clearTimeout(offCatalogDebounce);
-    if (q.trim().length < 2) return;
-
-    offCatalogDebounce = setTimeout(async () => {
-      const offResults = await VisionAnalyzer.searchOpenFoodFactsMaroc(q);
-      if (state.catalogFilter === q) {
-        UIRenderer.renderCatalogModal(q, offResults, false);
-      }
-    }, 320);
+    state.catalogFilter = e.target.value;
+    UIRenderer.renderCatalogModal(state.catalogFilter);
   });
 
   document.getElementById('catalogItemsList').addEventListener('click', (e) => {
     const pick = e.target.closest('[data-pick-food]');
-    if (pick) {
-      const food = FoodRepository.getFoodById(pick.getAttribute('data-pick-food'));
-      if (food) addFoodItemToPlate(food, false);
-      return;
-    }
-
-    const pickOff = e.target.closest('[data-pick-food-off]');
-    if (pickOff) {
-      try {
-        const foodObj = JSON.parse(decodeURIComponent(pickOff.getAttribute('data-pick-food-off')));
-        addFoodItemToPlate(foodObj, false);
-      } catch {}
-    }
+    if (!pick) return;
+    const food = FoodRepository.getFoodById(pick.getAttribute('data-pick-food'));
+    if (!food) return;
+    state.items.push({
+      foodId: food.id,
+      grams: food.defaultGrams,
+      x: 28 + Math.round(Math.random() * 44),
+      y: 28 + Math.round(Math.random() * 44)
+    });
+    StorageService.save('glucoscan_items_v3', state.items);
+    updateUI();
+    showToast(`${food.name.split('(')[0].trim()} ajouté`);
   });
 
   // Enregistrement dans le journal & Partage WhatsApp
