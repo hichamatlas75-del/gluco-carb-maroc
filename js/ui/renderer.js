@@ -1,5 +1,5 @@
-import { FoodRepository } from '../data/foods.js?v=11';
-import { MetabolicEngine } from '../services/metabolicEngine.js?v=11';
+import { FoodRepository } from '../data/foods.js?v=12';
+import { MetabolicEngine } from '../services/metabolicEngine.js?v=12';
 
 /**
  * Fonctions de rendu DOM et protection XSS
@@ -27,6 +27,24 @@ export function showToast(message) {
     banner.classList.remove('opacity-100', 'translate-y-0');
   }, 2600);
 }
+
+const FASTING_186_IDS = new Set([
+  'oeufs-plat',
+  'pain-cereales',
+  'jben-huile-olive',
+  'huile-olive-pure',
+  'olives-marocaines',
+  'poulet-grille',
+  'sardines-grillees',
+  'poisson-blanc',
+  'kefta-grillee',
+  'brochettes-viande',
+  'salade-marocaine',
+  'khobz-complet',
+  'khobz-ch3ir',
+  'khobz-blanc',
+  'avocat-nature'
+]);
 
 export const UIRenderer = {
   renderDashboard(state, evaluation) {
@@ -95,12 +113,16 @@ export const UIRenderer = {
       const y = item.y || (28 + (idx * 20) % 50);
 
       return `
-        <div class="absolute -translate-x-1/2 -translate-y-1/2 bg-white/95 text-slate-900 px-2.5 py-1 rounded-full shadow-md border border-emerald-500/40 flex items-center gap-1 text-[11px] font-extrabold whitespace-nowrap"
+        <div class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 bg-white/95 text-slate-900 pl-2.5 pr-1.5 py-1 rounded-full shadow-md border border-emerald-500/40 flex items-center gap-1 text-[11px] font-extrabold whitespace-nowrap"
              style="left:${x}%; top:${y}%;">
           <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
           <span>${escapeHTML(food.name.split('(')[0].trim())}</span>
           <span class="font-mono text-emerald-700">~${item.grams}g</span>
           <span class="text-[10px] font-mono text-slate-500">(${Math.round(macros.netCarbs)}g)</span>
+          <button type="button" data-remove-pin="${idx}" title="Supprimer cet aliment"
+            class="ml-0.5 w-4 h-4 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-700 flex items-center justify-center text-[10px] font-extrabold leading-none">
+            ×
+          </button>
         </div>
       `;
     }).join('');
@@ -110,21 +132,33 @@ export const UIRenderer = {
     const container = document.getElementById('recognizedItemsContainer');
     const countEl = document.getElementById('lblDetectedCount');
     const footer = document.getElementById('scanFooterActions');
+    const clearAllBtn = document.getElementById('btnClearAllRecognized');
 
     countEl.textContent = String(items.length);
+    if (clearAllBtn) {
+      clearAllBtn.classList.toggle('hidden', items.length === 0);
+      clearAllBtn.classList.toggle('flex', items.length > 0);
+    }
+
     if (items.length === 0) {
       footer.classList.add('hidden');
       container.innerHTML = `
-        <div class="text-center py-6 px-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200">
-          <p class="text-xs font-bold text-slate-700">Aucun aliment scanné</p>
-          <p class="text-[11px] text-slate-500 mt-0.5">Utilisez « Prendre Photo » ou « Galerie Photo » ci-dessus.</p>
+        <div class="text-center py-5 px-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-2.5">
+          <div>
+            <p class="text-xs font-bold text-slate-700">Aucun aliment dans l'assiette</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Prenez une photo ou ajoutez vos aliments manuellement ci-dessous.</p>
+          </div>
+          <button type="button" data-open-add-food="true" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-xs">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+            Ajouter un aliment manuellement
+          </button>
         </div>
       `;
       return;
     }
 
     footer.classList.remove('hidden');
-    container.innerHTML = items.map((item, idx) => {
+    const cardsHTML = items.map((item, idx) => {
       const food = MetabolicEngine.resolveFoodEntry(item);
       if (!food) return '';
       const macros = MetabolicEngine.computeFoodPortion(food, item.grams);
@@ -132,15 +166,29 @@ export const UIRenderer = {
       return `
         <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
           <div class="flex items-start justify-between gap-2">
-            <div>
-              <h4 class="text-xs font-extrabold text-slate-900">${escapeHTML(food.name)}</h4>
+            <div class="min-w-0 flex-1">
+              <h4 class="text-xs font-extrabold text-slate-900 leading-snug">${escapeHTML(food.name)}</h4>
               <p class="text-[11px] text-slate-500">${escapeHTML(food.refPortion)} • IG ${food.gi} • Fibres ${macros.fiber.toFixed(1)}g</p>
             </div>
-            <div class="text-right">
+            <div class="text-right flex-shrink-0">
               <span class="text-sm font-extrabold font-mono text-emerald-700">${macros.netCarbs.toFixed(1)}g</span>
               <span class="block text-[10px] text-slate-400">nets</span>
             </div>
           </div>
+
+          <!-- Barre de Correction Manuelle Rapide : Remplacer l'aliment erroné ou le Supprimer -->
+          <div class="flex items-center justify-between gap-1.5 pt-1">
+            <button type="button" data-replace="${idx}" class="flex-1 py-1.5 px-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/90 text-[11px] font-extrabold flex items-center justify-center gap-1 transition-all">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-amber-600"></i>
+              Corriger / Remplacer
+            </button>
+            <button type="button" data-remove="${idx}" class="py-1.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/90 text-[11px] font-extrabold flex items-center justify-center gap-1 transition-all">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-600"></i>
+              Supprimer
+            </button>
+          </div>
+
+          <!-- Ajustement précis du poids en grammes -->
           <div class="flex items-center justify-between pt-1.5 border-t border-slate-200/60">
             <div class="flex items-center gap-1">
               <button type="button" data-delta="-20" data-index="${idx}" class="px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-xs font-mono font-extrabold text-slate-700">-20g</button>
@@ -154,33 +202,64 @@ export const UIRenderer = {
             <div class="flex items-center gap-1">
               <button type="button" data-delta="5" data-index="${idx}" class="px-2 py-1 rounded-xl bg-white border border-slate-200 text-xs font-mono font-bold text-slate-700">+5</button>
               <button type="button" data-delta="20" data-index="${idx}" class="px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-xs font-mono font-extrabold text-slate-700">+20g</button>
-              <button type="button" data-remove="${idx}" class="p-1.5 rounded-xl bg-rose-50 text-rose-600 ml-1">
-                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-              </button>
             </div>
           </div>
         </div>
       `;
     }).join('');
+
+    const addBottomButtonHTML = `
+      <button type="button" data-open-add-food="true" class="w-full py-2.5 px-3 rounded-2xl bg-emerald-50/70 hover:bg-emerald-100/80 border border-dashed border-emerald-300 text-emerald-800 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all">
+        <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-600"></i>
+        + Ajouter un autre aliment (Correction manuelle)
+      </button>
+    `;
+
+    container.innerHTML = cardsHTML + addBottomButtonHTML;
   },
 
-  renderCatalogModal(searchQuery) {
+  renderCatalogModal(searchQuery, categoryFilter = 'all', replaceIndex = null) {
     const list = document.getElementById('catalogItemsList');
     const q = (searchQuery || '').toLowerCase().trim();
-    const localFoods = FoodRepository.getAllFoods().filter(f =>
-      !q || (`${f.name} ${f.darija} ${f.id}`).toLowerCase().includes(q)
-    );
+    const isReplacing = replaceIndex !== null && replaceIndex >= 0;
+
+    const localFoods = FoodRepository.getAllFoods().filter(f => {
+      if (categoryFilter === '186' && !FASTING_186_IDS.has(f.id)) return false;
+      if (categoryFilter === 'patisseries' && f.category !== 'patisseries' && f.category !== 'fruits') return false;
+      if (categoryFilter !== 'all' && categoryFilter !== '186' && categoryFilter !== 'patisseries' && f.category !== categoryFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (`${f.name} ${f.darija} ${f.id}`).toLowerCase().includes(q);
+    });
+
+    if (localFoods.length === 0) {
+      list.innerHTML = `
+        <div class="text-center py-6 px-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200">
+          <p class="text-xs font-bold text-slate-700">Aucun aliment trouvé dans cette catégorie</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">Utilisez le bloc « Saisir manuellement un autre aliment (libre) » juste au-dessus.</p>
+        </div>
+      `;
+      return;
+    }
 
     list.innerHTML = localFoods.map(f => {
       const m = MetabolicEngine.computeFoodPortion(f, f.defaultGrams);
+      const btnClass = isReplacing
+        ? 'px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold flex-shrink-0'
+        : 'px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold flex-shrink-0';
+      const btnLabel = isReplacing
+        ? `🔄 Remplacer (${f.defaultGrams}g)`
+        : `+ ${f.defaultGrams}g`;
+
       return `
         <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
           <div class="min-w-0 flex-1">
             <p class="text-xs font-extrabold text-slate-900 truncate">${escapeHTML(f.name)}</p>
             <p class="text-[11px] text-slate-500 truncate">${escapeHTML(f.darija)} • ${f.defaultGrams}g (${m.netCarbs.toFixed(1)}g nets)</p>
           </div>
-          <button type="button" data-pick-food="${f.id}" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold flex-shrink-0">
-            + ${f.defaultGrams}g
+          <button type="button" data-pick-food="${f.id}" class="${btnClass}">
+            ${btnLabel}
           </button>
         </div>
       `;

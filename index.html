@@ -266,22 +266,27 @@
           </div>
         </div>
 
-        <!-- MODULE 3 : LISTE DES ALIMENTS RECONNUS & AJUSTEMENT DU GRAMMAGE -->
+        <!-- MODULE 3 : LISTE DES ALIMENTS RECONNUS, CORRECTION MANUELLE & GRAMMAGE -->
         <div class="surface-card rounded-3xl p-4 space-y-3">
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between gap-2">
             <div>
               <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
                 <i data-lucide="scale" class="w-4 h-4 text-emerald-600"></i>
-                Aliments reconnus & Grammage (<span id="lblDetectedCount">0</span>)
+                Aliments reconnus (<span id="lblDetectedCount">0</span>)
               </h3>
-              <p class="text-[11px] text-slate-500">Modifiez le poids en grammes si votre portion diffère</p>
+              <p class="text-[11px] text-slate-500">Corrigez, remplacez, supprimez ou ajoutez un aliment</p>
             </div>
-            <button id="btnOpenCatalogModal" type="button" class="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-extrabold flex items-center gap-1">
-              <i data-lucide="plus" class="w-3.5 h-3.5"></i> Ajouter
-            </button>
+            <div class="flex items-center gap-1.5">
+              <button id="btnClearAllRecognized" type="button" class="hidden px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-extrabold items-center gap-1">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Vider
+              </button>
+              <button id="btnOpenCatalogModal" type="button" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs text-xs font-extrabold flex items-center gap-1">
+                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Ajouter
+              </button>
+            </div>
           </div>
 
-          <div id="recognizedItemsContainer" class="space-y-2"></div>
+          <div id="recognizedItemsContainer" class="space-y-2.5"></div>
 
           <!-- Boutons Validation & Partage -->
           <div id="scanFooterActions" class="hidden pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2">
@@ -815,23 +820,125 @@
     </main>
 
     <!-- ========================================== -->
-    <!-- BOTTOM-SHEET : AJOUTER UN ALIMENT          -->
+    <!-- BOTTOM-SHEET : AJOUTER / CORRIGER ALIMENT  -->
     <!-- ========================================== -->
     <div id="modalFoodCatalog" class="fixed inset-0 z-50 hidden items-end justify-center bg-slate-900/50 backdrop-blur-xs">
-      <div class="w-full max-w-[430px] bg-white rounded-t-3xl p-4 max-h-[82dvh] flex flex-col shadow-2xl border-t border-slate-200">
-        <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-2.5"></div>
+      <div class="w-full max-w-[430px] bg-white rounded-t-3xl p-4 max-h-[88dvh] flex flex-col shadow-2xl border-t border-slate-200">
+        <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-2"></div>
+
+        <!-- En-tête Modal -->
         <div class="flex items-center justify-between pb-2.5 border-b border-slate-100">
-          <h3 class="text-sm font-extrabold text-slate-900">Ajouter un aliment à l'assiette</h3>
+          <div>
+            <h3 id="modalCatalogTitle" class="text-sm font-extrabold text-slate-900">Ajouter ou Corriger un aliment</h3>
+            <p id="modalCatalogSubtitle" class="text-[11px] text-slate-500">Choisissez dans la liste ou saisissez un aliment libre</p>
+          </div>
           <button id="btnCloseCatalog" type="button" class="p-1.5 rounded-xl bg-slate-100 text-slate-600">
             <i data-lucide="x" class="w-4 h-4"></i>
           </button>
         </div>
-        <div class="my-2 relative">
+
+        <!-- Bandeau Mode Remplacement (visible quand on clique sur "Remplacer" sur un aliment erroné) -->
+        <div id="catalogReplaceBanner" class="hidden mt-2 p-2.5 rounded-2xl bg-amber-50 border border-amber-200 items-center justify-between gap-2">
+          <div class="text-xs text-amber-900">
+            <span class="font-extrabold">🔄 Remplacement :</span> vous corrigez <strong id="lblReplacingFoodName" class="underline">cet aliment</strong>
+          </div>
+          <button id="btnCancelReplaceMode" type="button" class="px-2 py-1 rounded-lg bg-white border border-amber-300 text-[10px] font-extrabold text-amber-800 flex-shrink-0">
+            Passer en + Ajout
+          </button>
+        </div>
+
+        <!-- Saisie Manuelle Libre (si l'aliment n'est pas dans la liste ou pour correction directe) -->
+        <details id="detailsCustomFood" class="mt-2 bg-emerald-50/60 border border-emerald-200 rounded-2xl p-2.5 group">
+          <summary class="cursor-pointer list-none flex items-center justify-between text-xs font-extrabold text-emerald-900">
+            <span class="flex items-center gap-1.5">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5 text-emerald-600"></i>
+              Saisir manuellement un autre aliment (libre)
+            </span>
+            <span class="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-lg border border-emerald-200">Ouvrir ▾</span>
+          </summary>
+
+          <div class="mt-2.5 pt-2.5 border-t border-emerald-200/70 space-y-2">
+            <div class="grid grid-cols-12 gap-2">
+              <div class="col-span-8">
+                <label class="text-[10px] font-extrabold text-slate-700 block mb-0.5">Nom de l'aliment</label>
+                <input id="inpCustomFoodName" type="text" placeholder="Ex: Pain céréales, Sardine, Avocat..."
+                  class="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-600" />
+              </div>
+              <div class="col-span-4">
+                <label class="text-[10px] font-extrabold text-slate-700 block mb-0.5">Poids (g)</label>
+                <input id="inpCustomFoodGrams" type="number" value="100" min="5" max="1500"
+                  class="w-full bg-white border border-slate-300 rounded-xl px-2 py-1.5 text-center font-mono text-xs font-extrabold text-slate-900 focus:outline-none focus:border-emerald-600" />
+              </div>
+            </div>
+
+            <div>
+              <label class="text-[10px] font-extrabold text-slate-700 block mb-1">Type d'aliment (remplit les glucides/100g automatiquement) :</label>
+              <div class="grid grid-cols-3 gap-1">
+                <button type="button" data-preset-carbs="0" data-preset-gi="0" class="custom-preset-btn px-2 py-1 rounded-lg bg-white border border-slate-200 text-[10px] font-bold text-slate-700 hover:border-emerald-500">
+                  🥩 Viande/Poisson/Œuf (0g)
+                </button>
+                <button type="button" data-preset-carbs="2.5" data-preset-gi="15" class="custom-preset-btn px-2 py-1 rounded-lg bg-white border border-slate-200 text-[10px] font-bold text-slate-700 hover:border-emerald-500">
+                  🧀 Jben/Fromage/Huile (2g)
+                </button>
+                <button type="button" data-preset-carbs="4" data-preset-gi="25" class="custom-preset-btn px-2 py-1 rounded-lg bg-white border border-slate-200 text-[10px] font-bold text-slate-700 hover:border-emerald-500">
+                  🥗 Légume/Salade (4g)
+                </button>
+                <button type="button" data-preset-carbs="18" data-preset-gi="50" class="custom-preset-btn px-2 py-1 rounded-lg bg-white border border-slate-200 text-[10px] font-bold text-slate-700 hover:border-emerald-500">
+                  🍲 Féculent cuit/Tajine (18g)
+                </button>
+                <button type="button" data-preset-carbs="36" data-preset-gi="52" class="custom-preset-btn px-2 py-1 rounded-lg bg-white border border-slate-200 text-[10px] font-bold text-slate-700 hover:border-emerald-500">
+                  🍞 Pain/Khobz/Céréales (36g)
+                </button>
+                <button type="button" data-preset-carbs="42" data-preset-gi="65" class="custom-preset-btn px-2 py-1 rounded-lg bg-white border border-slate-200 text-[10px] font-bold text-slate-700 hover:border-emerald-500">
+                  🍰 Gâteau/Sucré (42g)
+                </button>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 pt-1">
+              <div class="flex items-center gap-1.5">
+                <label class="text-[10px] font-bold text-slate-600">Glucides nets / 100g :</label>
+                <input id="inpCustomFoodCarbs100" type="number" step="0.5" value="15" min="0" max="100"
+                  class="w-16 bg-white border border-slate-300 rounded-lg px-2 py-1 text-center font-mono text-xs font-extrabold text-emerald-700" />
+                <span class="text-[10px] font-bold text-slate-500">g/100g</span>
+              </div>
+              <button id="btnSubmitCustomFood" type="button" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-xs">
+                Valider cet aliment
+              </button>
+            </div>
+          </div>
+        </details>
+
+        <!-- Recherche dans le catalogue -->
+        <div class="mt-2 relative">
           <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
-          <input id="inpCatalogSearch" type="search" placeholder="Rechercher (San Sebastian, Khobz, Msemen, Tajine, Harira...)"
+          <input id="inpCatalogSearch" type="search" placeholder="Rechercher (Pain céréales, Œufs, Jben, Sardine, Khobz, Tajine...)"
             class="w-full bg-slate-100 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none" />
         </div>
-        <div id="catalogItemsList" class="flex-1 overflow-y-auto space-y-2 py-1.5"></div>
+
+        <!-- Filtres rapides par catégorie -->
+        <div class="flex items-center gap-1 overflow-x-auto no-scrollbar py-2">
+          <button type="button" data-cat-filter="all" class="cat-filter-btn px-2.5 py-1 rounded-full bg-slate-900 text-white text-[10px] font-extrabold whitespace-nowrap">
+            Tous
+          </button>
+          <button type="button" data-cat-filter="186" class="cat-filter-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap">
+            🔥 Mon 18/6 (10h & 15h)
+          </button>
+          <button type="button" data-cat-filter="pains" class="cat-filter-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap">
+            🍞 Pains & Khobz
+          </button>
+          <button type="button" data-cat-filter="plats" class="cat-filter-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap">
+            🍗 Protéines & Plats
+          </button>
+          <button type="button" data-cat-filter="legumineuses" class="cat-filter-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap">
+            🥣 Soupes & Légumineuses
+          </button>
+          <button type="button" data-cat-filter="patisseries" class="cat-filter-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap">
+            🍰 Pâtisseries & Fruits
+          </button>
+        </div>
+
+        <div id="catalogItemsList" class="flex-1 overflow-y-auto space-y-2 py-1"></div>
       </div>
     </div>
 
@@ -872,6 +979,6 @@
   </div>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=11"></script>
+  <script type="module" src="./js/app.js?v=12"></script>
 </body>
 </html>

@@ -1,11 +1,11 @@
-import { FoodRepository } from './data/foods.js?v=11';
-import { StorageService } from './services/storage.js?v=11';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=11';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=11';
-import { UIRenderer, showToast } from './ui/renderer.js?v=11';
+import { FoodRepository } from './data/foods.js?v=12';
+import { StorageService } from './services/storage.js?v=12';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=12';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=12';
+import { UIRenderer, showToast } from './ui/renderer.js?v=12';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v11 - Protocole Jeûne Intermittent 18/6 Personnalisé 10h & 15h)
+ * Contrôleur principal GlucoScan Maroc (v12 - Correction Manuelle Rapide : Supprimer, Remplacer & Ajouter)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
@@ -40,7 +40,10 @@ const state = {
   history: StorageService.load('glucoscan_history_v3', []),
   mediaStream: null,
   displayObjectUrl: null,
-  catalogFilter: ''
+  catalogFilter: '',
+  catalogCategory: 'all',
+  replaceItemIndex: null,
+  customPresetGI: 50
 };
 
 function getCurrentBGMgDl() {
@@ -281,7 +284,7 @@ function updateFasting186View() {
   const breadGrams = Math.min(250, Math.max(0, parseFloat(breadGramsInp.value) || 70));
 
   const breadFood = FoodRepository.getFoodById(breadId);
-  const breadNetPer100 = breadFood ? Math.max(0, breadFood.carbsPer100g - breadFood.fiberPer100g) : 34.5;
+  const breadNetPer100 = breadFood ? Math.max(0, breadFood.carbs100g - breadFood.fiber100g) : 35.5;
   const breadCarbs = (breadNetPer100 * breadGrams) / 100;
   const saladCarbs = 3.1; // 140g salade marocaine
   const keftaCarbs = protKey === 'kefta' ? 1.4 : 0;
@@ -454,8 +457,43 @@ function bindEvents() {
     });
   });
 
-  // Ajustement des grammages (-20g, -5g, +5g, +20g, suppression)
+  // Suppression directe depuis les pastilles de la photo
+  document.getElementById('pinsLayer')?.addEventListener('click', (e) => {
+    const rmPin = e.target.closest('[data-remove-pin]');
+    if (!rmPin) return;
+    const idx = parseInt(rmPin.getAttribute('data-remove-pin'), 10);
+    if (state.items[idx]) {
+      const removedFood = MetabolicEngine.resolveFoodEntry(state.items[idx]);
+      state.items.splice(idx, 1);
+      StorageService.save('glucoscan_items_v3', state.items);
+      updateUI();
+      showToast(`🗑️ ${removedFood ? removedFood.name.split('(')[0].trim() : 'Aliment'} supprimé`);
+    }
+  });
+
+  // Tout vider dans la liste des aliments reconnus
+  document.getElementById('btnClearAllRecognized')?.addEventListener('click', () => {
+    state.items = [];
+    StorageService.save('glucoscan_items_v3', []);
+    updateUI();
+    showToast('Liste des aliments vidée');
+  });
+
+  // Ajustement des grammages (-20g, -5g, +5g, +20g), Remplacement et Suppression
   document.getElementById('recognizedItemsContainer').addEventListener('click', (e) => {
+    const openAddBtn = e.target.closest('[data-open-add-food]');
+    if (openAddBtn) {
+      openFoodCatalogModal(null);
+      return;
+    }
+
+    const replaceBtn = e.target.closest('[data-replace]');
+    if (replaceBtn) {
+      const idx = parseInt(replaceBtn.getAttribute('data-replace'), 10);
+      openFoodCatalogModal(idx);
+      return;
+    }
+
     const deltaBtn = e.target.closest('[data-delta]');
     if (deltaBtn) {
       const idx = parseInt(deltaBtn.getAttribute('data-index'), 10);
@@ -467,12 +505,17 @@ function bindEvents() {
       }
       return;
     }
+
     const rmBtn = e.target.closest('[data-remove]');
     if (rmBtn) {
       const idx = parseInt(rmBtn.getAttribute('data-remove'), 10);
-      state.items.splice(idx, 1);
-      StorageService.save('glucoscan_items_v3', state.items);
-      updateUI();
+      if (state.items[idx]) {
+        const removedFood = MetabolicEngine.resolveFoodEntry(state.items[idx]);
+        state.items.splice(idx, 1);
+        StorageService.save('glucoscan_items_v3', state.items);
+        updateUI();
+        showToast(`🗑️ ${removedFood ? removedFood.name.split('(')[0].trim() : 'Aliment'} supprimé`);
+      }
     }
   });
 
@@ -503,23 +546,144 @@ function bindEvents() {
     updateUI();
   });
 
-  // Catalogue d'ajout manuel (+ Ajouter)
-  document.getElementById('btnOpenCatalogModal').addEventListener('click', () => {
-    UIRenderer.renderCatalogModal(state.catalogFilter);
+  // Ouverture / Fermeture du Catalogue d'Ajout ou de Correction (Remplacement)
+  function syncCatalogModalHeader() {
+    const banner = document.getElementById('catalogReplaceBanner');
+    const lblName = document.getElementById('lblReplacingFoodName');
+    const titleEl = document.getElementById('modalCatalogTitle');
+    const submitCustomBtn = document.getElementById('btnSubmitCustomFood');
+
+    const isReplacing = state.replaceItemIndex !== null && state.items[state.replaceItemIndex];
+    if (isReplacing) {
+      const targetFood = MetabolicEngine.resolveFoodEntry(state.items[state.replaceItemIndex]);
+      const targetName = targetFood ? targetFood.name.split('(')[0].trim() : 'cet aliment';
+      if (banner) {
+        banner.classList.remove('hidden');
+        banner.classList.add('flex');
+      }
+      if (lblName) lblName.textContent = targetName;
+      if (titleEl) titleEl.textContent = `🔄 Remplacer « ${targetName} »`;
+      if (submitCustomBtn) submitCustomBtn.textContent = 'Valider & Remplacer';
+      const customGramsInp = document.getElementById('inpCustomFoodGrams');
+      if (customGramsInp) customGramsInp.value = String(state.items[state.replaceItemIndex].grams || 100);
+    } else {
+      if (banner) {
+        banner.classList.add('hidden');
+        banner.classList.remove('flex');
+      }
+      if (titleEl) titleEl.textContent = 'Ajouter un aliment à l’assiette';
+      if (submitCustomBtn) submitCustomBtn.textContent = 'Valider & Ajouter';
+    }
+  }
+
+  function openFoodCatalogModal(replaceIdx = null) {
+    state.replaceItemIndex = (typeof replaceIdx === 'number' && state.items[replaceIdx]) ? replaceIdx : null;
+    syncCatalogModalHeader();
+    UIRenderer.renderCatalogModal(state.catalogFilter, state.catalogCategory, state.replaceItemIndex);
     const modal = document.getElementById('modalFoodCatalog');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-  });
+    if (window.lucide) window.lucide.createIcons();
+  }
 
-  document.getElementById('btnCloseCatalog').addEventListener('click', () => {
+  function closeFoodCatalogModal() {
+    state.replaceItemIndex = null;
     const modal = document.getElementById('modalFoodCatalog');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+  }
+
+  function applyFoodChoice(newEntry, shortName) {
+    if (state.replaceItemIndex !== null && state.items[state.replaceItemIndex]) {
+      const oldItem = state.items[state.replaceItemIndex];
+      state.items[state.replaceItemIndex] = {
+        ...newEntry,
+        x: oldItem.x || newEntry.x,
+        y: oldItem.y || newEntry.y
+      };
+      StorageService.save('glucoscan_items_v3', state.items);
+      updateUI();
+      closeFoodCatalogModal();
+      showToast(`🔄 Corrigé par : ${shortName}`);
+    } else {
+      state.items.push(newEntry);
+      StorageService.save('glucoscan_items_v3', state.items);
+      updateUI();
+      closeFoodCatalogModal();
+      showToast(`✅ ${shortName} ajouté à l'assiette`);
+    }
+  }
+
+  document.getElementById('btnOpenCatalogModal').addEventListener('click', () => {
+    openFoodCatalogModal(null);
+  });
+
+  document.getElementById('btnCloseCatalog').addEventListener('click', closeFoodCatalogModal);
+
+  document.getElementById('btnCancelReplaceMode')?.addEventListener('click', () => {
+    state.replaceItemIndex = null;
+    syncCatalogModalHeader();
+    UIRenderer.renderCatalogModal(state.catalogFilter, state.catalogCategory, null);
   });
 
   document.getElementById('inpCatalogSearch').addEventListener('input', (e) => {
     state.catalogFilter = e.target.value;
-    UIRenderer.renderCatalogModal(state.catalogFilter);
+    UIRenderer.renderCatalogModal(state.catalogFilter, state.catalogCategory, state.replaceItemIndex);
+  });
+
+  // Filtres de catégories dans la fenêtre d'ajout/correction
+  document.querySelectorAll('.cat-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.catalogCategory = btn.getAttribute('data-cat-filter') || 'all';
+      document.querySelectorAll('.cat-filter-btn').forEach(b => {
+        const active = b.getAttribute('data-cat-filter') === state.catalogCategory;
+        b.className = active
+          ? 'cat-filter-btn px-2.5 py-1 rounded-full bg-slate-900 text-white text-[10px] font-extrabold whitespace-nowrap'
+          : 'cat-filter-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold whitespace-nowrap';
+      });
+      UIRenderer.renderCatalogModal(state.catalogFilter, state.catalogCategory, state.replaceItemIndex);
+    });
+  });
+
+  // Boutons préréglés pour la saisie manuelle libre d'un aliment
+  document.querySelectorAll('.custom-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const carbs = btn.getAttribute('data-preset-carbs') || '15';
+      const gi = parseInt(btn.getAttribute('data-preset-gi') || '50', 10);
+      const inp = document.getElementById('inpCustomFoodCarbs100');
+      if (inp) inp.value = carbs;
+      state.customPresetGI = gi;
+      document.querySelectorAll('.custom-preset-btn').forEach(b => {
+        b.classList.toggle('border-emerald-600', b === btn);
+        b.classList.toggle('bg-emerald-50', b === btn);
+      });
+    });
+  });
+
+  // Validation d'un aliment saisi manuellement (libre)
+  document.getElementById('btnSubmitCustomFood')?.addEventListener('click', () => {
+    const nameInp = document.getElementById('inpCustomFoodName');
+    const gramsInp = document.getElementById('inpCustomFoodGrams');
+    const carbsInp = document.getElementById('inpCustomFoodCarbs100');
+
+    const rawName = (nameInp?.value || '').trim() || 'Aliment personnalisé';
+    const grams = Math.min(1500, Math.max(5, parseInt(gramsInp?.value || '100', 10) || 100));
+    const carbs100g = Math.min(100, Math.max(0, parseFloat(carbsInp?.value || '0') || 0));
+
+    const customEntry = {
+      foodId: 'custom_' + Date.now(),
+      customName: rawName,
+      grams,
+      carbs100g,
+      fiber100g: 0,
+      gi: carbs100g === 0 ? 0 : (state.customPresetGI || 50),
+      refPortion: `Saisie manuelle (${carbs100g}g glucides/100g)`,
+      x: 30 + Math.round(Math.random() * 40),
+      y: 30 + Math.round(Math.random() * 40)
+    };
+
+    if (nameInp) nameInp.value = '';
+    applyFoodChoice(customEntry, rawName);
   });
 
   document.getElementById('catalogItemsList').addEventListener('click', (e) => {
@@ -527,15 +691,12 @@ function bindEvents() {
     if (!pick) return;
     const food = FoodRepository.getFoodById(pick.getAttribute('data-pick-food'));
     if (!food) return;
-    state.items.push({
+    applyFoodChoice({
       foodId: food.id,
       grams: food.defaultGrams,
       x: 28 + Math.round(Math.random() * 44),
       y: 28 + Math.round(Math.random() * 44)
-    });
-    StorageService.save('glucoscan_items_v3', state.items);
-    updateUI();
-    showToast(`${food.name.split('(')[0].trim()} ajouté`);
+    }, food.name.split('(')[0].trim());
   });
 
   // Enregistrement dans le journal & Partage WhatsApp
