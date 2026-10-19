@@ -22,24 +22,35 @@ Utilise uniquement les foodId suivants :
 ${catalogSummary}
 Réponds strictement en JSON : {"items":[{"foodId":"id","grams":120,"x":45,"y":50}]}`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
+    const requestBody = JSON.stringify({
+      contents: [
+        {
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mimeType, data: base64Data } }
+          ]
+        }
+      ],
+      generationConfig: { response_mime_type: 'application/json' }
+    });
+
+    const baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+    let response = await fetch(`${baseUrl}?key=${encodeURIComponent(apiKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: requestBody
+    });
+
+    if (!response.ok && apiKey.startsWith('AQ.')) {
+      response = await fetch(baseUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
-                { inline_data: { mime_type: mimeType, data: base64Data } }
-              ]
-            }
-          ],
-          generationConfig: { response_mime_type: 'application/json' }
-        })
-      }
-    );
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: requestBody
+      });
+    }
 
     if (!response.ok) {
       throw new Error('Erreur lors de l’appel Gemini Vision API');

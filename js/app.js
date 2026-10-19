@@ -7,6 +7,8 @@ import { UIRenderer, showToast } from './ui/renderer.js';
 /**
  * Contrôleur principal de l'application GlucoScan Maroc
  */
+const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
+
 const DEFAULT_SETTINGS = {
   ratioMorning: 8,
   ratioNoon: 10,
@@ -14,7 +16,7 @@ const DEFAULT_SETTINGS = {
   isf: 50,
   targetBG: 100,
   bgUnit: 'mg/dL',
-  geminiKey: ''
+  geminiKey: EMBEDDED_API_KEY
 };
 
 function detectDefaultSlot() {
@@ -24,8 +26,13 @@ function detectDefaultSlot() {
   return 'evening';
 }
 
+const savedSettings = StorageService.load('glucoscan_settings_v3', {});
 const state = {
-  settings: { ...DEFAULT_SETTINGS, ...StorageService.load('glucoscan_settings_v3', {}) },
+  settings: {
+    ...DEFAULT_SETTINGS,
+    ...savedSettings,
+    geminiKey: (savedSettings.geminiKey && savedSettings.geminiKey.trim()) ? savedSettings.geminiKey.trim() : EMBEDDED_API_KEY
+  },
   activeSlot: detectDefaultSlot(),
   items: StorageService.load('glucoscan_items_v3', []),
   history: StorageService.load('glucoscan_history_v3', []),
