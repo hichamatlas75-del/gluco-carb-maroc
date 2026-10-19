@@ -100,8 +100,13 @@
               </div>
             </div>
 
-            <!-- Étiquettes (Pins) superposées sur les aliments reconnus -->
-            <div id="pinsLayer" class="absolute inset-0 pointer-events-none z-10"></div>
+            <!-- Étiquettes (Pins) déplaçables et modifiables sur la photo -->
+            <div id="pinsLayer" class="absolute inset-0 pointer-events-none z-10 overflow-hidden"></div>
+
+            <!-- Bandeau d'astuce en bas de la photo (quand des étiquettes sont affichées) -->
+            <div id="pinsHintBanner" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none bg-slate-900/80 backdrop-blur-xs text-white px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap shadow-md">
+              👆 Glissez une étiquette • Touchez-la pour modifier
+            </div>
 
             <!-- État initial : Aucun plat photographié -->
             <div id="emptyCameraState" class="text-center px-6 py-6 space-y-2.5">
@@ -114,10 +119,53 @@
               </p>
             </div>
 
+            <!-- Bouton Réorganiser les étiquettes (anti-superposition en 1 clic) -->
+            <button id="btnAutoArrangePins" type="button" class="hidden absolute top-3 left-3 z-20 bg-white/95 hover:bg-white text-emerald-800 border border-emerald-200 px-2.5 py-1.5 rounded-full text-[11px] font-extrabold shadow-md flex items-center gap-1 active:scale-95 transition-all">
+              <i data-lucide="move" class="w-3.5 h-3.5 text-emerald-600"></i> Réorganiser
+            </button>
+
             <!-- Bouton Nouvelle Photo -->
             <button id="btnClearPhoto" type="button" class="hidden absolute top-3 right-3 z-20 bg-white/95 text-slate-800 px-2.5 py-1.5 rounded-full text-[11px] font-extrabold shadow-md flex items-center gap-1">
               <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Nouveau scan
             </button>
+          </div>
+
+          <!-- ÉDITEUR RAPIDE D'ÉTIQUETTE (s'ouvre quand on touche une étiquette sur la photo) -->
+          <div id="pinQuickEditor" class="hidden bg-emerald-50/90 border-b border-emerald-200 p-3 space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                <i data-lucide="edit-3" class="w-3.5 h-3.5 text-emerald-600"></i>
+                Modifier l'étiquette sélectionnée
+              </span>
+              <div class="flex items-center gap-1">
+                <button id="btnQuickPinReplace" type="button" class="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-[10px] font-extrabold flex items-center gap-1">
+                  🔄 Remplacer par un autre
+                </button>
+                <button id="btnQuickPinDelete" type="button" class="px-2 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 text-[10px] font-extrabold">
+                  🗑️ Supprimer
+                </button>
+                <button id="btnCloseQuickPinEditor" type="button" class="p-1 rounded-lg bg-white text-slate-500 border border-slate-200">
+                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-12 gap-2 items-center">
+              <div class="col-span-7">
+                <label class="text-[9px] font-extrabold uppercase text-slate-500 block mb-0.5">Nom affiché sur l'étiquette</label>
+                <input id="inpQuickPinName" type="text" placeholder="Nom de l'aliment..."
+                  class="w-full bg-white border border-emerald-300 focus:border-emerald-600 rounded-xl px-2.5 py-1.5 text-xs font-extrabold text-slate-900 focus:outline-none" />
+              </div>
+              <div class="col-span-5">
+                <label class="text-[9px] font-extrabold uppercase text-slate-500 block mb-0.5">Poids (Grammes)</label>
+                <div class="flex items-center gap-1">
+                  <button id="btnQuickPinMinus10" type="button" class="px-2 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-mono font-extrabold text-slate-700">-10</button>
+                  <input id="inpQuickPinGrams" type="number" min="5" max="1500"
+                    class="w-full bg-white border border-emerald-300 rounded-xl py-1.5 text-center font-mono text-xs font-extrabold text-slate-900 focus:outline-none" />
+                  <button id="btnQuickPinPlus10" type="button" class="px-2 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-mono font-extrabold text-slate-700">+10</button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Commandes de l'Appareil Photo -->
@@ -979,6 +1027,6 @@
   </div>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=12"></script>
+  <script type="module" src="./js/app.js?v=13"></script>
 </body>
 </html>

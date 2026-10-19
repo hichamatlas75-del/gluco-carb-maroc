@@ -1,5 +1,5 @@
-import { FoodRepository } from '../data/foods.js?v=12';
-import { MetabolicEngine } from '../services/metabolicEngine.js?v=12';
+import { FoodRepository } from '../data/foods.js?v=13';
+import { MetabolicEngine } from '../services/metabolicEngine.js?v=13';
 
 /**
  * Fonctions de rendu DOM et protection XSS
@@ -89,38 +89,58 @@ export const UIRenderer = {
     document.getElementById('lblBGUnit').textContent = state.settings.bgUnit;
     document.getElementById('lblBGSuffix').textContent = state.settings.bgUnit;
 
-    this.renderPins(state.items);
-    this.renderRecognizedList(state.items);
+    this.renderPins(state.items, state.selectedPinIndex);
+    this.renderRecognizedList(state.items, state.selectedPinIndex);
 
     if (window.lucide) {
       window.lucide.createIcons();
     }
   },
 
-  renderPins(items) {
+  renderPins(items, selectedPinIdx = null) {
     const layer = document.getElementById('pinsLayer');
     const hasImage = !document.getElementById('plateImage').classList.contains('hidden');
+    const arrangeBtn = document.getElementById('btnAutoArrangePins');
+    const hintBanner = document.getElementById('pinsHintBanner');
+
     if (!hasImage || items.length === 0) {
       layer.innerHTML = '';
+      if (arrangeBtn) arrangeBtn.classList.add('hidden');
+      if (hintBanner) hintBanner.classList.add('hidden');
       return;
     }
+
+    if (arrangeBtn) arrangeBtn.classList.toggle('hidden', items.length < 2);
+    if (hintBanner) hintBanner.classList.remove('hidden');
 
     layer.innerHTML = items.map((item, idx) => {
       const food = MetabolicEngine.resolveFoodEntry(item);
       if (!food) return '';
       const macros = MetabolicEngine.computeFoodPortion(food, item.grams);
-      const x = item.x || (25 + (idx * 24) % 55);
-      const y = item.y || (28 + (idx * 20) % 50);
+      const x = Math.min(86, Math.max(14, Number(item.x) || 50));
+      const y = Math.min(84, Math.max(16, Number(item.y) || (24 + idx * 18)));
+      const isSelected = selectedPinIdx === idx;
+      const shortLabel = food.name.split('(')[0].trim();
+
+      const borderStyle = isSelected
+        ? 'bg-emerald-50 text-slate-950 ring-2 ring-emerald-500 border-emerald-600 z-30 scale-105'
+        : 'bg-white/95 text-slate-900 border-emerald-500/50 z-10 hover:z-20';
 
       return `
-        <div class="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 bg-white/95 text-slate-900 pl-2.5 pr-1.5 py-1 rounded-full shadow-md border border-emerald-500/40 flex items-center gap-1 text-[11px] font-extrabold whitespace-nowrap"
-             style="left:${x}%; top:${y}%;">
-          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span>${escapeHTML(food.name.split('(')[0].trim())}</span>
+        <div data-pin-index="${idx}"
+             class="food-pin pointer-events-auto cursor-grab active:cursor-grabbing select-none absolute -translate-x-1/2 -translate-y-1/2 px-2 py-1 rounded-full shadow-lg border flex items-center gap-1 text-[11px] font-extrabold whitespace-nowrap transition-shadow ${borderStyle}"
+             style="left:${x}%; top:${y}%; touch-action:none;">
+          <span class="text-slate-400 text-[10px] leading-none font-mono pr-0.5" title="Glisser pour déplacer">⋮⋮</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+          <span class="max-w-[135px] truncate">${escapeHTML(shortLabel)}</span>
           <span class="font-mono text-emerald-700">~${item.grams}g</span>
           <span class="text-[10px] font-mono text-slate-500">(${Math.round(macros.netCarbs)}g)</span>
+          <button type="button" data-edit-pin="${idx}" title="Modifier cette étiquette"
+            class="ml-0.5 w-4 h-4 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-800 flex items-center justify-center text-[9px] leading-none">
+            ✎
+          </button>
           <button type="button" data-remove-pin="${idx}" title="Supprimer cet aliment"
-            class="ml-0.5 w-4 h-4 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-700 flex items-center justify-center text-[10px] font-extrabold leading-none">
+            class="w-4 h-4 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-700 flex items-center justify-center text-[10px] font-extrabold leading-none">
             ×
           </button>
         </div>
@@ -128,7 +148,7 @@ export const UIRenderer = {
     }).join('');
   },
 
-  renderRecognizedList(items) {
+  renderRecognizedList(items, selectedPinIdx = null) {
     const container = document.getElementById('recognizedItemsContainer');
     const countEl = document.getElementById('lblDetectedCount');
     const footer = document.getElementById('scanFooterActions');
@@ -162,12 +182,20 @@ export const UIRenderer = {
       const food = MetabolicEngine.resolveFoodEntry(item);
       if (!food) return '';
       const macros = MetabolicEngine.computeFoodPortion(food, item.grams);
+      const isSelected = selectedPinIdx === idx;
+      const cardBorder = isSelected
+        ? 'bg-emerald-50/60 border-emerald-400 ring-1 ring-emerald-400'
+        : 'bg-slate-50 border-slate-200';
 
       return `
-        <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+        <div class="p-3 rounded-2xl border space-y-2 transition-all ${cardBorder}">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0 flex-1">
-              <h4 class="text-xs font-extrabold text-slate-900 leading-snug">${escapeHTML(food.name)}</h4>
+              <div class="flex items-center gap-1">
+                <input type="text" data-direct-name="${idx}" value="${escapeHTML(food.name)}"
+                  title="Touchez pour modifier le nom de l'aliment"
+                  class="w-full bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-slate-300 focus:border-emerald-500 rounded-lg px-1.5 py-0.5 -ml-1.5 text-xs font-extrabold text-slate-900 focus:outline-none transition-all" />
+              </div>
               <p class="text-[11px] text-slate-500">${escapeHTML(food.refPortion)} • IG ${food.gi} • Fibres ${macros.fiber.toFixed(1)}g</p>
             </div>
             <div class="text-right flex-shrink-0">
@@ -180,7 +208,7 @@ export const UIRenderer = {
           <div class="flex items-center justify-between gap-1.5 pt-1">
             <button type="button" data-replace="${idx}" class="flex-1 py-1.5 px-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/90 text-[11px] font-extrabold flex items-center justify-center gap-1 transition-all">
               <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-amber-600"></i>
-              Corriger / Remplacer
+              Changer d'aliment
             </button>
             <button type="button" data-remove="${idx}" class="py-1.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/90 text-[11px] font-extrabold flex items-center justify-center gap-1 transition-all">
               <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-600"></i>

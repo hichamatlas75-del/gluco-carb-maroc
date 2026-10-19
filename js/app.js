@@ -1,11 +1,11 @@
-import { FoodRepository } from './data/foods.js?v=12';
-import { StorageService } from './services/storage.js?v=12';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=12';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=12';
-import { UIRenderer, showToast } from './ui/renderer.js?v=12';
+import { FoodRepository } from './data/foods.js?v=13';
+import { StorageService } from './services/storage.js?v=13';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=13';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=13';
+import { UIRenderer, showToast } from './ui/renderer.js?v=13';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v12 - Correction Manuelle Rapide : Supprimer, Remplacer & Ajouter)
+ * Contrôleur principal GlucoScan Maroc (v13 - Étiquettes Photo Déplaçables au Doigt & Éditables en Direct)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
@@ -43,8 +43,50 @@ const state = {
   catalogFilter: '',
   catalogCategory: 'all',
   replaceItemIndex: null,
+  selectedPinIndex: null,
   customPresetGI: 50
 };
+
+/**
+ * Écarte automatiquement les étiquettes (pins) sur la photo pour éviter toute superposition
+ * et garantir une lisibilité parfaite dès le scan.
+ */
+function spreadPinsAutomatically(items, forceAll = false) {
+  if (!Array.isArray(items) || items.length === 0) return;
+  if (items.length === 1) {
+    items[0].x = Math.min(72, Math.max(28, Number(items[0].x) || 50));
+    items[0].y = Math.min(76, Math.max(24, Number(items[0].y) || 50));
+    return;
+  }
+
+  // Détecte s'il y a collision verticale (< 13% d'écart vertical) entre 2 étiquettes
+  let hasCollision = forceAll;
+  if (!hasCollision) {
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        const dy = Math.abs((Number(items[i].y) || 50) - (Number(items[j].y) || 50));
+        if (dy < 13) {
+          hasCollision = true;
+          break;
+        }
+      }
+      if (hasCollision) break;
+    }
+  }
+
+  if (!hasCollision) return;
+
+  const n = items.length;
+  const minY = 20;
+  const maxY = 80;
+  const stepY = n > 1 ? (maxY - minY) / (n - 1) : 0;
+
+  items.forEach((item, idx) => {
+    item.y = Math.round(minY + idx * stepY);
+    // Légère alternance gauche/droite centrée pour ne jamais déborder hors de l'écran
+    item.x = idx % 2 === 0 ? 44 : 56;
+  });
+}
 
 function getCurrentBGMgDl() {
   const el = document.getElementById('inputBloodGlucose');
@@ -54,7 +96,39 @@ function getCurrentBGMgDl() {
   return state.settings.bgUnit === 'g/L' ? Math.round(val * 100) : Math.round(val);
 }
 
+function syncQuickPinEditor() {
+  const editor = document.getElementById('pinQuickEditor');
+  if (!editor) return;
+
+  if (state.selectedPinIndex === null || !state.items[state.selectedPinIndex]) {
+    state.selectedPinIndex = null;
+    editor.classList.add('hidden');
+    return;
+  }
+
+  const item = state.items[state.selectedPinIndex];
+  const food = MetabolicEngine.resolveFoodEntry(item);
+  if (!food) {
+    editor.classList.add('hidden');
+    return;
+  }
+
+  editor.classList.remove('hidden');
+  const nameInp = document.getElementById('inpQuickPinName');
+  const gramsInp = document.getElementById('inpQuickPinGrams');
+  if (nameInp && document.activeElement !== nameInp) {
+    nameInp.value = food.name.split('(')[0].trim();
+  }
+  if (gramsInp && document.activeElement !== gramsInp) {
+    gramsInp.value = String(item.grams || 100);
+  }
+}
+
 function updateUI() {
+  if (state.selectedPinIndex !== null && !state.items[state.selectedPinIndex]) {
+    state.selectedPinIndex = null;
+  }
+  syncQuickPinEditor();
   const evaluation = MetabolicEngine.evaluatePlate(
     state.items,
     state.settings,
@@ -79,6 +153,7 @@ async function handleImageSource(source) {
   overlay.classList.remove('hidden');
   empty.classList.add('hidden');
   clearBtn.classList.remove('hidden');
+  state.selectedPinIndex = null;
 
   // Affichage immédiat en Haute Définition sans aucune dégradation visuelle
   if (state.displayObjectUrl) {
@@ -111,10 +186,11 @@ async function handleImageSource(source) {
     overlay.classList.add('hidden');
 
     if (detected && detected.length > 0) {
+      spreadPinsAutomatically(detected, false);
       state.items = detected;
       StorageService.save('glucoscan_items_v3', state.items);
       updateUI();
-      showToast(`${detected.length} aliment(s) reconnu(s) sur la photo !`);
+      showToast(`${detected.length} aliment(s) reconnu(s) ! Glissez les étiquettes pour ajuster.`);
       return;
     }
 
@@ -138,7 +214,9 @@ function loadPresetPlate(key, replacePhotoWithSVG = false) {
     document.getElementById('btnClearPhoto').classList.remove('hidden');
   }
 
+  state.selectedPinIndex = null;
   state.items = plate.items.map(i => ({ ...i }));
+  spreadPinsAutomatically(state.items, false);
   StorageService.save('glucoscan_items_v3', state.items);
   updateUI();
   showToast('Aliments détectés & grammages calculés');
@@ -457,23 +535,172 @@ function bindEvents() {
     });
   });
 
-  // Suppression directe depuis les pastilles de la photo
-  document.getElementById('pinsLayer')?.addEventListener('click', (e) => {
+  // Bouton Réorganiser les étiquettes (anti-superposition en 1 clic)
+  document.getElementById('btnAutoArrangePins')?.addEventListener('click', () => {
+    spreadPinsAutomatically(state.items, true);
+    StorageService.save('glucoscan_items_v3', state.items);
+    updateUI();
+    showToast('↕️ Étiquettes réorganisées pour une lecture claire');
+  });
+
+  // Déplacement au doigt / souris (Drag & Drop) et sélection des étiquettes sur la photo
+  const pinsLayer = document.getElementById('pinsLayer');
+  let activeDrag = null;
+
+  pinsLayer?.addEventListener('pointerdown', (e) => {
+    // Si clic sur le bouton supprimer (×) d'une étiquette
     const rmPin = e.target.closest('[data-remove-pin]');
-    if (!rmPin) return;
-    const idx = parseInt(rmPin.getAttribute('data-remove-pin'), 10);
-    if (state.items[idx]) {
-      const removedFood = MetabolicEngine.resolveFoodEntry(state.items[idx]);
-      state.items.splice(idx, 1);
+    if (rmPin) {
+      e.stopPropagation();
+      const idx = parseInt(rmPin.getAttribute('data-remove-pin'), 10);
+      if (state.items[idx]) {
+        const removedFood = MetabolicEngine.resolveFoodEntry(state.items[idx]);
+        state.items.splice(idx, 1);
+        if (state.selectedPinIndex === idx) state.selectedPinIndex = null;
+        StorageService.save('glucoscan_items_v3', state.items);
+        updateUI();
+        showToast(`🗑️ ${removedFood ? removedFood.name.split('(')[0].trim() : 'Aliment'} supprimé`);
+      }
+      return;
+    }
+
+    // Si clic sur le bouton éditer (✎) d'une étiquette
+    const editPin = e.target.closest('[data-edit-pin]');
+    if (editPin) {
+      e.stopPropagation();
+      const idx = parseInt(editPin.getAttribute('data-edit-pin'), 10);
+      state.selectedPinIndex = idx;
+      updateUI();
+      setTimeout(() => document.getElementById('inpQuickPinName')?.focus(), 50);
+      return;
+    }
+
+    const pinEl = e.target.closest('[data-pin-index]');
+    if (!pinEl) return;
+
+    const idx = parseInt(pinEl.getAttribute('data-pin-index'), 10);
+    if (!state.items[idx]) return;
+
+    const rect = pinsLayer.getBoundingClientRect();
+    activeDrag = {
+      idx,
+      pinEl,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: Number(state.items[idx].x) || 50,
+      origY: Number(state.items[idx].y) || 50,
+      rectWidth: rect.width || 320,
+      rectHeight: rect.height || 240,
+      moved: false
+    };
+
+    try {
+      pinEl.setPointerCapture(e.pointerId);
+    } catch {}
+    pinEl.classList.add('z-40', 'scale-105', 'ring-2', 'ring-emerald-500');
+  });
+
+  pinsLayer?.addEventListener('pointermove', (e) => {
+    if (!activeDrag || e.pointerId !== activeDrag.pointerId) return;
+    const dx = e.clientX - activeDrag.startX;
+    const dy = e.clientY - activeDrag.startY;
+    if (!activeDrag.moved && Math.hypot(dx, dy) < 4) return;
+
+    activeDrag.moved = true;
+    const newX = Math.min(86, Math.max(14, activeDrag.origX + (dx / activeDrag.rectWidth) * 100));
+    const newY = Math.min(85, Math.max(15, activeDrag.origY + (dy / activeDrag.rectHeight) * 100));
+
+    activeDrag.pinEl.style.left = `${newX.toFixed(1)}%`;
+    activeDrag.pinEl.style.top = `${newY.toFixed(1)}%`;
+    if (state.items[activeDrag.idx]) {
+      state.items[activeDrag.idx].x = Math.round(newX);
+      state.items[activeDrag.idx].y = Math.round(newY);
+    }
+  });
+
+  const endPinDrag = (e) => {
+    if (!activeDrag || (e.pointerId !== undefined && e.pointerId !== activeDrag.pointerId)) return;
+    const { idx, moved, pinEl } = activeDrag;
+    try {
+      pinEl.releasePointerCapture(activeDrag.pointerId);
+    } catch {}
+    activeDrag = null;
+
+    state.selectedPinIndex = idx;
+    StorageService.save('glucoscan_items_v3', state.items);
+    updateUI();
+    if (!moved) {
+      // Un simple toucher sur l'étiquette ouvre l'éditeur rapide sous la photo
+      showToast('✏️ Étiquette sélectionnée : modifiez son nom ou son poids ci-dessous');
+    }
+  };
+
+  pinsLayer?.addEventListener('pointerup', endPinDrag);
+  pinsLayer?.addEventListener('pointercancel', endPinDrag);
+
+  // Contrôles de l'Éditeur Rapide d'Étiquette (#pinQuickEditor sous la photo)
+  document.getElementById('btnCloseQuickPinEditor')?.addEventListener('click', () => {
+    state.selectedPinIndex = null;
+    updateUI();
+  });
+
+  document.getElementById('inpQuickPinName')?.addEventListener('input', (e) => {
+    const idx = state.selectedPinIndex;
+    if (idx === null || !state.items[idx]) return;
+    const val = e.target.value.trim();
+    if (val) {
+      state.items[idx].customName = val;
       StorageService.save('glucoscan_items_v3', state.items);
       updateUI();
-      showToast(`🗑️ ${removedFood ? removedFood.name.split('(')[0].trim() : 'Aliment'} supprimé`);
     }
+  });
+
+  document.getElementById('inpQuickPinGrams')?.addEventListener('input', (e) => {
+    const idx = state.selectedPinIndex;
+    if (idx === null || !state.items[idx]) return;
+    state.items[idx].grams = Math.max(5, parseInt(e.target.value, 10) || 5);
+    StorageService.save('glucoscan_items_v3', state.items);
+    updateUI();
+  });
+
+  document.getElementById('btnQuickPinMinus10')?.addEventListener('click', () => {
+    const idx = state.selectedPinIndex;
+    if (idx === null || !state.items[idx]) return;
+    state.items[idx].grams = Math.max(5, (state.items[idx].grams || 50) - 10);
+    StorageService.save('glucoscan_items_v3', state.items);
+    updateUI();
+  });
+
+  document.getElementById('btnQuickPinPlus10')?.addEventListener('click', () => {
+    const idx = state.selectedPinIndex;
+    if (idx === null || !state.items[idx]) return;
+    state.items[idx].grams = Math.min(1500, (state.items[idx].grams || 50) + 10);
+    StorageService.save('glucoscan_items_v3', state.items);
+    updateUI();
+  });
+
+  document.getElementById('btnQuickPinReplace')?.addEventListener('click', () => {
+    if (state.selectedPinIndex !== null && state.items[state.selectedPinIndex]) {
+      openFoodCatalogModal(state.selectedPinIndex);
+    }
+  });
+
+  document.getElementById('btnQuickPinDelete')?.addEventListener('click', () => {
+    const idx = state.selectedPinIndex;
+    if (idx === null || !state.items[idx]) return;
+    const removedFood = MetabolicEngine.resolveFoodEntry(state.items[idx]);
+    state.items.splice(idx, 1);
+    state.selectedPinIndex = null;
+    StorageService.save('glucoscan_items_v3', state.items);
+    updateUI();
+    showToast(`🗑️ ${removedFood ? removedFood.name.split('(')[0].trim() : 'Aliment'} supprimé`);
   });
 
   // Tout vider dans la liste des aliments reconnus
   document.getElementById('btnClearAllRecognized')?.addEventListener('click', () => {
     state.items = [];
+    state.selectedPinIndex = null;
     StorageService.save('glucoscan_items_v3', []);
     updateUI();
     showToast('Liste des aliments vidée');
@@ -512,6 +739,7 @@ function bindEvents() {
       if (state.items[idx]) {
         const removedFood = MetabolicEngine.resolveFoodEntry(state.items[idx]);
         state.items.splice(idx, 1);
+        if (state.selectedPinIndex === idx) state.selectedPinIndex = null;
         StorageService.save('glucoscan_items_v3', state.items);
         updateUI();
         showToast(`🗑️ ${removedFood ? removedFood.name.split('(')[0].trim() : 'Aliment'} supprimé`);
@@ -520,6 +748,18 @@ function bindEvents() {
   });
 
   document.getElementById('recognizedItemsContainer').addEventListener('input', (e) => {
+    const nameInp = e.target.closest('[data-direct-name]');
+    if (nameInp) {
+      const idx = parseInt(nameInp.getAttribute('data-direct-name'), 10);
+      if (state.items[idx] && nameInp.value.trim()) {
+        state.items[idx].customName = nameInp.value.trim();
+        StorageService.save('glucoscan_items_v3', state.items);
+        UIRenderer.renderPins(state.items, state.selectedPinIndex);
+        syncQuickPinEditor();
+      }
+      return;
+    }
+
     const inp = e.target.closest('[data-direct-grams]');
     if (!inp) return;
     const idx = parseInt(inp.getAttribute('data-direct-grams'), 10);
@@ -793,6 +1033,7 @@ function bindEvents() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  spreadPinsAutomatically(state.items, false);
   bindEvents();
   updateUI();
   updateFasting186View();
