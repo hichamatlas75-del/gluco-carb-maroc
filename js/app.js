@@ -1,11 +1,11 @@
-import { FoodRepository } from './data/foods.js?v=8';
-import { StorageService } from './services/storage.js?v=8';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=8';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=8';
-import { UIRenderer, showToast } from './ui/renderer.js?v=8';
+import { FoodRepository } from './data/foods.js?v=9';
+import { StorageService } from './services/storage.js?v=9';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=9';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=9';
+import { UIRenderer, showToast } from './ui/renderer.js?v=9';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v7 - Caméra Directe IA Vision)
+ * Contrôleur principal GlucoScan Maroc (v9 - Affichage HD + Gemini 3.5 Flash-Lite 1.2s)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
@@ -39,6 +39,7 @@ const state = {
   items: StorageService.load('glucoscan_items_v3', []),
   history: StorageService.load('glucoscan_history_v3', []),
   mediaStream: null,
+  displayObjectUrl: null,
   catalogFilter: ''
 };
 
@@ -61,7 +62,9 @@ function updateUI() {
 }
 
 /**
- * Traite une photo (File, Blob ou DataURL) par reconnaissance directe IA Vision
+ * Traite une photo (File, Blob ou DataURL) :
+ * - Affiche l'image originale en Haute Définition (100% nette) à l'écran
+ * - Envoie une version 800px nette à l'IA Vision (~1.2s à 2.1s)
  */
 async function handleImageSource(source) {
   stopWebRTC();
@@ -74,14 +77,27 @@ async function handleImageSource(source) {
   empty.classList.add('hidden');
   clearBtn.classList.remove('hidden');
 
+  // Affichage immédiat en Haute Définition sans aucune dégradation visuelle
+  if (state.displayObjectUrl) {
+    URL.revokeObjectURL(state.displayObjectUrl);
+    state.displayObjectUrl = null;
+  }
+  if (source instanceof Blob) {
+    state.displayObjectUrl = URL.createObjectURL(source);
+    img.src = state.displayObjectUrl;
+    img.classList.remove('hidden');
+  } else if (typeof source === 'string') {
+    img.src = source;
+    img.classList.remove('hidden');
+  }
+
   const watchdog = setTimeout(() => {
     overlay.classList.add('hidden');
   }, 12000);
 
   try {
-    const compressedDataUrl = await VisionAnalyzer.compressImageSource(source, 320, 0.65);
-    img.src = compressedDataUrl;
-    img.classList.remove('hidden');
+    // Image 800px nette (qualité 0.85) pour l'analyse IA Vision
+    const compressedDataUrl = await VisionAnalyzer.compressImageSource(source, 800, 0.85);
 
     const detected = await VisionAnalyzer.detectWithGemini(
       compressedDataUrl,

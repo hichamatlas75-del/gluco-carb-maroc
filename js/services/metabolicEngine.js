@@ -1,4 +1,4 @@
-import { FoodRepository } from '../data/foods.js?v=8';
+import { FoodRepository } from '../data/foods.js?v=9';
 
 /**
  * Moteur de calcul des glucides nets, de la charge glycémique, du bolus d'insuline
