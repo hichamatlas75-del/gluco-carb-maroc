@@ -1,11 +1,11 @@
-import { FoodRepository } from './data/foods.js?v=9';
-import { StorageService } from './services/storage.js?v=9';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=9';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=9';
-import { UIRenderer, showToast } from './ui/renderer.js?v=9';
+import { FoodRepository } from './data/foods.js?v=10';
+import { StorageService } from './services/storage.js?v=10';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=10';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=10';
+import { UIRenderer, showToast } from './ui/renderer.js?v=10';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v9 - Affichage HD + Gemini 3.5 Flash-Lite 1.2s)
+ * Contrôleur principal GlucoScan Maroc (v10 - Guide Nutrition & Besoins Journaliers Adultes)
  */
 const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 
@@ -174,13 +174,38 @@ function stopWebRTC() {
   document.getElementById('primaryCaptureActions').classList.remove('hidden');
 }
 
+function updateDailyCarbCalculator() {
+  const weightEl = document.getElementById('guideInputWeight');
+  const profileEl = document.getElementById('guideSelectProfile');
+  if (!weightEl || !profileEl) return;
+
+  const weight = Math.min(180, Math.max(35, parseFloat(weightEl.value) || 72));
+  const profile = profileEl.value;
+
+  // Grammes de glucides nets par kg de poids corporel selon le profil adulte
+  let factorPerKg = 2.1; // Diabète / Équilibre glycémique (~130-175g/j)
+  if (profile === 'standard') factorPerKg = 3.0; // Adulte actif standard (~180-250g/j)
+  if (profile === 'lowcarb') factorPerKg = 1.3;  // Low-Carb modéré (~85-120g/j)
+
+  const dailyTotal = Math.round((weight * factorPerKg) / 5) * 5;
+  const morning = Math.round(dailyTotal * 0.26);
+  const noon = Math.round(dailyTotal * 0.40);
+  const evening = Math.max(15, dailyTotal - morning - noon);
+
+  document.getElementById('guideOutDailyCarbs').textContent = `${dailyTotal} g / jour`;
+  document.getElementById('guideOutMorning').textContent = `~${morning}g`;
+  document.getElementById('guideOutNoon').textContent = `~${noon}g`;
+  document.getElementById('guideOutEvening').textContent = `~${evening}g`;
+}
+
 function bindEvents() {
-  // Navigation entre les 3 onglets
+  // Navigation entre les 4 onglets (Scanner, Journal 7j, Guide & Besoins, Paramètres)
   document.querySelectorAll('.nav-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       const target = btn.getAttribute('data-view');
-      ['scanner', 'history', 'settings'].forEach(v => {
-        document.getElementById(`view-${v}`).classList.toggle('hidden', v !== target);
+      ['scanner', 'history', 'guide', 'settings'].forEach(v => {
+        const el = document.getElementById(`view-${v}`);
+        if (el) el.classList.toggle('hidden', v !== target);
       });
       document.querySelectorAll('.nav-tab').forEach(b => {
         const active = b.getAttribute('data-view') === target;
@@ -189,6 +214,10 @@ function bindEvents() {
       });
       if (target === 'history') {
         UIRenderer.renderHistoryView(state.history);
+      }
+      if (target === 'guide') {
+        updateDailyCarbCalculator();
+        if (window.lucide) window.lucide.createIcons();
       }
       if (target === 'settings') {
         document.getElementById('inpRatioMorning').value = state.settings.ratioMorning;
@@ -200,6 +229,10 @@ function bindEvents() {
       }
     });
   });
+
+  // Simulateur de besoin journalier en glucides dans l'onglet Guide
+  document.getElementById('guideInputWeight')?.addEventListener('input', updateDailyCarbCalculator);
+  document.getElementById('guideSelectProfile')?.addEventListener('change', updateDailyCarbCalculator);
 
   // Sélection Matin / Midi / Soir
   document.querySelectorAll('.slot-btn').forEach(btn => {
