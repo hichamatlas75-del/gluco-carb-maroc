@@ -578,6 +578,30 @@ function bindEvents() {
     }
   });
 
+  // Basculement onglets Magic Link vs Mot de passe
+  const tabAuthMagic = document.getElementById('tabAuthMagic');
+  const tabAuthPassword = document.getElementById('tabAuthPassword');
+  const panelAuthMagic = document.getElementById('panelAuthMagic');
+  const panelAuthPassword = document.getElementById('panelAuthPassword');
+
+  tabAuthMagic?.addEventListener('click', () => {
+    tabAuthMagic.classList.add('bg-white', 'text-slate-800', 'shadow-2xs');
+    tabAuthMagic.classList.remove('text-slate-500');
+    tabAuthPassword.classList.remove('bg-white', 'text-slate-800', 'shadow-2xs');
+    tabAuthPassword.classList.add('text-slate-500');
+    panelAuthMagic?.classList.remove('hidden');
+    panelAuthPassword?.classList.add('hidden');
+  });
+
+  tabAuthPassword?.addEventListener('click', () => {
+    tabAuthPassword.classList.add('bg-white', 'text-slate-800', 'shadow-2xs');
+    tabAuthPassword.classList.remove('text-slate-500');
+    tabAuthMagic.classList.remove('bg-white', 'text-slate-800', 'shadow-2xs');
+    tabAuthMagic.classList.add('text-slate-500');
+    panelAuthPassword?.classList.remove('hidden');
+    panelAuthMagic?.classList.add('hidden');
+  });
+
   document.getElementById('formMagicLink')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('inpMagicLinkEmail').value.trim();
@@ -587,8 +611,9 @@ function bindEvents() {
       showToast(`✉️ Email envoyé à ${email} !`);
       const otpForm = document.getElementById('formVerifyOtp');
       if (otpForm) otpForm.classList.remove('hidden');
-    } catch (_) {
-      showToast('Erreur Supabase : vérifiez l’adresse email');
+    } catch (err) {
+      console.error('Supabase magic link error:', err);
+      showToast(err?.message || 'Erreur Supabase lors de l’envoi');
     }
   });
 
@@ -603,8 +628,55 @@ function bindEvents() {
       document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
       document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
       showToast('✅ Connecté avec succès pour toujours !');
-    } catch (_) {
-      showToast('Code invalide ou expiré, vérifiez votre boîte mail');
+    } catch (err) {
+      console.error('Supabase OTP error:', err);
+      showToast(err?.message || 'Code invalide ou expiré');
+    }
+  });
+
+  // Connexion avec mot de passe
+  document.getElementById('formPasswordAuth')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('inpPasswordEmail').value.trim();
+    const password = document.getElementById('inpPasswordVal').value;
+    if (!email || !password) return;
+    try {
+      await SupabaseService.signInWithPassword(email, password);
+      updateAuthUI();
+      document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
+      document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
+      showToast('✅ Connecté avec succès !');
+    } catch (err) {
+      console.error('Supabase password sign in error:', err);
+      showToast(err?.message || 'Email ou mot de passe incorrect');
+    }
+  });
+
+  // Inscription avec mot de passe
+  document.getElementById('btnSubmitPasswordSignUp')?.addEventListener('click', async () => {
+    const email = document.getElementById('inpPasswordEmail').value.trim();
+    const password = document.getElementById('inpPasswordVal').value;
+    if (!email || !password) {
+      showToast('Veuillez renseigner votre email et mot de passe');
+      return;
+    }
+    if (password.length < 6) {
+      showToast('Le mot de passe doit comporter au moins 6 caractères');
+      return;
+    }
+    try {
+      const res = await SupabaseService.signUpWithPassword(email, password);
+      updateAuthUI();
+      if (SupabaseService.isAuthenticated()) {
+        document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
+        document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
+        showToast('✅ Compte créé et connecté !');
+      } else {
+        showToast('Compte créé ! Veuillez vous connecter.');
+      }
+    } catch (err) {
+      console.error('Supabase signup error:', err);
+      showToast(err?.message || 'Erreur lors de la création du compte');
     }
   });
 

@@ -105,11 +105,58 @@ export const SupabaseService = {
     if (!client) throw new Error('Supabase non initialisé');
 
     const { error } = await client.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin }
+      email: email.trim(),
+      options: { 
+        emailRedirectTo: window.location.origin,
+        shouldCreateUser: true
+      }
+    });
+    if (error) {
+      if (error.status === 429 || error.message?.includes('rate limit')) {
+        throw new Error('Limite Supabase atteinte (max 3 emails/heure par défaut). Utilisez la connexion avec mot de passe ou configurez SMTP.');
+      }
+      throw error;
+    }
+    return true;
+  },
+
+  async signInWithPassword(email, password) {
+    const client = await this.createClientIfNeeded();
+    if (!client) throw new Error('Supabase non initialisé');
+
+    const { data, error } = await client.auth.signInWithPassword({
+      email: email.trim(),
+      password
     });
     if (error) throw error;
-    return true;
+    if (data?.session) {
+      this.currentUser = data.user;
+      this.session = data.session;
+      localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify({ user: data.user, session: data.session }));
+    }
+    return data;
+  },
+
+  async signUpWithPassword(email, password) {
+    const client = await this.createClientIfNeeded();
+    if (!client) throw new Error('Supabase non initialisé');
+
+    const { data, error } = await client.auth.signUp({
+      email: email.trim(),
+      password
+    });
+    if (error) {
+      if (error.status === 429 || error.message?.includes('rate limit')) {
+        throw new Error('Limite email Supabase atteinte. Désactivez "Confirm email" dans Supabase > Auth > Providers > Email pour créer des comptes instantanés.');
+      }
+      throw error;
+    }
+    if (data?.session) {
+      this.currentUser = data.user;
+      this.session = data.session;
+      localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify({ user: data.user, session: data.session }));
+    }
+    return data;
   },
 
   async verifyOtp(email, token) {

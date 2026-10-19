@@ -1375,26 +1375,57 @@
             <div class="flex-grow border-t border-slate-200"></div>
           </div>
 
-          <form id="formMagicLink" class="space-y-2">
-            <input id="inpMagicLinkEmail" type="email" placeholder="votre.email@exemple.com" required
-              class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none" />
-            <button type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-xs transition-all">
-              Recevoir le Magic Link &amp; Code de connexion
+          <!-- Onglets Mode de Connexion : Magic Link vs Mot de passe -->
+          <div class="grid grid-cols-2 p-1 bg-slate-100 rounded-xl text-[11px] font-extrabold">
+            <button type="button" id="tabAuthMagic" class="py-1.5 rounded-lg bg-white text-slate-800 shadow-2xs transition-all">
+              Magic Link / Code
             </button>
-          </form>
+            <button type="button" id="tabAuthPassword" class="py-1.5 rounded-lg text-slate-500 hover:text-slate-800 transition-all">
+              Mot de passe
+            </button>
+          </div>
 
-          <!-- Saisie directe du Code OTP 6 chiffres sans quitter l'app -->
-          <form id="formVerifyOtp" class="hidden space-y-2 pt-2 border-t border-slate-100">
-            <label class="text-[10px] font-extrabold uppercase text-slate-500 block">Code à 6 chiffres reçu par email :</label>
-            <div class="flex items-center gap-2">
-              <input id="inpOtpCode" type="text" inputmode="numeric" maxlength="8" placeholder="123456" required
-                class="flex-1 bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-center font-mono font-extrabold text-sm text-slate-900 focus:outline-none tracking-widest" />
-              <button type="submit" class="py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition-all">
-                Valider
+          <!-- Panneau 1 : Magic Link / OTP -->
+          <div id="panelAuthMagic" class="space-y-2">
+            <form id="formMagicLink" class="space-y-2">
+              <input id="inpMagicLinkEmail" type="email" placeholder="votre.email@exemple.com" required
+                class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none" />
+              <button type="submit" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-xs transition-all">
+                Recevoir le Magic Link &amp; Code
               </button>
-            </div>
-            <p class="text-[10px] text-slate-400">Vous pouvez aussi cliquer sur le lien dans votre boîte mail.</p>
-          </form>
+            </form>
+
+            <!-- Saisie directe du Code OTP 6 chiffres sans quitter l'app -->
+            <form id="formVerifyOtp" class="hidden space-y-2 pt-2 border-t border-slate-100">
+              <label class="text-[10px] font-extrabold uppercase text-slate-500 block">Code à 6 chiffres reçu par email :</label>
+              <div class="flex items-center gap-2">
+                <input id="inpOtpCode" type="text" inputmode="numeric" maxlength="8" placeholder="123456" required
+                  class="flex-1 bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-center font-mono font-extrabold text-sm text-slate-900 focus:outline-none tracking-widest" />
+                <button type="submit" class="py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition-all">
+                  Valider
+                </button>
+              </div>
+              <p class="text-[10px] text-slate-400">Ou cliquez directement sur le lien reçu dans votre boîte mail.</p>
+            </form>
+          </div>
+
+          <!-- Panneau 2 : Mot de passe (Connexion instantanée sans email) -->
+          <div id="panelAuthPassword" class="hidden space-y-2">
+            <form id="formPasswordAuth" class="space-y-2">
+              <input id="inpPasswordEmail" type="email" placeholder="votre.email@exemple.com" required
+                class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none" />
+              <input id="inpPasswordVal" type="password" placeholder="Mot de passe (min 6 car.)" minlength="6" required
+                class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none" />
+              <div class="flex items-center gap-2 pt-1">
+                <button type="submit" id="btnSubmitPasswordLogin" class="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-xs transition-all">
+                  Se connecter
+                </button>
+                <button type="button" id="btnSubmitPasswordSignUp" class="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition-all">
+                  Créer compte
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
 
         <!-- Bouton de Synchronisation des Repas Locaux vers Supabase -->
@@ -1413,6 +1444,6 @@
   </div>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=19"></script>
+  <script type="module" src="./js/app.js?v=20"></script>
 </body>
 </html>
