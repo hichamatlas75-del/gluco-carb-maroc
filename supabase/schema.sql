@@ -170,3 +170,24 @@ VALUES
 ('tagine-kefta', 'Tagine Kefta & Oeufs', 'طاجين الكفتة والبيض', 'plats', 2.8, 14.5, 1.2, 13.0, 30, 220, 400, '1 portion tajine (~220g)'),
 ('zaalouk', 'Zaalouk Aubergines & Tomates', 'زعلوك', 'legumes', 4.5, 1.5, 3.2, 6.0, 25, 120, 250, '1 coupelle (~120g)')
 ON CONFLICT (id) DO NOTHING;
+
+-- 9. Table app_accounts (Gestion de Profils simplifiés Pseudo + Mot de passe sans email)
+CREATE TABLE IF NOT EXISTS public.app_accounts (
+    username TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    user_mode TEXT NOT NULL DEFAULT 'insulin',
+    settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+    history JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.app_accounts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Acces profils app_accounts" ON public.app_accounts;
+CREATE POLICY "Acces profils app_accounts"
+    ON public.app_accounts FOR ALL
+    TO anon, authenticated
+    USING (true)
+    WITH CHECK (true);

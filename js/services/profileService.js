@@ -1,8 +1,10 @@
 /**
  * Service de Gestion des Profils Utilisateurs (Sans Email)
  * Inspiré du modèle "Workout Home" : Pseudo + Mot de passe
- * Fonctionne 100% hors-ligne (Local-First) avec synchronisation Cloud Supabase optionnelle.
+ * Fonctionne 100% hors-ligne (Local-First) avec synchronisation Cloud Supabase automatique.
  */
+
+import { SupabaseService } from './supabaseClient.js?v=21';
 
 const STORAGE_KEY_PROFILES = 'glucoscan_profiles_db_v1';
 const STORAGE_KEY_ACTIVE = 'glucoscan_active_profile_v1';
@@ -13,7 +15,6 @@ async function sha256(str) {
     const hash = await crypto.subtle.digest('SHA-256', buffer);
     return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
   } catch (_) {
-    // Fallback simple si crypto.subtle n'est pas disponible (ex: contexte non sécurisé)
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       hash = ((hash << 5) - hash) + str.charCodeAt(i);
@@ -94,6 +95,22 @@ export const ProfileService = {
     };
     localStorage.setItem(STORAGE_KEY_ACTIVE, JSON.stringify(this.activeProfile));
 
+    // Sauvegarde automatique dans le Cloud Supabase (en tâche de fond)
+    try {
+      const client = await SupabaseService.createClientIfNeeded();
+      if (client) {
+        client.from('app_accounts').upsert([{
+          username: key,
+          display_name: cleanUser,
+          password_hash: passwordHash,
+          user_mode: newProfile.mode,
+          settings: newProfile.settings || {},
+          history: newProfile.history || [],
+          updated_at: new Date().toISOString()
+        }], { onConflict: 'username' }).then(() => {});
+      }
+    } catch (_) {}
+
     return newProfile;
   },
 
@@ -108,7 +125,31 @@ export const ProfileService = {
 
     const key = cleanUser.toLowerCase();
     const profiles = this.getAllProfiles();
-    const profile = profiles[key];
+    let profile = profiles[key];
+
+    // Si pas encore sur cet appareil, vérifier si le compte existe dans le Cloud Supabase
+    if (!profile) {
+      try {
+        const client = await SupabaseService.createClientIfNeeded();
+        if (client) {
+          const { data, error } = await client.from('app_accounts').select('*').eq('username', key).maybeSingle();
+          if (data && !error) {
+            profile = {
+              id: 'usr_' + Date.now(),
+              username: data.display_name || cleanUser,
+              passwordHash: data.password_hash,
+              mode: data.user_mode || 'insulin',
+              settings: data.settings || {},
+              history: data.history || [],
+              createdAt: data.created_at || new Date().toISOString(),
+              lastLogin: new Date().toISOString()
+            };
+            profiles[key] = profile;
+            localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(profiles));
+          }
+        }
+      } catch (_) {}
+    }
 
     if (!profile) {
       throw new Error(`Aucun profil trouvé pour "${cleanUser}". Créez-le en cliquant sur "Nouveau profil".`);
@@ -151,6 +192,42 @@ export const ProfileService = {
         profiles[key].history = history;
       }
       localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(profiles));
+
+      // Synchronisation Cloud en arrière-plan
+      this.syncToCloud().catch(() => {});
+    }
+  },
+
+  async syncToCloud() {
+    if (!this.isLoggedIn()) return { success: false, error: 'Non connecté' };
+    const client = await SupabaseService.createClientIfNeeded();
+    if (!client) return { success: false, error: 'Supabase indisponible' };
+
+    const key = this.activeProfile.username.toLowerCase();
+    const profiles = this.getAllProfiles();
+    const profile = profiles[key];
+    if (!profile) return { success: false, error: 'Profil introuvable' };
+
+    try {
+      const record = {
+        username: key,
+        display_name: profile.username,
+        password_hash: profile.passwordHash,
+        user_mode: profile.mode || 'insulin',
+        settings: profile.settings || {},
+        history: profile.history || [],
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await client.from('app_accounts').upsert([record], { onConflict: 'username' });
+      if (error) {
+        console.warn('Info synchro Supabase:', error.message);
+        return { success: false, error: error.message };
+      }
+      return { success: true, count: (profile.history || []).length };
+    } catch (err) {
+      console.warn('Info synchro Supabase:', err.message);
+      return { success: false, error: err.message };
     }
   },
 
