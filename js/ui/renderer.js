@@ -511,21 +511,40 @@ export const UIRenderer = {
         ? `💉 Bolus: ${Number(h.totalBolus).toFixed(1)} UI`
         : '';
 
+      const giVal = Number(h.avgGI);
+      const giBadge = giVal > 0 ? (
+        giVal <= 55
+          ? `<span class="text-[9.5px] font-extrabold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">IG ${Math.round(giVal)}</span>`
+          : giVal <= 69
+            ? `<span class="text-[9.5px] font-extrabold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">IG ${Math.round(giVal)}</span>`
+            : `<span class="text-[9.5px] font-extrabold text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200">IG ${Math.round(giVal)}</span>`
+      ) : '';
+
+      const imageThumb = h.imageUrl
+        ? `<img src="${h.imageUrl}" alt="Repas" class="w-12 h-12 object-cover rounded-xl border border-slate-200 shadow-2xs shrink-0">`
+        : `<div class="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0 text-base font-bold">🍽️</div>`;
+
       return `
-        <div class="surface-card rounded-2xl p-3.5 space-y-1.5 border border-slate-200/70 hover:border-slate-300 transition-all">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-extrabold text-slate-900">${escapeHTML(dateStr)}</span>
-            <div class="flex items-center gap-1.5">
-              <span class="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                ${escapeHTML(h.verdictTag || 'Repas')}
-              </span>
-              <button type="button" class="btn-delete-history-item p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition-all flex items-center justify-center" data-id="${itemId}" title="Supprimer ce repas du journal">
-                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-              </button>
+        <div class="surface-card rounded-2xl p-3 space-y-2 border border-slate-200/70 hover:border-slate-300 transition-all">
+          <div class="flex items-start gap-2.5">
+            ${imageThumb}
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1 mb-0.5">
+                <span class="text-xs font-black text-slate-900">${escapeHTML(dateStr)}</span>
+                <div class="flex items-center gap-1">
+                  ${giBadge}
+                  <span class="text-[9.5px] font-extrabold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
+                    ${escapeHTML(h.verdictTag || 'Repas')}
+                  </span>
+                  <button type="button" class="btn-delete-history-item p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition-all flex items-center justify-center" data-id="${itemId}" title="Supprimer ce repas du journal">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-600 leading-snug line-clamp-2">${names}</p>
             </div>
           </div>
-          <p class="text-xs text-slate-600 leading-snug">${names}</p>
-          <div class="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[11px] font-mono font-bold text-slate-700">
+          <div class="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10.5px] font-mono font-bold text-slate-700">
             <span>⚖️ ${h.totalGrams}g • 🌾 ${h.netCarbs}g nets • 🥩 ${proteinVal}g prot</span>
             ${bolusVal ? `<span class="text-cyan-700 font-extrabold">${bolusVal}</span>` : ''}
           </div>

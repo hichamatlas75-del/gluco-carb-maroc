@@ -1584,16 +1584,16 @@
     <!-- MODAL PROFIL UTILISATEUR & SYNCHRONISATION -->
     <!-- ========================================== -->
     <div id="modalSupabaseAuth" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center p-4">
-      <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-100">
+      <div class="bg-white rounded-3xl max-w-md w-full p-4 sm:p-5 space-y-4 shadow-2xl border border-slate-100 max-h-[92dvh] overflow-y-auto">
         <!-- En-tête -->
-        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5 sticky top-0 bg-white/95 backdrop-blur-xs z-10">
           <div class="flex items-center gap-2.5">
             <div class="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
               <i data-lucide="user" class="w-4.5 h-4.5"></i>
             </div>
             <div>
-              <h3 class="text-sm font-black text-slate-900">Mon Profil Utilisateur</h3>
-              <p class="text-[10px] text-slate-500">Accès direct par pseudo (sans email)</p>
+              <h3 class="text-sm font-black text-slate-900">Mon Profil &amp; Historique</h3>
+              <p class="text-[10px] text-slate-500">Repas photographiés, IG, protéines &amp; calendrier</p>
             </div>
           </div>
           <button type="button" id="btnCloseAuthModal" class="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 bg-slate-100 active:scale-95 transition-all">
@@ -1603,16 +1603,16 @@
 
         <!-- ZONE 1 : Si l'utilisateur est CONNECTÉ (Profil actif) -->
         <div id="panelProfileActive" class="hidden space-y-3.5">
-          <div class="bg-gradient-to-br from-emerald-50 to-slate-50 rounded-2xl p-4 border border-emerald-200/80 flex items-center gap-3.5">
-            <div id="activeProfileAvatar" class="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-black text-xl flex items-center justify-center shadow-md flex-shrink-0">
+          <div class="bg-gradient-to-br from-emerald-50 to-slate-50 rounded-2xl p-3.5 border border-emerald-200/80 flex items-center gap-3">
+            <div id="activeProfileAvatar" class="w-11 h-11 rounded-2xl bg-emerald-600 text-white font-black text-lg flex items-center justify-center shadow-md flex-shrink-0">
               H
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-1.5">
-                <h4 id="activeProfileName" class="text-base font-black text-slate-900 truncate">Hicham</h4>
+                <h4 id="activeProfileName" class="text-sm font-black text-slate-900 truncate">Hicham</h4>
                 <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               </div>
-              <p id="activeProfileModeBadge" class="text-[11px] font-extrabold text-emerald-800 mt-0.5">
+              <p id="activeProfileModeBadge" class="text-[10.5px] font-extrabold text-emerald-800 mt-0.5">
                 💉 Mode Diabète &amp; Insuline
               </p>
               <p id="activeProfileMealsCount" class="text-[10px] text-slate-500">
@@ -1621,15 +1621,75 @@
             </div>
           </div>
 
-          <button type="button" id="btnSyncProfileData" class="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition-all">
-            <i data-lucide="cloud" class="w-4 h-4"></i>
-            Sauvegarder mes repas dans le Cloud
-          </button>
+          <!-- HISTORIQUE & CALENDRIER DES REPAS -->
+          <div class="surface-card rounded-2xl p-3 border border-slate-200/90 space-y-2.5 bg-slate-50/70">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <i data-lucide="calendar" class="w-4 h-4 text-emerald-600"></i>
+                <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider">Calendrier des repas</h4>
+              </div>
+              <button type="button" id="btnCalToday" class="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-200 transition-all">
+                Aujourd'hui
+              </button>
+            </div>
 
-          <button type="button" id="btnLogoutProfile" class="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-98 transition-all">
-            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
-            Changer de profil / Déconnexion
-          </button>
+            <!-- Barre de navigation mois -->
+            <div class="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+              <button type="button" id="btnCalPrevMonth" class="p-1 rounded-lg text-slate-600 hover:bg-slate-100 active:scale-95 transition-all">
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+              </button>
+              <span id="lblCalMonthYear" class="text-xs font-black text-slate-800 capitalize">Octobre 2026</span>
+              <button type="button" id="btnCalNextMonth" class="p-1 rounded-lg text-slate-600 hover:bg-slate-100 active:scale-95 transition-all">
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </button>
+            </div>
+
+            <!-- En-têtes jours Lu-Di -->
+            <div class="grid grid-cols-7 text-center text-[10px] font-extrabold text-slate-400 uppercase tracking-tighter">
+              <span>Lu</span><span>Ma</span><span>Me</span><span>Je</span><span>Ve</span><span>Sa</span><span>Di</span>
+            </div>
+
+            <!-- Grille interactive des jours -->
+            <div id="gridCalendarDays" class="grid grid-cols-7 gap-1 text-center"></div>
+
+            <!-- Légende -->
+            <div class="flex items-center justify-center gap-3 pt-1 text-[9.5px] font-semibold text-slate-500 border-t border-slate-200/60">
+              <span class="flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> Repas pris
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-emerald-600 ring-2 ring-emerald-300 inline-block"></span> Sélectionné
+              </span>
+            </div>
+          </div>
+
+          <!-- LISTE DES REPAS DE LA DATE SÉLECTIONNÉE -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between px-0.5">
+              <h5 id="lblProfileSelectedDateHeader" class="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                <i data-lucide="utensils" class="w-3.5 h-3.5 text-emerald-600"></i>
+                <span>Repas de la journée</span>
+              </h5>
+              <span id="lblProfileSelectedDateCount" class="text-[10px] font-bold text-slate-400">0 repas</span>
+            </div>
+
+            <div id="containerProfileDateMeals" class="space-y-2">
+              <!-- Rendu dynamique par JS -->
+            </div>
+          </div>
+
+          <!-- Actions de synchronisation et déconnexion -->
+          <div class="pt-1.5 space-y-2 border-t border-slate-100">
+            <button type="button" id="btnSyncProfileData" class="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition-all">
+              <i data-lucide="cloud" class="w-4 h-4"></i>
+              Sauvegarder mes repas dans le Cloud
+            </button>
+
+            <button type="button" id="btnLogoutProfile" class="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-98 transition-all">
+              <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+              Changer de profil / Déconnexion
+            </button>
+          </div>
         </div>
 
         <!-- ZONE 2 : Si NON CONNECTÉ (Invité) : Formulaire Connexion / Inscription -->
@@ -1709,6 +1769,6 @@
   </div>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=23"></script>
+  <script type="module" src="./js/app.js?v=24"></script>
 </body>
 </html>

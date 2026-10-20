@@ -1,10 +1,10 @@
-import { FoodRepository } from './data/foods.js?v=18';
-import { StorageService } from './services/storage.js?v=18';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=18';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=18';
-import { UIRenderer, showToast } from './ui/renderer.js?v=18';
-import { SupabaseService } from './services/supabaseClient.js?v=18';
-import { ProfileService } from './services/profileService.js?v=21';
+import { FoodRepository } from './data/foods.js?v=24';
+import { StorageService } from './services/storage.js?v=24';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=24';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=24';
+import { UIRenderer, showToast, escapeHTML } from './ui/renderer.js?v=24';
+import { SupabaseService } from './services/supabaseClient.js?v=24';
+import { ProfileService } from './services/profileService.js?v=24';
 
 /**
  * Contrôleur principal GlucoScan Maroc (v18 - Double Profil, Supabase Cloud & Garde-fous Maroc)
@@ -68,6 +68,10 @@ const state = {
   history: StorageService.load('glucoscan_history_v3', []),
   mediaStream: null,
   displayObjectUrl: null,
+  currentPlateImage: null,
+  selectedCalendarDate: new Date().toISOString().slice(0, 10),
+  viewCalendarYear: new Date().getFullYear(),
+  viewCalendarMonth: new Date().getMonth(),
   catalogFilter: '',
   catalogCategory: 'all',
   replaceItemIndex: null,
@@ -220,6 +224,13 @@ async function handleImageSource(source) {
   clearBtn.classList.remove('hidden');
   state.selectedPinIndex = null;
 
+  // Création d'une miniature légère (280px) pour l'historique et le calendrier
+  try {
+    state.currentPlateImage = await VisionAnalyzer.compressImageSource(source, 280, 0.70);
+  } catch {
+    state.currentPlateImage = null;
+  }
+
   // Affichage immédiat en Haute Définition sans aucune dégradation visuelle
   if (state.displayObjectUrl) {
     URL.revokeObjectURL(state.displayObjectUrl);
@@ -272,8 +283,10 @@ function loadPresetPlate(key, replacePhotoWithSVG = false) {
   if (!plate) return;
 
   if (replacePhotoWithSVG) {
+    const illu = VisionAnalyzer.createDemoPlateIllustration(plate.title);
+    state.currentPlateImage = illu;
     const img = document.getElementById('plateImage');
-    img.src = VisionAnalyzer.createDemoPlateIllustration(plate.title);
+    img.src = illu;
     img.classList.remove('hidden');
     document.getElementById('emptyCameraState').classList.add('hidden');
     document.getElementById('btnClearPhoto').classList.remove('hidden');
@@ -636,13 +649,9 @@ function bindEvents() {
     UIRenderer.exportMedicalReport(state.history, state.settings);
   });
 
-  // Suppression d'un repas du Journal 7j
-  document.getElementById('historyLogsContainer')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.btn-delete-history-item');
-    if (!btn) return;
-    const targetId = btn.getAttribute('data-id');
+  // Suppression d'un repas de l'historique (Journal & Profil)
+  const deleteMealFromHistory = (targetId) => {
     if (!targetId) return;
-
     const countBefore = state.history.length;
     state.history = state.history.filter(h => String(h.id || h.timestamp) !== String(targetId));
 
@@ -650,8 +659,239 @@ function bindEvents() {
       StorageService.save('glucoscan_history_v3', state.history);
       ProfileService.saveProfileData(state.settings, state.history);
       UIRenderer.renderHistoryView(state.history);
+      renderProfileCalendar();
+      renderProfileDateMeals();
       updateUI();
-      showToast('🗑️ Repas supprimé du journal');
+      showToast('🗑️ Repas supprimé');
+    }
+  };
+
+  // Suppression d'un repas du Journal 7j
+  document.getElementById('historyLogsContainer')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-delete-history-item');
+    if (!btn) return;
+    deleteMealFromHistory(btn.getAttribute('data-id'));
+  });
+
+  // Suppression d'un repas depuis le calendrier / profil
+  document.getElementById('containerProfileDateMeals')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-delete-profile-meal');
+    if (!btn) return;
+    deleteMealFromHistory(btn.getAttribute('data-id'));
+  });
+
+  // Rendu du calendrier interactif dans le profil utilisateur
+  const renderProfileCalendar = () => {
+    const grid = document.getElementById('gridCalendarDays');
+    const monthYearLabel = document.getElementById('lblCalMonthYear');
+    if (!grid || !monthYearLabel) return;
+
+    const year = state.viewCalendarYear;
+    const month = state.viewCalendarMonth;
+
+    // Libellé mois et année (ex: "Octobre 2026")
+    const monthDate = new Date(year, month, 1);
+    const monthName = monthDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    monthYearLabel.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+    // Décalage pour le premier jour du mois (Lundi = 0, Dimanche = 6)
+    const firstDay = new Date(year, month, 1);
+    const startDayOffset = (firstDay.getDay() + 6) % 7;
+    const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+
+    // Dictionnaire des repas par jour (format YYYY-MM-DD)
+    const mealsByDate = new Map();
+    for (const h of state.history) {
+      if (!h.timestamp) continue;
+      const dateStr = String(h.timestamp).slice(0, 10);
+      mealsByDate.set(dateStr, (mealsByDate.get(dateStr) || 0) + 1);
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    let html = '';
+    // Cases vides avant le 1er du mois
+    for (let i = 0; i < startDayOffset; i++) {
+      html += `<div class="h-8"></div>`;
+    }
+
+    // Jours du mois courant
+    for (let day = 1; day <= totalDaysInMonth; day++) {
+      const dayStr = String(day).padStart(2, '0');
+      const monthStr = String(month + 1).padStart(2, '0');
+      const dateKey = `${year}-${monthStr}-${dayStr}`;
+
+      const mealCount = mealsByDate.get(dateKey) || 0;
+      const isSelected = (dateKey === state.selectedCalendarDate);
+      const isToday = (dateKey === todayStr);
+
+      let btnClasses = 'relative h-8 rounded-xl font-bold text-xs flex flex-col items-center justify-center transition-all ';
+      if (isSelected) {
+        btnClasses += 'bg-emerald-600 text-white shadow-xs font-black ring-2 ring-emerald-300';
+      } else if (isToday) {
+        btnClasses += 'bg-emerald-50 text-emerald-900 border border-emerald-300 font-extrabold';
+      } else {
+        btnClasses += 'hover:bg-slate-100 text-slate-700';
+      }
+
+      const dotHtml = mealCount > 0
+        ? `<span class="w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-500'} absolute bottom-1"></span>`
+        : '';
+
+      html += `
+        <button type="button" class="btn-cal-day ${btnClasses}" data-date="${dateKey}" title="${day} ${monthDate.toLocaleDateString('fr-FR', { month: 'short' })} : ${mealCount} repas">
+          <span class="${mealCount > 0 ? '-mt-1' : ''}">${day}</span>
+          ${dotHtml}
+        </button>
+      `;
+    }
+
+    grid.innerHTML = html;
+  };
+
+  // Rendu de la liste des repas pour la date sélectionnée dans le profil
+  const renderProfileDateMeals = () => {
+    const container = document.getElementById('containerProfileDateMeals');
+    const header = document.getElementById('lblProfileSelectedDateHeader');
+    const countLabel = document.getElementById('lblProfileSelectedDateCount');
+    if (!container) return;
+
+    const selectedDate = state.selectedCalendarDate || new Date().toISOString().slice(0, 10);
+    const [y, m, d] = selectedDate.split('-');
+    const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
+    const isToday = selectedDate === new Date().toISOString().slice(0, 10);
+
+    const formattedDate = isToday
+      ? `Aujourd'hui (${dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })})`
+      : dateObj.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+
+    if (header) {
+      header.innerHTML = `
+        <i data-lucide="utensils" class="w-3.5 h-3.5 text-emerald-600"></i>
+        <span class="capitalize">Repas du ${formattedDate}</span>
+      `;
+    }
+
+    // Filtrer les repas de la date choisie
+    const meals = state.history.filter(h => String(h.timestamp || '').slice(0, 10) === selectedDate);
+
+    if (countLabel) {
+      countLabel.textContent = `${meals.length} repas`;
+    }
+
+    if (meals.length === 0) {
+      container.innerHTML = `
+        <div class="bg-white rounded-2xl p-4 text-center border border-slate-200/80 text-xs text-slate-400 space-y-1">
+          <p class="font-bold text-slate-500">Aucun repas enregistré pour ce jour</p>
+          <p class="text-[10px] text-slate-400">Prenez une photo de votre assiette pour l'enregistrer ici.</p>
+        </div>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+      return;
+    }
+
+    container.innerHTML = meals.map(h => {
+      const timeStr = new Date(h.timestamp).toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      const names = (h.items || []).map(i => `${escapeHTML(i.name)} (${i.grams}g)`).join(', ');
+      const itemId = escapeHTML(h.id || h.timestamp);
+      const proteinVal = h.totalProtein ? Math.round(Number(h.totalProtein) * 10) / 10 : 0;
+      const bolusVal = (state.settings.userMode !== 'wellness' && h.totalBolus !== undefined && h.totalBolus !== null && !isNaN(h.totalBolus))
+        ? `💉 Bolus: ${Number(h.totalBolus).toFixed(1)} UI`
+        : '';
+
+      const giVal = Number(h.avgGI);
+      let giColorClass = 'bg-slate-100 text-slate-700 border-slate-200';
+      if (giVal > 0) {
+        if (giVal <= 55) giColorClass = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+        else if (giVal <= 69) giColorClass = 'bg-amber-50 text-amber-800 border-amber-200';
+        else giColorClass = 'bg-rose-50 text-rose-800 border-rose-200';
+      }
+
+      const giBadge = giVal > 0
+        ? `<span class="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-md border ${giColorClass}">IG ${Math.round(giVal)}</span>`
+        : '';
+
+      const glBadge = h.totalGL
+        ? `<span class="text-[9.5px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200">CG ${h.totalGL}</span>`
+        : '';
+
+      const imageThumb = h.imageUrl
+        ? `<img src="${h.imageUrl}" alt="Repas" class="w-13 h-13 object-cover rounded-xl border border-slate-200 shadow-2xs shrink-0">`
+        : `<div class="w-13 h-13 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0 text-lg font-bold">🍽️</div>`;
+
+      return `
+        <div class="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-2xs space-y-2 hover:border-emerald-300 transition-all">
+          <div class="flex items-start gap-2.5">
+            ${imageThumb}
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1 mb-0.5">
+                <span class="text-xs font-black text-slate-900">${timeStr}</span>
+                <div class="flex items-center gap-1">
+                  ${giBadge}
+                  ${glBadge}
+                  <button type="button" class="btn-delete-profile-meal p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition-all flex items-center justify-center" data-id="${itemId}" title="Supprimer ce repas">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-600 leading-snug line-clamp-2">${names}</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px] font-mono font-bold text-slate-700">
+            <div class="flex items-center gap-2">
+              <span class="text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 font-extrabold">🥩 ${proteinVal}g prot</span>
+              <span>🌾 ${h.netCarbs}g nets</span>
+            </div>
+            ${bolusVal ? `<span class="text-cyan-700 font-extrabold">${bolusVal}</span>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (window.lucide) window.lucide.createIcons();
+  };
+
+  // Événements navigation calendrier du profil
+  document.getElementById('btnCalPrevMonth')?.addEventListener('click', () => {
+    if (state.viewCalendarMonth === 0) {
+      state.viewCalendarMonth = 11;
+      state.viewCalendarYear--;
+    } else {
+      state.viewCalendarMonth--;
+    }
+    renderProfileCalendar();
+  });
+
+  document.getElementById('btnCalNextMonth')?.addEventListener('click', () => {
+    if (state.viewCalendarMonth === 11) {
+      state.viewCalendarMonth = 0;
+      state.viewCalendarYear++;
+    } else {
+      state.viewCalendarMonth++;
+    }
+    renderProfileCalendar();
+  });
+
+  document.getElementById('btnCalToday')?.addEventListener('click', () => {
+    const today = new Date();
+    state.viewCalendarYear = today.getFullYear();
+    state.viewCalendarMonth = today.getMonth();
+    state.selectedCalendarDate = today.toISOString().slice(0, 10);
+    renderProfileCalendar();
+    renderProfileDateMeals();
+  });
+
+  document.getElementById('gridCalendarDays')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-cal-day');
+    if (!btn) return;
+    const date = btn.getAttribute('data-date');
+    if (date) {
+      state.selectedCalendarDate = date;
+      renderProfileCalendar();
+      renderProfileDateMeals();
     }
   });
 
@@ -702,6 +942,9 @@ function bindEvents() {
       if (countLabel) {
         countLabel.textContent = `${state.history.length} repas dans votre journal`;
       }
+
+      renderProfileCalendar();
+      renderProfileDateMeals();
     } else {
       if (badge) badge.textContent = 'Invité';
       panelActive?.classList.add('hidden');
@@ -887,8 +1130,10 @@ function bindEvents() {
       titleLabel = 'Repas 15h00 (Viande Hachée + Khobz)';
     }
 
+    const illu = VisionAnalyzer.createDemoPlateIllustration(titleLabel);
+    state.currentPlateImage = illu;
     const img = document.getElementById('plateImage');
-    img.src = VisionAnalyzer.createDemoPlateIllustration(titleLabel);
+    img.src = illu;
     img.classList.remove('hidden');
     document.getElementById('emptyCameraState').classList.add('hidden');
     document.getElementById('btnClearPhoto').classList.remove('hidden');
@@ -949,6 +1194,7 @@ function bindEvents() {
   // Réinitialiser la photo
   document.getElementById('btnClearPhoto').addEventListener('click', () => {
     stopWebRTC();
+    state.currentPlateImage = null;
     document.getElementById('plateImage').classList.add('hidden');
     document.getElementById('emptyCameraState').classList.remove('hidden');
     document.getElementById('btnClearPhoto').classList.add('hidden');
@@ -1411,6 +1657,9 @@ function bindEvents() {
       totalProtein: ev.totalProtein,
       proteinIndexLabel: ev.proteinIndex.label,
       totalBolus: ev.totalBolus,
+      avgGI: ev.avgGI || 50,
+      totalGL: ev.totalGL || 0,
+      imageUrl: state.currentPlateImage || null,
       items: state.items.map(i => {
         const f = MetabolicEngine.resolveFoodEntry(i);
         return { name: f ? f.name.split('(')[0].trim() : i.foodId, grams: i.grams };
@@ -1418,7 +1667,10 @@ function bindEvents() {
     });
     state.history = state.history.slice(0, 150);
     StorageService.save('glucoscan_history_v3', state.history);
+    ProfileService.saveProfileData(state.settings, state.history);
     updateUI();
+    renderProfileCalendar();
+    renderProfileDateMeals();
     showToast('Repas enregistré dans le journal 7j');
   });
 
@@ -1443,6 +1695,9 @@ function bindEvents() {
       totalProtein: ev.totalProtein,
       proteinIndexLabel: ev.proteinIndex.label,
       totalBolus: ev.totalBolus,
+      avgGI: ev.avgGI || 50,
+      totalGL: ev.totalGL || 0,
+      imageUrl: state.currentPlateImage || null,
       items: state.items.map(i => {
         const f = MetabolicEngine.resolveFoodEntry(i);
         return { name: f ? f.name.split('(')[0].trim() : i.foodId, grams: i.grams };
@@ -1452,6 +1707,8 @@ function bindEvents() {
     StorageService.save('glucoscan_history_v3', state.history);
     ProfileService.saveProfileData(state.settings, state.history);
     updateUI();
+    renderProfileCalendar();
+    renderProfileDateMeals();
     showToast('Repas comptabilisé dans la synthèse du jour !');
   });
 
