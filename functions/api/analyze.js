@@ -68,9 +68,13 @@ export async function onRequestPost(context) {
 
     let items;
     try {
-      items = await callModel('gemini-3.5-flash-lite', base64Data, apiKey);
+      items = await callModel('gemini-3-flash-preview', base64Data, apiKey);
     } catch {
-      items = await callModel('gemma-4-26b-a4b-it', base64Data, apiKey);
+      try {
+        items = await callModel('gemini-3.5-flash', base64Data, apiKey);
+      } catch {
+        items = await callModel('gemini-3.8-flash', base64Data, apiKey);
+      }
     }
 
     return new Response(JSON.stringify({ items }), {

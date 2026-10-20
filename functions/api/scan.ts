@@ -107,55 +107,51 @@ Analyse la photo de ce repas :
 Réponds UNIQUEMENT en JSON strict sous cette forme :
 {"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
-    const geminiRes = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: systemPrompt },
-              { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          responseMimeType: 'application/json'
+    const models = ['gemini-3-flash-preview', 'gemini-3.5-flash', 'gemini-3.8-flash'];
+    let parsedData: { items: any[] } | null = null;
+    let lastError: Error | null = null;
+
+    for (const model of models) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const geminiRes = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: systemPrompt },
+                  { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } }
+                ]
+              }
+            ],
+            generationConfig: { temperature: 0.1 }
+          })
+        });
+
+        if (!geminiRes.ok) {
+          lastError = new Error(`${model} HTTP ${geminiRes.status}`);
+          continue;
         }
-      })
-    });
 
-    let parsedData: { items: any[] };
+        const gData = (await geminiRes.json()) as any;
+        const rawText = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const match = rawText.match(/\{[\s\S]*\}/);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          if (Array.isArray(parsed?.items)) {
+            parsedData = parsed;
+            break;
+          }
+        }
+      } catch (err: any) {
+        lastError = err;
+      }
+    }
 
-    if (!geminiRes.ok) {
-      const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const fbRes = await fetch(fallbackUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: systemPrompt },
-                { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } }
-              ]
-            }
-          ],
-          generationConfig: { temperature: 0.1 }
-        })
-      });
-      if (!fbRes.ok) throw new Error(`Gemini error HTTP ${geminiRes.status}`);
-      const fbData = (await fbRes.json()) as any;
-      const rawText = fbData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      const match = rawText.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error('Format JSON invalide');
-      parsedData = JSON.parse(match[0]);
-    } else {
-      const gData = (await geminiRes.json()) as any;
-      const rawText = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      parsedData = JSON.parse(rawText);
+    if (!parsedData) {
+      throw lastError || new Error('Reconnaissance indisponible');
     }
 
     const items: DetectedFoodItem[] = (parsedData?.items || []).filter((it: any) => {

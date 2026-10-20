@@ -1,10 +1,10 @@
-import { FoodRepository } from './data/foods.js?v=24';
-import { StorageService } from './services/storage.js?v=24';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=24';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=24';
-import { UIRenderer, showToast, escapeHTML } from './ui/renderer.js?v=24';
-import { SupabaseService } from './services/supabaseClient.js?v=24';
-import { ProfileService } from './services/profileService.js?v=24';
+import { FoodRepository } from './data/foods.js?v=25';
+import { StorageService } from './services/storage.js?v=25';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=25';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=25';
+import { UIRenderer, showToast, escapeHTML } from './ui/renderer.js?v=25';
+import { SupabaseService } from './services/supabaseClient.js?v=25';
+import { ProfileService } from './services/profileService.js?v=25';
 
 /**
  * Contrôleur principal GlucoScan Maroc (v18 - Double Profil, Supabase Cloud & Garde-fous Maroc)
@@ -224,13 +224,6 @@ async function handleImageSource(source) {
   clearBtn.classList.remove('hidden');
   state.selectedPinIndex = null;
 
-  // Création d'une miniature légère (280px) pour l'historique et le calendrier
-  try {
-    state.currentPlateImage = await VisionAnalyzer.compressImageSource(source, 280, 0.70);
-  } catch {
-    state.currentPlateImage = null;
-  }
-
   // Affichage immédiat en Haute Définition sans aucune dégradation visuelle
   if (state.displayObjectUrl) {
     URL.revokeObjectURL(state.displayObjectUrl);
@@ -247,11 +240,17 @@ async function handleImageSource(source) {
 
   const watchdog = setTimeout(() => {
     overlay.classList.add('hidden');
-  }, 12000);
+  }, 22000);
 
   try {
-    // Image 800px nette (qualité 0.85) pour l'analyse IA Vision
-    const compressedDataUrl = await VisionAnalyzer.compressImageSource(source, 800, 0.85);
+    // Image nette calibrée (720px, qualité 0.82) pour l'analyse IA Vision
+    const compressedDataUrl = await VisionAnalyzer.compressImageSource(source, 720, 0.82);
+
+    // Sauvegarde immédiate pour l'historique / profil puis compression miniature asynchrone
+    state.currentPlateImage = compressedDataUrl;
+    VisionAnalyzer.compressImageSource(source, 280, 0.65)
+      .then(thumb => { if (thumb) state.currentPlateImage = thumb; })
+      .catch(() => {});
 
     const detected = await VisionAnalyzer.detectWithGemini(
       compressedDataUrl,
@@ -271,9 +270,10 @@ async function handleImageSource(source) {
     }
 
     showToast('Aucun aliment détecté, réessayez ou cliquez sur + Ajouter');
-  } catch {
+  } catch (err) {
     clearTimeout(watchdog);
     overlay.classList.add('hidden');
+    console.error('Vision analysis error:', err);
     showToast('Erreur réseau lors de l’analyse photo');
   }
 }
