@@ -1113,18 +1113,19 @@
 
             <!-- Timer Circulaire Dynamique 18/6 -->
             <div class="py-2 flex items-center justify-center">
-              <div class="relative w-36 h-36 flex items-center justify-center">
-                <svg class="w-full h-full -rotate-90" viewBox="0 0 120 120">
+              <div class="relative w-40 h-40 flex items-center justify-center">
+                <svg class="w-full h-full -rotate-90 drop-shadow-xs" viewBox="0 0 120 120">
                   <circle cx="60" cy="60" r="50" fill="none" stroke="#e2e8f0" stroke-width="8" />
                   <circle id="fastingCircleProgress" cx="60" cy="60" r="50" fill="none"
                     stroke="#059669" stroke-width="8" stroke-linecap="round"
                     stroke-dasharray="314.16" stroke-dashoffset="157.08"
                     class="transition-all duration-700" />
                 </svg>
-                <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span id="fastingCirclePhase" class="text-[9px] font-extrabold uppercase tracking-wider text-emerald-800">Fenêtre 6h</span>
-                  <span id="fastingCircleTime" class="text-xl font-mono font-extrabold text-slate-900">--</span>
-                  <span id="fastingCircleSub" class="text-[9px] text-slate-500 font-bold">restantes</span>
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-center p-2">
+                  <span id="fastingCirclePhase" class="text-[9.5px] font-black uppercase tracking-wider text-emerald-800 transition-colors">Fenêtre 6h</span>
+                  <span id="fastingCircleTime" class="text-xl font-mono font-black text-slate-900 my-0.5">--</span>
+                  <span id="fastingCircleSub" class="text-[9.5px] text-slate-600 font-bold transition-colors">restantes</span>
+                  <span id="fastingCircleTip" class="text-[8.5px] font-mono font-extrabold text-emerald-700 mt-0.5 transition-colors">⚡ Digestif</span>
                 </div>
               </div>
             </div>
@@ -1181,13 +1182,16 @@
           <div class="space-y-2.5 text-xs">
 
             <!-- Phase 1 : 0h à 4h -->
-            <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+            <div id="fastingPhaseCard1" class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3 transition-all duration-300">
               <div class="w-11 h-11 rounded-xl bg-amber-100 text-amber-900 font-mono font-black text-xs flex flex-col items-center justify-center flex-shrink-0 border border-amber-200">
                 <span>0-4h</span>
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between">
-                  <h3 class="font-extrabold text-slate-900 text-xs">Phase Post-Prandiale</h3>
+                  <div class="flex items-center gap-1.5">
+                    <h3 class="font-extrabold text-slate-900 text-xs">Phase Post-Prandiale</h3>
+                    <span id="fastingActiveBadge1" class="hidden text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500 text-white animate-pulse">EN COURS</span>
+                  </div>
                   <span class="text-[9px] font-bold text-amber-800 uppercase bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">Digestion</span>
                 </div>
                 <p class="text-[11px] text-slate-600 mt-1 leading-relaxed">
@@ -1200,13 +1204,16 @@
             </div>
 
             <!-- Phase 2 : 4h à 8h -->
-            <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+            <div id="fastingPhaseCard2" class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3 transition-all duration-300">
               <div class="w-11 h-11 rounded-xl bg-blue-100 text-blue-900 font-mono font-black text-xs flex flex-col items-center justify-center flex-shrink-0 border border-blue-200">
                 <span>4-8h</span>
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between">
-                  <h3 class="font-extrabold text-slate-900 text-xs">Phase Post-Absorptive</h3>
+                  <div class="flex items-center gap-1.5">
+                    <h3 class="font-extrabold text-slate-900 text-xs">Phase Post-Absorptive</h3>
+                    <span id="fastingActiveBadge2" class="hidden text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-blue-600 text-white animate-pulse">EN COURS</span>
+                  </div>
                   <span class="text-[9px] font-bold text-blue-800 uppercase bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">Baisse Insuline</span>
                 </div>
                 <p class="text-[11px] text-slate-600 mt-1 leading-relaxed">
@@ -1219,13 +1226,16 @@
             </div>
 
             <!-- Phase 3 : 8h à 12h -->
-            <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+            <div id="fastingPhaseCard3" class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3 transition-all duration-300">
               <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-900 font-mono font-black text-xs flex flex-col items-center justify-center flex-shrink-0 border border-emerald-200">
                 <span>8-12h</span>
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between">
-                  <h3 class="font-extrabold text-slate-900 text-xs">La Bascule Métabolique</h3>
+                  <div class="flex items-center gap-1.5">
+                    <h3 class="font-extrabold text-slate-900 text-xs">La Bascule Métabolique</h3>
+                    <span id="fastingActiveBadge3" class="hidden text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-teal-600 text-white animate-pulse">EN COURS</span>
+                  </div>
                   <span class="text-[9px] font-bold text-emerald-800 uppercase bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">Lipolyse Active</span>
                 </div>
                 <p class="text-[11px] text-slate-600 mt-1 leading-relaxed">
@@ -1238,13 +1248,16 @@
             </div>
 
             <!-- Phase 4 : 12h à 16h -->
-            <div class="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200 flex items-start gap-3">
-              <div class="w-11 h-11 rounded-xl bg-indigo-600 text-white font-mono font-black text-xs flex flex-col items-center justify-center flex-shrink-0 shadow-xs">
+            <div id="fastingPhaseCard4" class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3 transition-all duration-300">
+              <div class="w-11 h-11 rounded-xl bg-indigo-100 text-indigo-900 font-mono font-black text-xs flex flex-col items-center justify-center flex-shrink-0 border border-indigo-200">
                 <span>12-16h</span>
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between">
-                  <h3 class="font-extrabold text-indigo-950 text-xs">Cétose Douce &amp; Autophagie</h3>
+                  <div class="flex items-center gap-1.5">
+                    <h3 class="font-extrabold text-indigo-950 text-xs">Cétose Douce &amp; Autophagie</h3>
+                    <span id="fastingActiveBadge4" class="hidden text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-600 text-white animate-pulse">EN COURS</span>
+                  </div>
                   <span class="text-[9px] font-bold text-indigo-700 uppercase bg-white px-1.5 py-0.5 rounded border border-indigo-200">Nettoyage</span>
                 </div>
                 <p class="text-[11px] text-indigo-900/90 mt-1 leading-relaxed">
@@ -1257,14 +1270,17 @@
             </div>
 
             <!-- Phase 5 : 16h à 18h+ -->
-            <div class="p-3 rounded-2xl bg-emerald-50/80 border-2 border-emerald-500 flex items-start gap-3 shadow-2xs">
-              <div class="w-11 h-11 rounded-xl bg-emerald-600 text-white font-mono font-black text-xs flex flex-col items-center justify-center flex-shrink-0 shadow-xs">
+            <div id="fastingPhaseCard5" class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3 transition-all duration-300">
+              <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-900 font-mono font-black text-xs flex flex-col items-center justify-center flex-shrink-0 border border-emerald-200">
                 <span>16-18h</span>
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between">
-                  <h3 class="font-extrabold text-emerald-950 text-xs">La « Zone d'Or » du 18/6</h3>
-                  <span class="text-[9px] font-black text-white uppercase bg-emerald-600 px-1.5 py-0.5 rounded shadow-2xs">Pic Maximal</span>
+                  <div class="flex items-center gap-1.5">
+                    <h3 class="font-extrabold text-emerald-950 text-xs">La « Zone d'Or » du 18/6</h3>
+                    <span id="fastingActiveBadge5" class="hidden text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-600 text-white animate-pulse">EN COURS</span>
+                  </div>
+                  <span class="text-[9px] font-black text-emerald-800 uppercase bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-300">Pic Maximal</span>
                 </div>
                 <p class="text-[11px] text-emerald-900 mt-1 leading-relaxed">
                   Pic d'autophagie et rajeunissement cellulaire. Chute maximale de l'inflammation. Quand vous prenez votre repas à 10h00, vos récepteurs à l'insuline sont totalement réinitialisés : le glucose est capté directement par le muscle sans stockage graisseux.
@@ -1693,6 +1709,6 @@
   </div>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=22"></script>
+  <script type="module" src="./js/app.js?v=23"></script>
 </body>
 </html>

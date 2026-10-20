@@ -538,11 +538,12 @@ export const UIRenderer = {
     }
   },
 
-  renderCircularFastingClock(elapsedMin, remainMin, isEatingWindow) {
+  renderCircularFastingClock(elapsedMin, remainMin, isEatingWindow, phaseData) {
     const circle = document.getElementById('fastingCircleProgress');
     const titleEl = document.getElementById('fastingCirclePhase');
     const timeEl = document.getElementById('fastingCircleTime');
     const subEl = document.getElementById('fastingCircleSub');
+    const tipEl = document.getElementById('fastingCircleTip');
 
     if (!circle || !titleEl || !timeEl) return;
 
@@ -551,21 +552,36 @@ export const UIRenderer = {
     const circumference = 314.16;
     const offset = circumference * (1 - pct / 100);
 
+    const color = phaseData ? phaseData.color : (isEatingWindow ? '#059669' : '#6366f1');
+
     circle.style.strokeDashoffset = offset.toFixed(2);
-    circle.style.stroke = isEatingWindow ? '#059669' : '#6366f1';
+    circle.style.stroke = color;
+    circle.style.filter = `drop-shadow(0 0 6px ${color}88)`;
 
     const h = Math.floor(remainMin / 60);
     const m = remainMin % 60;
     timeEl.textContent = `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
 
-    if (isEatingWindow) {
-      titleEl.textContent = 'Fenêtre 6h';
-      titleEl.className = 'text-[9px] font-extrabold uppercase tracking-wider text-emerald-800';
-      if (subEl) subEl.textContent = 'avant fermeture';
+    if (phaseData) {
+      titleEl.textContent = phaseData.shortName;
+      titleEl.style.color = color;
+      if (subEl) {
+        subEl.textContent = phaseData.sub;
+      }
+      if (tipEl) {
+        tipEl.textContent = phaseData.tip;
+        tipEl.style.color = color;
+      }
     } else {
-      titleEl.textContent = 'Jeûne 18h';
-      titleEl.className = 'text-[9px] font-extrabold uppercase tracking-wider text-indigo-700';
-      if (subEl) subEl.textContent = 'avant ouverture';
+      if (isEatingWindow) {
+        titleEl.textContent = 'Fenêtre 6h';
+        titleEl.style.color = '#059669';
+        if (subEl) subEl.textContent = 'avant fermeture';
+      } else {
+        titleEl.textContent = 'Jeûne 18h';
+        titleEl.style.color = '#6366f1';
+        if (subEl) subEl.textContent = 'avant ouverture';
+      }
     }
   },
 

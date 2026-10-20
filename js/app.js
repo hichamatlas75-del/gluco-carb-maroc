@@ -367,6 +367,9 @@ function updateFasting186View() {
   const descEl = document.getElementById('fastingPhaseDesc');
   const barEl = document.getElementById('fastingProgressBar');
 
+  let activePhaseIndex = 0;
+  let phaseData = null;
+
   if (cardEl && badgeEl && countEl && titleEl && descEl && barEl) {
     if (totalMinutesNow >= startEatMin && totalMinutesNow < endEatMin) {
       // Dans la fenêtre d'alimentation 6h (10h00 -> 16h00)
@@ -376,7 +379,17 @@ function updateFasting186View() {
       const remM = remainEat % 60;
       const pct = Math.min(100, Math.max(5, Math.round((elapsedEat / 360) * 100)));
 
-      cardEl.className = 'bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-2.5 transition-all';
+      activePhaseIndex = 0;
+      phaseData = {
+        phaseIndex: 0,
+        name: 'Fenêtre Repas (6h)',
+        shortName: 'Fenêtre 6h Active',
+        sub: 'avant fermeture (16h)',
+        tip: h < 13 ? '🍳 Créneau 10h Ftour' : '🍗 Créneau 15h Déjeuner',
+        color: '#059669'
+      };
+
+      cardEl.className = 'bg-emerald-50 border border-emerald-300 rounded-2xl p-3.5 mb-2.5 transition-all shadow-xs';
       badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-600 text-white';
       badgeEl.textContent = 'Fenêtre Repas Active (6h)';
       countEl.className = 'text-xs font-extrabold text-emerald-900 tabular-nums';
@@ -389,7 +402,7 @@ function updateFasting186View() {
       descEl.textContent = 'Fenêtre nutritionnelle ouverte de 10h00 à 16h00. Fermeture métabolique à 16h00.';
       barEl.className = 'h-full bg-emerald-500 rounded-full transition-all duration-500';
       barEl.style.width = `${pct}%`;
-      UIRenderer.renderCircularFastingClock(elapsedEat, remainEat, true);
+      UIRenderer.renderCircularFastingClock(elapsedEat, remainEat, true, phaseData);
     } else {
       // Dans la fenêtre de jeûne 18h (16h00 -> 10h00 le lendemain)
       const elapsedFast = totalMinutesNow >= endEatMin
@@ -401,20 +414,113 @@ function updateFasting186View() {
       const elapsedH = Math.floor(elapsedFast / 60);
       const pct = Math.min(100, Math.max(5, Math.round((elapsedFast / (18 * 60)) * 100)));
 
-      cardEl.className = 'bg-indigo-50 border border-indigo-200 rounded-xl p-3 mb-2.5 transition-all';
-      badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-600 text-white';
-      badgeEl.textContent = `En Jeûne Actif (${elapsedH}h / 18h)`;
-      countEl.className = 'text-xs font-extrabold text-indigo-900 tabular-nums';
+      if (elapsedH < 4) {
+        activePhaseIndex = 1;
+        phaseData = {
+          phaseIndex: 1,
+          name: 'Phase 1 : Digestion (0-4h)',
+          shortName: '0-4h • Digestion',
+          sub: 'Post-Prandiale',
+          tip: '⚡ Carburant : Glucose',
+          color: '#f59e0b' // Ambre
+        };
+        cardEl.className = 'bg-amber-50/80 border border-amber-300 rounded-2xl p-3.5 mb-2.5 transition-all shadow-xs';
+        badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500 text-white';
+        badgeEl.textContent = `Phase 1 : Digestion (${elapsedH}h / 18h)`;
+        countEl.className = 'text-xs font-extrabold text-amber-900 tabular-nums';
+        titleEl.textContent = 'Phase 1 : Digestion & Assimilation (0-4h de jeûne)';
+        descEl.textContent = 'L’organisme digère et absorbe les nutriments du dernier repas. L’insuline est active.';
+        barEl.className = 'h-full bg-amber-500 rounded-full transition-all duration-500';
+      } else if (elapsedH < 8) {
+        activePhaseIndex = 2;
+        phaseData = {
+          phaseIndex: 2,
+          name: 'Phase 2 : Glycogène (4-8h)',
+          shortName: '4-8h • Baisse Insuline',
+          sub: 'Post-Absorptive',
+          tip: '⚡ Déstockage Foie',
+          color: '#3b82f6' // Bleu
+        };
+        cardEl.className = 'bg-blue-50/80 border border-blue-300 rounded-2xl p-3.5 mb-2.5 transition-all shadow-xs';
+        badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-600 text-white';
+        badgeEl.textContent = `Phase 2 : Déstockage Foie (${elapsedH}h / 18h)`;
+        countEl.className = 'text-xs font-extrabold text-blue-900 tabular-nums';
+        titleEl.textContent = 'Phase 2 : Chute de l’Insuline & Déstockage du Foie (4-8h)';
+        descEl.textContent = 'Digestion terminée. L’insuline redescend au repos. Le foie maintient la glycémie.';
+        barEl.className = 'h-full bg-blue-600 rounded-full transition-all duration-500';
+      } else if (elapsedH < 12) {
+        activePhaseIndex = 3;
+        phaseData = {
+          phaseIndex: 3,
+          name: 'Phase 3 : Bascule (8-12h)',
+          shortName: '8-12h • Brûlage Graisses',
+          sub: 'Lipolyse Active',
+          tip: '🔥 Déstockage Lipides',
+          color: '#0d9488' // Teal
+        };
+        cardEl.className = 'bg-teal-50/80 border border-teal-300 rounded-2xl p-3.5 mb-2.5 transition-all shadow-xs';
+        badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-600 text-white';
+        badgeEl.textContent = `Phase 3 : Bascule Métabolique (${elapsedH}h / 18h)`;
+        countEl.className = 'text-xs font-extrabold text-teal-900 tabular-nums';
+        titleEl.textContent = 'Phase 3 : Bascule Métabolique & Brûlage des Graisses (8-12h)';
+        descEl.textContent = 'Glycogène épuisé. Le corps bascule en lipolyse active et brûle les réserves de graisse.';
+        barEl.className = 'h-full bg-teal-600 rounded-full transition-all duration-500';
+      } else if (elapsedH < 16) {
+        activePhaseIndex = 4;
+        phaseData = {
+          phaseIndex: 4,
+          name: 'Phase 4 : Autophagie (12-16h)',
+          shortName: '12-16h • Autophagie',
+          sub: 'Cétose & Nettoyage',
+          tip: '🧠 Cétones cérébrales',
+          color: '#7c3aed' // Violet
+        };
+        cardEl.className = 'bg-purple-50/80 border border-purple-300 rounded-2xl p-3.5 mb-2.5 transition-all shadow-xs';
+        badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-600 text-white';
+        badgeEl.textContent = `Phase 4 : Cétose & Nettoyage (${elapsedH}h / 18h)`;
+        countEl.className = 'text-xs font-extrabold text-purple-900 tabular-nums';
+        titleEl.textContent = 'Phase 4 : Cétose Douce & Déclenchement de l’Autophagie (12-16h)';
+        descEl.textContent = 'Insuline au plus bas. Corps cétoniques pour le cerveau. Nettoyage cellulaire en cours.';
+        barEl.className = 'h-full bg-purple-600 rounded-full transition-all duration-500';
+      } else {
+        activePhaseIndex = 5;
+        phaseData = {
+          phaseIndex: 5,
+          name: 'Phase 5 : Zone d\'Or (16-18h)',
+          shortName: '16-18h • Zone d\'Or',
+          sub: 'Pic d\'Autophagie',
+          tip: '✨ Récepteurs Rénovés',
+          color: '#10b981' // Vert Émeraude Vif
+        };
+        cardEl.className = 'bg-emerald-50 border-2 border-emerald-500 rounded-2xl p-3.5 mb-2.5 transition-all shadow-md';
+        badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-600 text-white animate-pulse';
+        badgeEl.textContent = `Phase 5 : Zone d’Or Finale (${elapsedH}h / 18h)`;
+        countEl.className = 'text-xs font-extrabold text-emerald-900 tabular-nums';
+        titleEl.textContent = 'Phase 5 : Pic Maximal d’Autophagie & Sensibilité Rétablie (16-18h)';
+        descEl.textContent = 'Nettoyage cellulaire à son apogée. Récepteurs rénovés prêts pour le Ftour de 10h00.';
+        barEl.className = 'h-full bg-emerald-500 rounded-full transition-all duration-500';
+      }
+
       countEl.textContent = `Prochain repas (10h) dans ${remH}h${String(remM).padStart(2, '0')}`;
-      titleEl.className = 'text-xs font-extrabold text-indigo-950';
-      titleEl.textContent = elapsedH >= 12
-        ? 'Phase Cétose & Autophagie Maximale (>12h de jeûne)'
-        : 'Phase Repos Pancréatique & Baisse de l’Insuline';
-      descEl.className = 'text-[11px] text-indigo-800 mt-0.5 leading-relaxed';
-      descEl.textContent = 'Hydratation autorisée sans glucides : eau, thé ou café sans sucre, tisane.';
-      barEl.className = 'h-full bg-indigo-600 rounded-full transition-all duration-500';
       barEl.style.width = `${pct}%`;
-      UIRenderer.renderCircularFastingClock(elapsedFast, remainFast, false);
+      UIRenderer.renderCircularFastingClock(elapsedFast, remainFast, false, phaseData);
+    }
+
+    // Mise en surbrillance dynamique de la carte correspondante dans la Timeline des 5 phases
+    for (let i = 1; i <= 5; i++) {
+      const card = document.getElementById('fastingPhaseCard' + i);
+      const badge = document.getElementById('fastingActiveBadge' + i);
+      if (card && badge) {
+        if (i === activePhaseIndex) {
+          card.classList.add('border-2', 'border-emerald-500', 'bg-white', 'shadow-md', 'scale-[1.01]');
+          card.classList.remove('bg-slate-50', 'border-slate-200');
+          badge.classList.remove('hidden');
+        } else {
+          card.classList.remove('border-2', 'border-emerald-500', 'bg-white', 'shadow-md', 'scale-[1.01]');
+          card.classList.add('bg-slate-50', 'border-slate-200');
+          badge.classList.add('hidden');
+        }
+      }
     }
   }
 
