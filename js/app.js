@@ -530,6 +530,25 @@ function bindEvents() {
     UIRenderer.exportMedicalReport(state.history, state.settings);
   });
 
+  // Suppression d'un repas du Journal 7j
+  document.getElementById('historyLogsContainer')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-delete-history-item');
+    if (!btn) return;
+    const targetId = btn.getAttribute('data-id');
+    if (!targetId) return;
+
+    const countBefore = state.history.length;
+    state.history = state.history.filter(h => String(h.id || h.timestamp) !== String(targetId));
+
+    if (state.history.length < countBefore) {
+      StorageService.save('glucoscan_history_v3', state.history);
+      ProfileService.saveProfileData(state.settings, state.history);
+      UIRenderer.renderHistoryView(state.history);
+      updateUI();
+      showToast('🗑️ Repas supprimé du journal');
+    }
+  });
+
   // Notifications Locales PWA pour le Jeûne 18/6
   document.getElementById('btnToggleFastingNotifications')?.addEventListener('click', async () => {
     if (!('Notification' in window)) {

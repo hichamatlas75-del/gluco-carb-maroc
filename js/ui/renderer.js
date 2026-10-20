@@ -505,20 +505,37 @@ export const UIRenderer = {
         minute: '2-digit'
       });
       const names = (h.items || []).map(i => `${escapeHTML(i.name)} (${i.grams}g)`).join(', ');
+      const itemId = escapeHTML(h.id || h.timestamp);
+      const proteinVal = h.totalProtein ? Math.round(Number(h.totalProtein) * 10) / 10 : 0;
+      const bolusVal = h.totalBolus !== undefined && h.totalBolus !== null && !isNaN(h.totalBolus)
+        ? `💉 Bolus: ${Number(h.totalBolus).toFixed(1)} UI`
+        : '';
+
       return `
-        <div class="surface-card rounded-2xl p-3.5 space-y-1">
+        <div class="surface-card rounded-2xl p-3.5 space-y-1.5 border border-slate-200/70 hover:border-slate-300 transition-all">
           <div class="flex items-center justify-between">
             <span class="text-xs font-extrabold text-slate-900">${escapeHTML(dateStr)}</span>
-            <span class="text-[10px] font-bold text-emerald-700">${escapeHTML(h.verdictTag || '')}</span>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                ${escapeHTML(h.verdictTag || 'Repas')}
+              </span>
+              <button type="button" class="btn-delete-history-item p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition-all flex items-center justify-center" data-id="${itemId}" title="Supprimer ce repas du journal">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
           </div>
-          <p class="text-xs text-slate-600">${names}</p>
-          <div class="flex items-center justify-between pt-1.5 border-t border-slate-100 text-xs font-mono font-bold">
-            <span>Poids: ${h.totalGrams}g • Nets: ${h.netCarbs}g</span>
-            <span class="text-cyan-700">Bolus: ${Number(h.totalBolus).toFixed(1)} UI</span>
+          <p class="text-xs text-slate-600 leading-snug">${names}</p>
+          <div class="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[11px] font-mono font-bold text-slate-700">
+            <span>⚖️ ${h.totalGrams}g • 🌾 ${h.netCarbs}g nets • 🥩 ${proteinVal}g prot</span>
+            ${bolusVal ? `<span class="text-cyan-700 font-extrabold">${bolusVal}</span>` : ''}
           </div>
         </div>
       `;
     }).join('');
+
+    if (window.lucide) {
+      window.lucide.createIcons();
+    }
   },
 
   renderCircularFastingClock(elapsedMin, remainMin, isEatingWindow) {
