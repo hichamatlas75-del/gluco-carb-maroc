@@ -1,10 +1,10 @@
-import { FoodRepository } from './data/foods.js?v=25';
-import { StorageService } from './services/storage.js?v=25';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=25';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=25';
-import { UIRenderer, showToast, escapeHTML } from './ui/renderer.js?v=25';
-import { SupabaseService } from './services/supabaseClient.js?v=25';
-import { ProfileService } from './services/profileService.js?v=25';
+import { FoodRepository } from './data/foods.js?v=26';
+import { StorageService } from './services/storage.js?v=26';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=26';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=26';
+import { UIRenderer, showToast, escapeHTML } from './ui/renderer.js?v=26';
+import { SupabaseService } from './services/supabaseClient.js?v=26';
+import { ProfileService } from './services/profileService.js?v=26';
 
 /**
  * Contrôleur principal GlucoScan Maroc (v18 - Double Profil, Supabase Cloud & Garde-fous Maroc)
@@ -95,6 +95,24 @@ if (activeProfileInit) {
       state.settings.userMode = profileRecord.mode;
     }
   }
+
+  // Synchronisation automatique en arrière-plan avec le Cloud Supabase (Mobile ⇄ PC)
+  ProfileService.pullFromCloud().then(res => {
+    if (res && res.success && Array.isArray(res.history)) {
+      state.history = res.history;
+      if (res.settings) {
+        state.settings = { ...state.settings, ...res.settings };
+      }
+      if (res.mode) {
+        state.settings.userMode = res.mode;
+        UIRenderer.renderUserMode(res.mode);
+      }
+      StorageService.save('glucoscan_history_v3', state.history);
+      StorageService.save('glucoscan_settings_v3', state.settings);
+      updateUI();
+      UIRenderer.renderHistoryView(state.history);
+    }
+  }).catch(() => {});
 }
 
 /**
@@ -959,6 +977,27 @@ function bindEvents() {
     document.getElementById('modalSupabaseAuth')?.classList.remove('hidden');
     document.getElementById('modalSupabaseAuth')?.classList.add('flex');
     if (window.lucide) window.lucide.createIcons();
+
+    // Synchronisation automatique des données Cloud lors de l'ouverture du profil
+    if (ProfileService.isLoggedIn()) {
+      ProfileService.pullFromCloud().then(res => {
+        if (res && res.success && Array.isArray(res.history)) {
+          state.history = res.history;
+          if (res.settings) state.settings = { ...state.settings, ...res.settings };
+          if (res.mode) {
+            state.settings.userMode = res.mode;
+            UIRenderer.renderUserMode(res.mode);
+          }
+          StorageService.save('glucoscan_history_v3', state.history);
+          StorageService.save('glucoscan_settings_v3', state.settings);
+          updateUI();
+          UIRenderer.renderHistoryView(state.history);
+          renderProfileCalendar();
+          renderProfileDateMeals();
+          updateAuthUI();
+        }
+      }).catch(() => {});
+    }
   });
 
   document.getElementById('btnCloseAuthModal')?.addEventListener('click', () => {
@@ -1010,16 +1049,23 @@ function bindEvents() {
     });
   });
 
-  // Connexion au profil existant
+  // Connexion au profil existant avec synchronisation Cloud prioritaire (Mobile ⇄ PC)
   formProfileLogin?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = document.getElementById('inpLoginUsername').value.trim();
     const password = document.getElementById('inpLoginPassword').value;
     if (!username || !password) return;
 
+    const btnSubmit = formProfileLogin.querySelector('button[type="submit"]');
+    const originalBtnText = btnSubmit ? btnSubmit.innerHTML : '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin inline-block"></i> Connexion &amp; Synchronisation...`;
+    }
+
     try {
       const profile = await ProfileService.login(username, password);
-      // Charger réglages et historique du profil
+      // Charger réglages et historique fusionnés du cloud
       if (profile.settings) {
         state.settings = { ...state.settings, ...profile.settings };
       }
@@ -1035,11 +1081,20 @@ function bindEvents() {
 
       updateAuthUI();
       updateUI();
+      UIRenderer.renderHistoryView(state.history);
+      renderProfileCalendar();
+      renderProfileDateMeals();
       document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
       document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
-      showToast(`👋 Bonjour ${profile.username} !`);
+      showToast(`👋 Bonjour ${profile.username} ! (${state.history.length} repas synchronisés)`);
     } catch (err) {
       showToast(err.message || 'Erreur lors de la connexion');
+    } finally {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = originalBtnText;
+        if (window.lucide) window.lucide.createIcons();
+      }
     }
   });
 
@@ -1068,28 +1123,54 @@ function bindEvents() {
     }
   });
 
-  // Sauvegarde / Synchronisation Cloud
+  // Sauvegarde / Synchronisation Cloud manuelle bidirectionnelle (Mobile ⇄ PC)
   document.getElementById('btnSyncProfileData')?.addEventListener('click', async () => {
     const activeProfile = ProfileService.getActiveProfile();
     if (!activeProfile) {
       showToast('Connectez-vous d’abord à un profil');
       return;
     }
-    // Sauvegarder dans le profil local
-    ProfileService.saveProfileData(state.settings, state.history);
 
-    // Tenter également la synchro Supabase si disponible
+    const btn = document.getElementById('btnSyncProfileData');
+    const origHTML = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin inline-block"></i> Synchronisation en cours...`;
+    }
+
     try {
-      if (SupabaseService.isConfigured()) {
-        const res = await SupabaseService.syncLocalHistoryToCloud(state.history);
-        if (res?.synced > 0) {
-          showToast(`☁️ ${res.synced} repas sauvegardés dans le Cloud Supabase !`);
-          return;
+      const res = await ProfileService.syncToCloud(state.settings, state.history);
+      if (res && res.success) {
+        if (Array.isArray(res.history)) {
+          state.history = res.history;
+          StorageService.save('glucoscan_history_v3', state.history);
         }
+        if (res.settings) {
+          state.settings = { ...state.settings, ...res.settings };
+          StorageService.save('glucoscan_settings_v3', state.settings);
+        }
+        if (res.mode) {
+          state.settings.userMode = res.mode;
+          UIRenderer.renderUserMode(res.mode);
+        }
+        updateAuthUI();
+        updateUI();
+        UIRenderer.renderHistoryView(state.history);
+        renderProfileCalendar();
+        renderProfileDateMeals();
+        showToast(`☁️ Synchronisation réussie ! (${state.history.length} repas à jour entre PC et Mobile)`);
+      } else {
+        showToast(res?.error ? `Info synchro: ${res.error}` : 'Erreur de synchronisation Cloud');
       }
-    } catch (_) {}
-
-    showToast(`✅ Vos ${state.history.length} repas sont sauvegardés en sécurité dans votre profil !`);
+    } catch (err) {
+      showToast('Erreur lors de la synchronisation');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHTML;
+        if (window.lucide) window.lucide.createIcons();
+      }
+    }
   });
 
   // Déconnexion / Changer de profil

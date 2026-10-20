@@ -1,13 +1,14 @@
 /**
  * Service de Gestion des Profils Utilisateurs (Sans Email)
  * Inspiré du modèle "Workout Home" : Pseudo + Mot de passe
- * Fonctionne 100% hors-ligne (Local-First) avec synchronisation Cloud Supabase automatique.
+ * Fonctionne 100% hors-ligne (Local-First) avec synchronisation Cloud Supabase bidirectionnelle (Mobile ⇄ PC).
  */
-
-import { SupabaseService } from './supabaseClient.js?v=21';
 
 const STORAGE_KEY_PROFILES = 'glucoscan_profiles_db_v1';
 const STORAGE_KEY_ACTIVE = 'glucoscan_active_profile_v1';
+
+const SUPABASE_REST_URL = 'https://plrqzuwbnuryxtsmimyt.supabase.co/rest/v1';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBscnF6dXdibnVyeXh0c21pbXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0Mzk2OTcsImV4cCI6MjEwODAxNTY5N30.Wzx1Lsh1GGETK_RidTTND1t4Ix3EjhS3qQvlGn-Xglc';
 
 async function sha256(str) {
   try {
@@ -56,6 +57,85 @@ export const ProfileService = {
     return this.activeProfile;
   },
 
+  /**
+   * Fusion intelligente des repas locaux et distants (déduplication par ID/timestamp, tri antéchronologique)
+   */
+  mergeHistories(localHist, cloudHist) {
+    const map = new Map();
+    const all = [...(cloudHist || []), ...(localHist || [])];
+    for (const item of all) {
+      if (!item) continue;
+      const key = String(item.id || item.timestamp || '');
+      if (!key) continue;
+      if (!map.has(key)) {
+        map.set(key, item);
+      } else {
+        const existing = map.get(key);
+        // Si l'un des deux a la photo miniature et l'autre non, conserver la photo
+        if (!existing.imageUrl && item.imageUrl) {
+          map.set(key, item);
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      const tA = new Date(a.timestamp || 0).getTime();
+      const tB = new Date(b.timestamp || 0).getTime();
+      return tB - tA;
+    }).slice(0, 200);
+  },
+
+  /**
+   * Requête directe REST vers Supabase pour récupérer le compte utilisateur
+   */
+  async fetchAccountFromCloud(username) {
+    if (!username) return null;
+    const clean = String(username).toLowerCase().trim();
+    try {
+      const res = await fetch(`${SUPABASE_REST_URL}/app_accounts?username=eq.${encodeURIComponent(clean)}&select=*`, {
+        method: 'GET',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      });
+      if (!res.ok) return null;
+      const list = await res.json();
+      return Array.isArray(list) ? (list[0] || null) : null;
+    } catch (e) {
+      console.warn('Erreur lecture Cloud Supabase:', e);
+      return null;
+    }
+  },
+
+  /**
+   * Requête directe REST vers Supabase pour enregistrer/mettre à jour le compte utilisateur
+   */
+  async upsertAccountToCloud(record) {
+    if (!record || !record.username) return { success: false, error: 'Compte invalide' };
+    try {
+      const res = await fetch(`${SUPABASE_REST_URL}/app_accounts?on_conflict=username`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(record)
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        return { success: false, error: `HTTP ${res.status}: ${txt}` };
+      }
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  },
+
+  /**
+   * Inscription d'un nouveau profil avec sauvegarde locale et Cloud
+   */
   async register(username, password, mode = 'insulin', currentSettings = null, currentHistory = []) {
     const cleanUser = String(username || '').trim();
     if (cleanUser.length < 2) {
@@ -68,8 +148,10 @@ export const ProfileService = {
     const key = cleanUser.toLowerCase();
     const profiles = this.getAllProfiles();
 
-    if (profiles[key]) {
-      throw new Error(`Le profil "${cleanUser}" existe déjà. Veuillez vous connecter.`);
+    // Vérifier si le profil existe déjà localement ou sur le Cloud
+    const cloudAccount = await this.fetchAccountFromCloud(key);
+    if (profiles[key] || cloudAccount) {
+      throw new Error(`Le profil "${cleanUser}" existe déjà. Veuillez vous connecter pour synchroniser vos données.`);
     }
 
     const passwordHash = await sha256(password);
@@ -95,74 +177,71 @@ export const ProfileService = {
     };
     localStorage.setItem(STORAGE_KEY_ACTIVE, JSON.stringify(this.activeProfile));
 
-    // Sauvegarde automatique dans le Cloud Supabase (en tâche de fond)
-    try {
-      const client = await SupabaseService.createClientIfNeeded();
-      if (client) {
-        client.from('app_accounts').upsert([{
-          username: key,
-          display_name: cleanUser,
-          password_hash: passwordHash,
-          user_mode: newProfile.mode,
-          settings: newProfile.settings || {},
-          history: newProfile.history || [],
-          updated_at: new Date().toISOString()
-        }], { onConflict: 'username' }).then(() => {});
-      }
-    } catch (_) {}
+    // Sauvegarde immédiate dans le Cloud Supabase
+    await this.upsertAccountToCloud({
+      username: key,
+      display_name: cleanUser,
+      password_hash: passwordHash,
+      user_mode: newProfile.mode,
+      settings: newProfile.settings || {},
+      history: newProfile.history || [],
+      updated_at: new Date().toISOString()
+    });
 
     return newProfile;
   },
 
+  /**
+   * Connexion à un profil existant avec synchronisation Cloud prioritaire (Mobile ⇄ PC)
+   */
   async login(username, password) {
     const cleanUser = String(username || '').trim();
-    if (!cleanUser) {
-      throw new Error('Veuillez saisir votre pseudo');
-    }
-    if (!password) {
-      throw new Error('Veuillez saisir votre mot de passe');
-    }
+    if (!cleanUser) throw new Error('Veuillez saisir votre pseudo');
+    if (!password) throw new Error('Veuillez saisir votre mot de passe');
 
     const key = cleanUser.toLowerCase();
+    const passwordHash = await sha256(password);
     const profiles = this.getAllProfiles();
     let profile = profiles[key];
 
-    // Si pas encore sur cet appareil, vérifier si le compte existe dans le Cloud Supabase
-    if (!profile) {
-      try {
-        const client = await SupabaseService.createClientIfNeeded();
-        if (client) {
-          const { data, error } = await client.from('app_accounts').select('*').eq('username', key).maybeSingle();
-          if (data && !error) {
-            profile = {
-              id: 'usr_' + Date.now(),
-              username: data.display_name || cleanUser,
-              passwordHash: data.password_hash,
-              mode: data.user_mode || 'insulin',
-              settings: data.settings || {},
-              history: data.history || [],
-              createdAt: data.created_at || new Date().toISOString(),
-              lastLogin: new Date().toISOString()
-            };
-            profiles[key] = profile;
-            localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(profiles));
-          }
-        }
-      } catch (_) {}
-    }
+    // Vérification auprès du Cloud Supabase en priorité pour récupérer les repas pris sur un autre appareil
+    const cloudAccount = await this.fetchAccountFromCloud(key);
 
-    if (!profile) {
-      throw new Error(`Aucun profil trouvé pour "${cleanUser}". Créez-le en cliquant sur "Nouveau profil".`);
-    }
+    if (cloudAccount) {
+      if (cloudAccount.password_hash !== passwordHash) {
+        throw new Error('Mot de passe incorrect pour ce profil.');
+      }
 
-    const passwordHash = await sha256(password);
-    if (profile.passwordHash !== passwordHash) {
-      throw new Error('Mot de passe incorrect pour ce profil.');
-    }
+      // Fusionner les données locales et cloud (prend le dessus sur le profil local ancien)
+      const mergedHistory = this.mergeHistories(profile?.history || [], cloudAccount.history || []);
+      const mergedSettings = { ...(profile?.settings || {}), ...(cloudAccount.settings || {}) };
+      const mode = cloudAccount.user_mode || profile?.mode || 'insulin';
 
-    profile.lastLogin = new Date().toISOString();
-    profiles[key] = profile;
-    localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(profiles));
+      profile = {
+        id: profile?.id || ('usr_' + Date.now()),
+        username: cloudAccount.display_name || cleanUser,
+        passwordHash: cloudAccount.password_hash,
+        mode,
+        settings: mergedSettings,
+        history: mergedHistory,
+        createdAt: cloudAccount.created_at || profile?.createdAt || new Date().toISOString(),
+        lastLogin: new Date().toISOString()
+      };
+
+      profiles[key] = profile;
+      localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(profiles));
+    } else {
+      // Si pas de connexion Cloud, vérifier localement
+      if (!profile) {
+        throw new Error(`Aucun profil trouvé pour "${cleanUser}". Créez-le en cliquant sur "Nouveau profil".`);
+      }
+      if (profile.passwordHash !== passwordHash) {
+        throw new Error('Mot de passe incorrect pour ce profil.');
+      }
+      profile.lastLogin = new Date().toISOString();
+      profiles[key] = profile;
+      localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(profiles));
+    }
 
     this.activeProfile = {
       id: profile.id,
@@ -175,6 +254,9 @@ export const ProfileService = {
     return profile;
   },
 
+  /**
+   * Sauvegarde les données du profil actif et déclenche la synchronisation Cloud
+   */
   saveProfileData(settings, history) {
     if (!this.isLoggedIn()) return;
     const key = this.activeProfile.username.toLowerCase();
@@ -193,42 +275,103 @@ export const ProfileService = {
       }
       localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(profiles));
 
-      // Synchronisation Cloud en arrière-plan
-      this.syncToCloud().catch(() => {});
+      // Synchronisation Cloud automatique en arrière-plan
+      this.syncToCloud(settings, history).catch(() => {});
     }
   },
 
-  async syncToCloud() {
+  /**
+   * Envoi et fusion bidirectionnelle avec le Cloud Supabase
+   */
+  async syncToCloud(explicitSettings = null, explicitHistory = null) {
     if (!this.isLoggedIn()) return { success: false, error: 'Non connecté' };
-    const client = await SupabaseService.createClientIfNeeded();
-    if (!client) return { success: false, error: 'Supabase indisponible' };
 
     const key = this.activeProfile.username.toLowerCase();
     const profiles = this.getAllProfiles();
     const profile = profiles[key];
     if (!profile) return { success: false, error: 'Profil introuvable' };
 
-    try {
-      const record = {
-        username: key,
-        display_name: profile.username,
-        password_hash: profile.passwordHash,
-        user_mode: profile.mode || 'insulin',
-        settings: profile.settings || {},
-        history: profile.history || [],
-        updated_at: new Date().toISOString()
-      };
+    const settingsToSave = explicitSettings || profile.settings || {};
+    const historyToSave = Array.isArray(explicitHistory) ? explicitHistory : (profile.history || []);
 
-      const { error } = await client.from('app_accounts').upsert([record], { onConflict: 'username' });
-      if (error) {
-        console.warn('Info synchro Supabase:', error.message);
-        return { success: false, error: error.message };
+    // 1. Récupérer l'état actuel du Cloud pour fusionner sans écraser les repas d'un autre appareil
+    const cloudAccount = await this.fetchAccountFromCloud(key);
+    let finalHistory = historyToSave;
+    let finalSettings = settingsToSave;
+    let finalMode = profile.mode || 'insulin';
+
+    if (cloudAccount) {
+      finalHistory = this.mergeHistories(historyToSave, cloudAccount.history || []);
+      finalSettings = { ...(cloudAccount.settings || {}), ...settingsToSave };
+      if (cloudAccount.user_mode && !explicitSettings?.userMode) {
+        finalMode = cloudAccount.user_mode;
       }
-      return { success: true, count: (profile.history || []).length };
-    } catch (err) {
-      console.warn('Info synchro Supabase:', err.message);
-      return { success: false, error: err.message };
     }
+
+    // 2. Mettre à jour le profil local
+    profile.history = finalHistory;
+    profile.settings = finalSettings;
+    profile.mode = finalMode;
+    profiles[key] = profile;
+    localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(profiles));
+
+    // 3. Envoyer le paquet fusionné vers Supabase
+    const record = {
+      username: key,
+      display_name: profile.username,
+      password_hash: profile.passwordHash,
+      user_mode: finalMode,
+      settings: finalSettings,
+      history: finalHistory,
+      updated_at: new Date().toISOString()
+    };
+
+    const res = await this.upsertAccountToCloud(record);
+    if (!res.success) {
+      return res;
+    }
+
+    return {
+      success: true,
+      count: finalHistory.length,
+      history: finalHistory,
+      settings: finalSettings,
+      mode: finalMode
+    };
+  },
+
+  /**
+   * Récupération automatique des dernières données du Cloud Supabase (Mobile ⇄ PC)
+   */
+  async pullFromCloud() {
+    if (!this.isLoggedIn()) return { success: false, error: 'Non connecté' };
+
+    const key = this.activeProfile.username.toLowerCase();
+    const profiles = this.getAllProfiles();
+    const profile = profiles[key];
+    if (!profile) return { success: false, error: 'Profil introuvable' };
+
+    const cloudAccount = await this.fetchAccountFromCloud(key);
+    if (!cloudAccount) return { success: false, error: 'Aucun compte distant' };
+
+    const mergedHistory = this.mergeHistories(profile.history || [], cloudAccount.history || []);
+    const mergedSettings = { ...(profile.settings || {}), ...(cloudAccount.settings || {}) };
+    const mode = cloudAccount.user_mode || profile.mode || 'insulin';
+
+    profile.history = mergedHistory;
+    profile.settings = mergedSettings;
+    profile.mode = mode;
+    profiles[key] = profile;
+    localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(profiles));
+
+    return {
+      success: true,
+      updated: true,
+      count: mergedHistory.length,
+      history: mergedHistory,
+      settings: mergedSettings,
+      mode
+    };
   },
 
   getProfileData() {
