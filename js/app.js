@@ -1,7 +1,7 @@
 import { FoodRepository } from './data/foods.js?v=26';
 import { StorageService } from './services/storage.js?v=26';
 import { MetabolicEngine } from './services/metabolicEngine.js?v=26';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=26';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=28';
 import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=26';
 import { ProfileService } from './services/profileService.js?v=26';
 
@@ -56,7 +56,7 @@ const state = {
   settings: {
     ...DEFAULT_SETTINGS,
     ...savedSettings,
-    geminiKey: (savedSettings.geminiKey && savedSettings.geminiKey.trim().length > 20)
+    geminiKey: (savedSettings.geminiKey && savedSettings.geminiKey.trim().length >= 15)
       ? savedSettings.geminiKey.trim()
       : ''
   },
@@ -266,7 +266,7 @@ async function handleImageSource(source) {
       .then(thumb => { state.currentPlateImage = thumb; })
       .catch(() => { state.currentPlateImage = null; });
 
-    const detected = await VisionAnalyzer.detectWithGemini(
+    const res = await VisionAnalyzer.detectWithGemini(
       compressedDataUrl,
       state.settings.geminiKey || ''
     );
@@ -274,16 +274,32 @@ async function handleImageSource(source) {
     clearTimeout(watchdog);
     overlay.classList.add('hidden');
 
-    if (detected && detected.length > 0) {
-      spreadPinsAutomatically(detected, false);
-      state.items = detected;
+    const items = Array.isArray(res) ? res : (res?.items || []);
+    const isSuccess = Array.isArray(res) ? (items.length > 0) : Boolean(res?.success);
+
+    if (isSuccess && items.length > 0) {
+      spreadPinsAutomatically(items, false);
+      state.items = items;
       StorageService.save('glucoscan_items_v3', state.items);
       updateUI();
-      showToast(`${detected.length} aliment(s) reconnu(s) ! Glissez les étiquettes pour ajuster.`);
+      showToast(`${items.length} aliment(s) reconnu(s) ! Glissez les étiquettes pour ajuster.`);
       return;
     }
 
-    showToast('Aucun aliment détecté, réessayez ou cliquez sur + Ajouter');
+    if (isSuccess && items.length === 0) {
+      showToast('Aucun aliment détecté sur cette photo. Vérifiez le cadrage ou cliquez sur + Ajouter');
+      return;
+    }
+
+    // Gestion d'erreur explicite
+    const errMsg = res?.error || 'Échec de connexion au service IA';
+    if (res?.code === 'UNAUTHORIZED') {
+      showToast('⚠️ Clé API invalide ou expirée. Vérifiez vos Paramètres IA (Synthèse).');
+    } else if (res?.code === 'RATE_LIMIT') {
+      showToast('⏳ Quota IA temporairement dépassé. Réessayez dans un instant.');
+    } else {
+      showToast(`⚠️ Analyse impossible : ${errMsg}. Ajoutez vos aliments avec + Ajouter.`);
+    }
   } catch (err) {
     clearTimeout(watchdog);
     overlay.classList.add('hidden');
@@ -636,6 +652,7 @@ function switchToTab(target) {
       ? (state.settings.targetBG / 100).toFixed(2)
       : state.settings.targetBG;
     document.getElementById('inpGeminiKey').value = state.settings.geminiKey || '';
+    if (window.lucide) window.lucide.createIcons();
   }
 }
 
@@ -1873,12 +1890,44 @@ function bindEvents() {
     state.settings.targetBG = Math.min(250, Math.max(70, targetMgDl));
 
     const enteredKey = document.getElementById('inpGeminiKey').value.trim();
-    state.settings.geminiKey = enteredKey.length > 20 ? enteredKey : '';
+    state.settings.geminiKey = enteredKey.length >= 15 ? enteredKey : '';
     StorageService.save('glucoscan_settings_v3', state.settings);
     ProfileService.saveProfileData(state.settings, state.history);
     updateUI();
     showToast('Paramètres & Objectifs enregistrés');
   });
+
+  // Bouton Tester l'API IA
+  const btnTestGeminiKey = document.getElementById('btnTestGeminiKey');
+  if (btnTestGeminiKey) {
+    btnTestGeminiKey.addEventListener('click', async () => {
+      const statusEl = document.getElementById('geminiKeyStatus');
+      const enteredKey = document.getElementById('inpGeminiKey').value.trim();
+      if (statusEl) {
+        statusEl.textContent = 'Test en cours...';
+        statusEl.className = 'text-[10px] font-bold text-amber-600 animate-pulse';
+      }
+      try {
+        const result = await VisionAnalyzer.testConnection(enteredKey);
+        if (statusEl) {
+          if (result.success) {
+            statusEl.textContent = `✅ Opérationnel (${result.model})`;
+            statusEl.className = 'text-[10px] font-bold text-emerald-600';
+            showToast(`Connexion IA réussie (${result.model})`);
+          } else {
+            statusEl.textContent = `❌ ${result.message || 'Erreur API'}`;
+            statusEl.className = 'text-[10px] font-bold text-rose-600';
+            showToast(`Échec du test IA : ${result.message || 'Erreur'}`);
+          }
+        }
+      } catch (err) {
+        if (statusEl) {
+          statusEl.textContent = `❌ ${err.message}`;
+          statusEl.className = 'text-[10px] font-bold text-rose-600';
+        }
+      }
+    });
+  }
 
   // Export & Import JSON
   document.getElementById('btnExportBackup').addEventListener('click', () => {

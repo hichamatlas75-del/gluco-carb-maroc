@@ -3,6 +3,8 @@
  * Proxy IA Vision sécurisé avec validation et garde-fous nutritionnels marocains.
  */
 
+const FALLBACK_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
+
 const MOROCCAN_PORTION_SAFEGUARDS = {
   pains: { maxSafeGrams: 200, normalPortion: 70, label: '1/4 de pain individuel' },
   msemen: { maxSafeGrams: 160, normalPortion: 85, label: '1 msemen individuel' },
@@ -43,11 +45,11 @@ export async function onRequest(context) {
     }
 
     const cleanBase64 = base64Input.includes(',') ? base64Input.split(',')[1] : base64Input;
-    const apiKey = env?.GEMINI_API_KEY || body?.apiKey;
+    const apiKey = env?.GEMINI_API_KEY || body?.apiKey || FALLBACK_KEY;
 
-    if (!apiKey || apiKey.startsWith('AQ.') || apiKey.length < 20) {
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 15) {
       return new Response(JSON.stringify({
-        error: 'Clé API Gemini non configurée. Veuillez ajouter votre clé dans Synthèse > Paramètres IA avancés ou définir la variable GEMINI_API_KEY.'
+        error: 'Clé API Gemini non configurée. Veuillez ajouter votre clé dans Synthèse > Paramètres IA avancés ou définir la variable GEMINI_API_KEY sur Cloudflare.'
       }), {
         status: 401,
         headers: corsHeaders
@@ -69,13 +71,13 @@ Analyse la photo de ce repas :
 Réponds UNIQUEMENT en JSON strict sous cette forme :
 {"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
 
-    const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.8-flash'];
+    const models = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash'];
     let parsedData = null;
     let lastError = null;
 
     for (const model of models) {
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
         const geminiRes = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -88,7 +90,10 @@ Réponds UNIQUEMENT en JSON strict sous cette forme :
                 ]
               }
             ],
-            generationConfig: { temperature: 0.1 }
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: 'application/json'
+            }
           })
         });
 
@@ -99,11 +104,12 @@ Réponds UNIQUEMENT en JSON strict sous cette forme :
         }
 
         const gData = await geminiRes.json();
-        const rawText = gData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const parts = gData?.candidates?.[0]?.content?.parts || [];
+        const rawText = parts.find(p => !p.thought && p.text)?.text || parts[0]?.text || '';
         const match = rawText.match(/\{[\s\S]*\}/);
         if (match) {
           const parsed = JSON.parse(match[0]);
-          if (Array.isArray(parsed?.items) && parsed.items.length > 0) {
+          if (Array.isArray(parsed?.items)) {
             parsedData = parsed;
             break;
           }

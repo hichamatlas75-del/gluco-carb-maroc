@@ -3,6 +3,8 @@
  * Analyse de secours pour plats et boissons.
  */
 
+const FALLBACK_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
+
 export async function onRequest(context) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -33,9 +35,9 @@ export async function onRequest(context) {
     }
 
     const cleanBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
-    const apiKey = context.env?.GEMINI_API_KEY || body?.apiKey;
+    const apiKey = context.env?.GEMINI_API_KEY || body?.apiKey || FALLBACK_KEY;
 
-    if (!apiKey || apiKey.startsWith('AQ.') || apiKey.length < 20) {
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 15) {
       return new Response(JSON.stringify({
         error: 'Clé API Gemini non configurée.'
       }), {
@@ -53,13 +55,13 @@ export async function onRequest(context) {
 Réponds UNIQUEMENT en JSON strict avec ce format :
 {"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
 
-    const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.8-flash'];
+    const models = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash'];
     let items = null;
     let lastError = null;
 
     for (const model of models) {
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey.trim())}`;
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -72,7 +74,10 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
                 ]
               }
             ],
-            generationConfig: { temperature: 0.1 }
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: 'application/json'
+            }
           })
         });
 
@@ -82,11 +87,12 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
         }
 
         const data = await res.json();
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const rawText = parts.find(p => !p.thought && p.text)?.text || parts[0]?.text || '';
         const match = rawText.match(/\{[\s\S]*\}/);
         if (match) {
           const parsed = JSON.parse(match[0]);
-          if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+          if (Array.isArray(parsed?.items)) {
             items = parsed.items;
             break;
           }

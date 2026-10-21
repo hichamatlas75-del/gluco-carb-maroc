@@ -2,11 +2,16 @@ import { FoodRepository } from '../data/foods.js?v=16';
 import { SupabaseService } from './supabaseClient.js?v=17';
 
 /**
- * Service de Reconnaissance Alimentaire Haute Définition (v10) :
+ * Service de Reconnaissance Alimentaire Haute Définition (v11) :
  * - Image d'affichage 100% Haute Définition (aucune dégradation visuelle à l'écran)
- * - Image d'analyse IA en 800px (qualité 0.85) : conserve tous les détails
- * - Proxy Cloudflare Pages Functions /api/scan avec garde-fous sur les portions marocaines
+ * - Image d'analyse IA en 720px (qualité 0.82) : conserve tous les détails
+ * - Modèles Gemini 3 : gemini-3.5-flash-lite, gemini-3.8-flash, gemini-3.5-flash
+ * - Fallback résilient : Cloudflare Pages /api/scan -> Direct Client Google Generative API
+ * - Clé par défaut intégrée + Support des clés personnalisées
  */
+
+const DEFAULT_GEMINI_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
+const VISION_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash'];
 
 function normalizeCoord(val, fallback) {
   const n = Number(val);
@@ -17,7 +22,7 @@ function normalizeCoord(val, fallback) {
 
 export const VisionAnalyzer = {
   /**
-   * Prépare une image nette (800px, qualité 0.85) pour l'IA tout en gardant une excellente définition
+   * Prépare une image nette pour l'IA tout en gardant une excellente définition
    */
   compressImageSource(source, maxDim = 800, quality = 0.85) {
     return new Promise((resolve, reject) => {
@@ -64,11 +69,11 @@ export const VisionAnalyzer = {
   },
 
   /**
-   * Normalise et enrichit les items bruts retournés par l'API avec notre base calibrée
+   * Normalise et enrichit les items bruts retournés par l'IA avec notre base calibrée
    */
   mapRawItems(rawItems) {
     if (!Array.isArray(rawItems) || rawItems.length === 0) {
-      throw new Error('Empty items');
+      return [];
     }
 
     // Filtrer l'eau pure ou objets non caloriques s'ils ont été retournés par inadvertance
@@ -136,41 +141,66 @@ export const VisionAnalyzer = {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    let scanRes = null;
     try {
-      const res = await fetch('/api/scan', {
+      scanRes = await fetch('/api/scan', {
         method: 'POST',
         headers,
         body: JSON.stringify({ imageBase64: base64Data, apiKey }),
         signal
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.items) && data.items.length > 0) {
-          return this.mapRawItems(data.items);
-        }
-      }
-    } catch (_) {}
+    } catch (e) {
+      if (signal?.aborted) throw e;
+    }
 
-    // Fallback sur /api/analyze existant
+    if (scanRes) {
+      if (scanRes.status === 404) {
+        const err = new Error('Endpoint /api/scan non disponible (hébergement statique)');
+        err.code = 'PROXY_404';
+        throw err;
+      }
+      if (scanRes.ok) {
+        const data = await scanRes.json();
+        return this.mapRawItems(data.items || []);
+      }
+      if (scanRes.status === 401) {
+        const errData = await scanRes.json().catch(() => ({}));
+        const err = new Error(errData.error || 'Clé API Gemini requise ou invalide');
+        err.code = 'UNAUTHORIZED';
+        throw err;
+      }
+    }
+
+    // Fallback sur /api/analyze si /api/scan a renvoyé 500/502
     const res2 = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageBase64: base64Data, apiKey }),
       signal
     });
-    if (!res2.ok) throw new Error(`Edge HTTP ${res2.status}`);
+
+    if (res2.status === 404) {
+      const err = new Error('Endpoint /api/analyze non disponible');
+      err.code = 'PROXY_404';
+      throw err;
+    }
+    if (!res2.ok) {
+      const err = new Error(`Edge HTTP ${res2.status}`);
+      err.code = res2.status === 401 ? 'UNAUTHORIZED' : 'EDGE_ERROR';
+      throw err;
+    }
     const data2 = await res2.json();
-    return this.mapRawItems(data2.items);
+    return this.mapRawItems(data2.items || []);
   },
 
   /**
-   * Appel direct ultra-rapide (~1.2s à 2.1s) sans responseMimeType bloquant
+   * Appel direct au service Google Generative Language API
    */
   async callSingleVisionModel(modelName, base64Data, apiKey, signal) {
     const prompt = `Tu es un expert en nutrition clinique et diabétologie. Analyse cette photo de repas :
 1. Identifie uniquement les aliments et boissons caloriques consommés par UNE SEULE personne.
 2. EXCLUSION OBLIGATOIRE : NE PAS inclure l'eau pure (bouteille d'eau, verre d'eau minérale, carafe), ni les théières vides, couverts, serviettes ou objets sans calories.
-3. PORTION INDIVIDUELLE : Estime la portion réelle consommée par une personne pour son repas. Ne compte JAMAIS une corbeille entière de pain ni un pain géant de table : pour le pain (Khobz, pain céréales, baguette), compte la portion d'une personne soit 1 morceau (~60g à 80g max). Pour les œufs (omelette, khlii), compte la portion d'une personne (~120g à 180g max).
+3. PORTION INDIVIDUELLE : Estime la portion réelle consommée par une personne pour son repas. Ne compte JAMAIS une corbeille entière de pain : pour le pain (Khobz, pain céréales, baguette), compte la portion d'une personne soit 1 morceau (~60g à 80g max). Pour les œufs (omelette, khlii), compte la portion d'une personne (~120g à 180g max).
 4. Pour le pain aux céréales ou complet, les glucides nets sont de ~35g/100g (car riche en fibres).
 
 Réponds UNIQUEMENT en JSON strict avec ce format :
@@ -185,7 +215,10 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
           ]
         }
       ],
-      generationConfig: { temperature: 0.1 }
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: 'application/json'
+      }
     });
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -196,53 +229,100 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
       signal
     });
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      const err = new Error(errData?.error?.message || `HTTP ${response.status}`);
+      err.code = response.status === 401 || response.status === 400 || response.status === 403 ? 'UNAUTHORIZED' : (response.status === 429 ? 'RATE_LIMIT' : `HTTP_${response.status}`);
+      throw err;
+    }
 
     const json = await response.json();
-    const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const parts = json?.candidates?.[0]?.content?.parts || [];
+    // Récupérer la partie texte sans inclure les réflexions / reasoning thought
+    const rawText = parts.find(p => !p.thought && p.text)?.text || parts[0]?.text || '';
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON');
+    if (!jsonMatch) throw new Error('Format JSON non trouvé');
 
     const parsed = JSON.parse(jsonMatch[0]);
-    return this.mapRawItems(parsed.items);
+    return this.mapRawItems(parsed.items || []);
   },
 
   /**
-   * Détection principale via Proxy Edge Cloudflare (/api/scan) et fallback direct
+   * Détection principale : Edge Proxy Cloudflare (/api/scan) avec basculement automatique
+   * direct client vers Google Generative AI (gemini-3.5-flash-lite / gemini-3.8-flash)
    */
-  async detectWithGemini(compressedDataUrl, apiKey) {
-    const base64Data = compressedDataUrl.split(',')[1];
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+  async detectWithGemini(compressedDataUrl, userApiKey) {
+    const base64Data = compressedDataUrl.includes(',') ? compressedDataUrl.split(',')[1] : compressedDataUrl;
+    const effectiveKey = (userApiKey && typeof userApiKey === 'string' && userApiKey.trim().length >= 15)
+      ? userApiKey.trim()
+      : DEFAULT_GEMINI_KEY;
 
-    const candidates = [this.callEdgeProxy(base64Data, apiKey || '', controller.signal)];
-    if (apiKey && apiKey.length > 20 && !apiKey.startsWith('AQ.')) {
-      candidates.push(this.callSingleVisionModel('gemini-2.5-flash', base64Data, apiKey, controller.signal));
-      candidates.push(this.callSingleVisionModel('gemini-2.5-flash-lite', base64Data, apiKey, controller.signal));
-    }
+    // 1. Essayer le proxy Cloudflare en premier lieu
+    const edgeCtrl = new AbortController();
+    const edgeTimer = setTimeout(() => edgeCtrl.abort(), 12000);
 
     try {
-      const winner = await Promise.any(candidates);
-      clearTimeout(timeoutId);
-      controller.abort();
-      return winner;
-    } catch {
-      clearTimeout(timeoutId);
+      const items = await this.callEdgeProxy(base64Data, userApiKey || '', edgeCtrl.signal);
+      clearTimeout(edgeTimer);
+      return { success: true, items, source: 'edge' };
+    } catch (proxyErr) {
+      clearTimeout(edgeTimer);
+      console.warn('Proxy Edge non disponible, basculement vers appel direct Gemini :', proxyErr.message);
+    }
+
+    // 2. Basculement direct client avec la clé effective
+    let lastError = null;
+    for (const model of VISION_MODELS) {
+      const clientCtrl = new AbortController();
+      const clientTimer = setTimeout(() => clientCtrl.abort(), 14000);
       try {
-        const fallbackCtrl = new AbortController();
-        const fallbackTimer = setTimeout(() => fallbackCtrl.abort(), 12000);
-        const hasKey = Boolean(apiKey && apiKey.length > 20 && !apiKey.startsWith('AQ.'));
-        const res = hasKey
-          ? await this.callSingleVisionModel('gemini-2.5-flash', base64Data, apiKey, fallbackCtrl.signal)
-              .catch(() => this.callSingleVisionModel('gemini-2.5-flash-lite', base64Data, apiKey, fallbackCtrl.signal))
-              .catch(() => this.callEdgeProxy(base64Data, apiKey || '', fallbackCtrl.signal))
-          : await this.callEdgeProxy(base64Data, '', fallbackCtrl.signal);
-        clearTimeout(fallbackTimer);
-        return res;
-      } catch {
-        return null;
+        const items = await this.callSingleVisionModel(model, base64Data, effectiveKey, clientCtrl.signal);
+        clearTimeout(clientTimer);
+        return { success: true, items, source: `client-${model}` };
+      } catch (err) {
+        clearTimeout(clientTimer);
+        lastError = err;
+        console.warn(`Modèle direct ${model} échoué :`, err.message);
+        // Si la clé est déclarée invalide (401/403), inutile de tester les autres modèles avec la même clé
+        if (err.code === 'UNAUTHORIZED') break;
       }
     }
+
+    return {
+      success: false,
+      items: [],
+      error: lastError?.message || 'Reconnaissance IA indisponible',
+      code: lastError?.code || 'FAILED'
+    };
+  },
+
+  /**
+   * Test de connectivité en direct pour les paramètres utilisateur
+   */
+  async testConnection(customKey) {
+    const key = (customKey && typeof customKey === 'string' && customKey.trim().length >= 15)
+      ? customKey.trim()
+      : DEFAULT_GEMINI_KEY;
+
+    for (const model of VISION_MODELS) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: 'ping' }] }] })
+        });
+        if (res.ok) {
+          return { success: true, model };
+        }
+        if (res.status === 404) continue;
+        const data = await res.json().catch(() => ({}));
+        return { success: false, status: res.status, message: data?.error?.message || `HTTP ${res.status}` };
+      } catch (e) {
+        return { success: false, message: e.message };
+      }
+    }
+    return { success: false, message: 'Tous les modèles testés sont indisponibles' };
   },
 
   /**
