@@ -1,9 +1,9 @@
-import { FoodRepository } from './data/foods.js?v=26';
-import { StorageService } from './services/storage.js?v=26';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=26';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=29';
-import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=27';
-import { ProfileService } from './services/profileService.js?v=26';
+import { FoodRepository } from './data/foods.js?v=30';
+import { StorageService } from './services/storage.js?v=30';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=30';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=30';
+import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=30';
+import { ProfileService } from './services/profileService.js?v=30';
 
 /**
  * Contrôleur principal GlucoScan Maroc (v19 - Double Profil, Sync Déterministe & Grade Premium)
@@ -1296,11 +1296,11 @@ function bindEvents() {
   });
 
   // Boutons Appareil Photo & Galerie
-  document.getElementById('btnTakePhoto').addEventListener('click', () => {
-    document.getElementById('fileCameraInput').click();
+  document.getElementById('btnTakePhoto')?.addEventListener('click', () => {
+    document.getElementById('fileCameraInput')?.click();
   });
-  document.getElementById('btnUploadPhoto').addEventListener('click', () => {
-    document.getElementById('fileGalleryInput').click();
+  document.getElementById('btnUploadPhoto')?.addEventListener('click', () => {
+    document.getElementById('fileGalleryInput')?.click();
   });
 
   const handleFileInput = (e) => {
@@ -1310,15 +1310,16 @@ function bindEvents() {
     e.target.value = '';
   };
 
-  document.getElementById('fileCameraInput').addEventListener('change', handleFileInput);
-  document.getElementById('fileGalleryInput').addEventListener('change', handleFileInput);
+  document.getElementById('fileCameraInput')?.addEventListener('change', handleFileInput);
+  document.getElementById('fileGalleryInput')?.addEventListener('change', handleFileInput);
 
   // Viseur WebRTC en direct
-  document.getElementById('btnStartWebRTC').addEventListener('click', startWebRTC);
-  document.getElementById('btnCloseStream').addEventListener('click', stopWebRTC);
-  document.getElementById('btnCaptureFrame').addEventListener('click', () => {
+  document.getElementById('btnStartWebRTC')?.addEventListener('click', startWebRTC);
+  document.getElementById('btnCloseStream')?.addEventListener('click', stopWebRTC);
+  document.getElementById('btnCaptureFrame')?.addEventListener('click', () => {
     const video = document.getElementById('cameraVideo');
     const canvas = document.getElementById('analysisCanvas');
+    if (!video || !canvas) return;
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -1326,12 +1327,12 @@ function bindEvents() {
   });
 
   // Réinitialiser la photo
-  document.getElementById('btnClearPhoto').addEventListener('click', () => {
+  document.getElementById('btnClearPhoto')?.addEventListener('click', () => {
     stopWebRTC();
     state.currentPlateImage = null;
-    document.getElementById('plateImage').classList.add('hidden');
-    document.getElementById('emptyCameraState').classList.remove('hidden');
-    document.getElementById('btnClearPhoto').classList.add('hidden');
+    document.getElementById('plateImage')?.classList.add('hidden');
+    document.getElementById('emptyCameraState')?.classList.remove('hidden');
+    document.getElementById('btnClearPhoto')?.classList.add('hidden');
     state.items = [];
     StorageService.save('glucoscan_items_v3', []);
     updateUI();
@@ -1554,7 +1555,7 @@ function bindEvents() {
   });
 
   // Ajustement des grammages (-20g, -5g, +5g, +20g), Remplacement et Suppression
-  document.getElementById('recognizedItemsContainer').addEventListener('click', (e) => {
+  document.getElementById('recognizedItemsContainer')?.addEventListener('click', (e) => {
     const openAddBtn = e.target.closest('[data-open-add-food]');
     if (openAddBtn) {
       openFoodCatalogModal(null);
@@ -1595,7 +1596,7 @@ function bindEvents() {
     }
   });
 
-  document.getElementById('recognizedItemsContainer').addEventListener('input', (e) => {
+  document.getElementById('recognizedItemsContainer')?.addEventListener('input', (e) => {
     const nameInp = e.target.closest('[data-direct-name]');
     if (nameInp) {
       const idx = parseInt(nameInp.getAttribute('data-direct-name'), 10);
@@ -1619,8 +1620,8 @@ function bindEvents() {
   });
 
   // Glycémie actuelle & bascule mg/dL ⇄ g/L
-  document.getElementById('inputBloodGlucose').addEventListener('input', updateUI);
-  document.getElementById('btnSwitchBGUnit').addEventListener('click', () => {
+  document.getElementById('inputBloodGlucose')?.addEventListener('input', updateUI);
+  document.getElementById('btnSwitchBGUnit')?.addEventListener('click', () => {
     const inp = document.getElementById('inputBloodGlucose');
     const v = parseFloat(inp.value);
     if (state.settings.bgUnit === 'mg/dL') {
@@ -1714,11 +1715,11 @@ function bindEvents() {
     }
   }
 
-  document.getElementById('btnOpenCatalogModal').addEventListener('click', () => {
+  document.getElementById('btnOpenCatalogModal')?.addEventListener('click', () => {
     openFoodCatalogModal(null);
   });
 
-  document.getElementById('btnCloseCatalog').addEventListener('click', closeFoodCatalogModal);
+  document.getElementById('btnCloseCatalog')?.addEventListener('click', closeFoodCatalogModal);
 
   // Fermeture du catalogue en cliquant sur le fond semi-transparent
   document.getElementById('modalFoodCatalog')?.addEventListener('click', (e) => {
@@ -1741,7 +1742,7 @@ function bindEvents() {
     UIRenderer.renderCatalogModal(state.catalogFilter, state.catalogCategory, null);
   });
 
-  document.getElementById('inpCatalogSearch').addEventListener('input', (e) => {
+  document.getElementById('inpCatalogSearch')?.addEventListener('input', (e) => {
     state.catalogFilter = e.target.value;
     UIRenderer.renderCatalogModal(state.catalogFilter, state.catalogCategory, state.replaceItemIndex);
   });
@@ -1807,7 +1808,7 @@ function bindEvents() {
     applyFoodChoice(customEntry, rawName);
   });
 
-  document.getElementById('catalogItemsList').addEventListener('click', (e) => {
+  document.getElementById('catalogItemsList')?.addEventListener('click', (e) => {
     const pick = e.target.closest('[data-pick-food]');
     if (!pick) return;
     const food = FoodRepository.getFoodById(pick.getAttribute('data-pick-food'));
@@ -1821,7 +1822,7 @@ function bindEvents() {
   });
 
   // Enregistrement dans le journal & Partage WhatsApp
-  document.getElementById('btnSaveMealLog').addEventListener('click', () => {
+  document.getElementById('btnSaveMealLog')?.addEventListener('click', () => {
     if (state.items.length === 0) return;
     const ev = MetabolicEngine.evaluatePlate(
       state.items,
@@ -1909,7 +1910,7 @@ function bindEvents() {
     showToast(removedCount > 0 ? `Réinitialisé (${removedCount} repas retiré(s))` : 'Aucun repas à réinitialiser aujourd’hui');
   });
 
-  document.getElementById('btnShareSummary').addEventListener('click', async () => {
+  document.getElementById('btnShareSummary')?.addEventListener('click', async () => {
     const ev = MetabolicEngine.evaluatePlate(
       state.items,
       state.settings,
@@ -1935,7 +1936,7 @@ function bindEvents() {
   });
 
   // Sauvegarde des paramètres
-  document.getElementById('formSettings').addEventListener('submit', (e) => {
+  document.getElementById('formSettings')?.addEventListener('submit', (e) => {
     e.preventDefault();
     state.settings.dailyTargetProtein = Math.max(30, parseFloat(document.getElementById('inpDailyTargetProtein').value) || 100);
     state.settings.dailyTargetCarbs = Math.max(30, parseFloat(document.getElementById('inpDailyTargetCarbs').value) || 120);
@@ -1993,11 +1994,11 @@ function bindEvents() {
   }
 
   // Export & Import JSON
-  document.getElementById('btnExportBackup').addEventListener('click', () => {
+  document.getElementById('btnExportBackup')?.addEventListener('click', () => {
     StorageService.exportJSONBackup(state.settings, state.history);
   });
 
-  document.getElementById('fileImportBackup').addEventListener('change', (e) => {
+  document.getElementById('fileImportBackup')?.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -2030,15 +2031,30 @@ function bindEvents() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  spreadPinsAutomatically(state.items, false);
-  bindEvents();
-  updateUI();
-  updateFasting186View();
-  setInterval(updateFasting186View, 30000);
+/**
+ * Initialisation sécurisée de l'application
+ * Compatible chargement asynchrone / différé de module ES6
+ */
+function init() {
+  try {
+    spreadPinsAutomatically(state.items, false);
+    bindEvents();
+    updateUI();
+    updateFasting186View();
+    setInterval(updateFasting186View, 30000);
+    if (window.lucide) window.lucide.createIcons();
 
-  // Enregistrement du Service Worker PWA pour le mode hors-ligne
-  if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    // Enregistrement du Service Worker PWA pour le mode hors-ligne
+    if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+  } catch (err) {
+    console.error('Erreur initialisation GlucoScan:', err);
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

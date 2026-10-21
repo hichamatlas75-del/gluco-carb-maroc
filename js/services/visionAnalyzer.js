@@ -332,8 +332,6 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
       code: lastError?.code || 'FAILED'
     };
   },
-    };
-  },
 
   /**
    * Test de connectivité en direct pour les paramètres utilisateur
