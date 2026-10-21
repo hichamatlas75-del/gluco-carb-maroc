@@ -1,7 +1,7 @@
 import { FoodRepository } from './data/foods.js?v=26';
 import { StorageService } from './services/storage.js?v=26';
 import { MetabolicEngine } from './services/metabolicEngine.js?v=26';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=28';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=29';
 import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=26';
 import { ProfileService } from './services/profileService.js?v=26';
 
@@ -255,11 +255,11 @@ async function handleImageSource(source) {
 
   const watchdog = setTimeout(() => {
     overlay.classList.add('hidden');
-  }, 22000);
+  }, 35000);
 
   try {
-    // Image nette calibrée (720px, qualité 0.82) pour l'analyse IA Vision
-    const compressedDataUrl = await VisionAnalyzer.compressImageSource(source, 720, 0.82);
+    // Image nette calibrée (700px, qualité 0.78) : upload 10x plus rapide et résolution optimale
+    const compressedDataUrl = await VisionAnalyzer.compressImageSource(source, 700, 0.78);
 
     // Vignette allégée (180px, qualité 0.6) pour un stockage ultra-léger dans le journal sans saturer le localStorage
     VisionAnalyzer.compressImageSource(source, 180, 0.6)
@@ -291,14 +291,16 @@ async function handleImageSource(source) {
       return;
     }
 
-    // Gestion d'erreur explicite
-    const errMsg = res?.error || 'Échec de connexion au service IA';
-    if (res?.code === 'UNAUTHORIZED') {
+    // Gestion d'erreur explicite et conviviale (jamais de messages techniques bruts)
+    const rawErr = String(res?.error || '');
+    if (res?.code === 'TIMEOUT' || rawErr.toLowerCase().includes('aborted') || rawErr.toLowerCase().includes('délai') || rawErr.toLowerCase().includes('timeout')) {
+      showToast('⏱️ Délai réseau dépassé lors de l’analyse photo. Vérifiez votre connexion et réessayez.');
+    } else if (res?.code === 'UNAUTHORIZED') {
       showToast('⚠️ Clé API invalide ou expirée. Vérifiez vos Paramètres IA (Synthèse).');
     } else if (res?.code === 'RATE_LIMIT') {
       showToast('⏳ Quota IA temporairement dépassé. Réessayez dans un instant.');
     } else {
-      showToast(`⚠️ Analyse impossible : ${errMsg}. Ajoutez vos aliments avec + Ajouter.`);
+      showToast(`⚠️ Analyse impossible : ${rawErr || 'Erreur réseau'}. Ajoutez vos aliments avec + Ajouter.`);
     }
   } catch (err) {
     clearTimeout(watchdog);

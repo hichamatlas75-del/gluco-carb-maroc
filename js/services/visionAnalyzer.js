@@ -26,7 +26,7 @@ export const VisionAnalyzer = {
    */
   compressImageSource(source, maxDim = 800, quality = 0.85) {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Timeout image')), 3500);
+      const timer = setTimeout(() => reject(new Error('Délai de chargement de l\'image dépassé')), 10000);
       const img = new Image();
       let objectUrl = null;
 
@@ -150,7 +150,12 @@ export const VisionAnalyzer = {
         signal
       });
     } catch (e) {
-      if (signal?.aborted) throw e;
+      if (signal?.aborted) {
+        const err = new Error('Délai d\'analyse dépassé');
+        err.code = 'TIMEOUT';
+        throw err;
+      }
+      throw e;
     }
 
     if (scanRes) {
@@ -172,25 +177,36 @@ export const VisionAnalyzer = {
     }
 
     // Fallback sur /api/analyze si /api/scan a renvoyé 500/502
-    const res2 = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64: base64Data, apiKey }),
-      signal
-    });
+    try {
+      const res2 = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64Data, apiKey }),
+        signal
+      });
+      if (res2.ok) {
+        const data2 = await res2.json();
+        return this.mapRawItems(data2.items || []);
+      }
+      if (res2.status === 404) {
+        const err = new Error('Endpoint /api/analyze non disponible');
+        err.code = 'PROXY_404';
+        throw err;
+      }
+      if (res2.status === 401) {
+        const err = new Error('Clé API non autorisée');
+        err.code = 'UNAUTHORIZED';
+        throw err;
+      }
+    } catch (e2) {
+      if (signal?.aborted) {
+        const err = new Error('Délai d\'analyse dépassé');
+        err.code = 'TIMEOUT';
+        throw err;
+      }
+    }
 
-    if (res2.status === 404) {
-      const err = new Error('Endpoint /api/analyze non disponible');
-      err.code = 'PROXY_404';
-      throw err;
-    }
-    if (!res2.ok) {
-      const err = new Error(`Edge HTTP ${res2.status}`);
-      err.code = res2.status === 401 ? 'UNAUTHORIZED' : 'EDGE_ERROR';
-      throw err;
-    }
-    const data2 = await res2.json();
-    return this.mapRawItems(data2.items || []);
+    throw new Error('Le serveur proxy n\'a pas pu analyser l\'image');
   },
 
   /**
@@ -257,9 +273,11 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
       ? userApiKey.trim()
       : DEFAULT_GEMINI_KEY;
 
-    // 1. Essayer le proxy Cloudflare en premier lieu
+    // 1. Essayer le proxy Cloudflare en premier lieu avec un délai robuste de 28 secondes
     const edgeCtrl = new AbortController();
-    const edgeTimer = setTimeout(() => edgeCtrl.abort(), 12000);
+    const edgeTimer = setTimeout(() => {
+      try { edgeCtrl.abort('TIMEOUT'); } catch (_) {}
+    }, 28000);
 
     try {
       const items = await this.callEdgeProxy(base64Data, userApiKey || '', edgeCtrl.signal);
@@ -267,14 +285,25 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
       return { success: true, items, source: 'edge' };
     } catch (proxyErr) {
       clearTimeout(edgeTimer);
-      console.warn('Proxy Edge non disponible, basculement vers appel direct Gemini :', proxyErr.message);
+      console.warn('Proxy Edge non disponible ou timeout, tentative direct client :', proxyErr.message);
+
+      if (proxyErr.code === 'TIMEOUT' || proxyErr.name === 'AbortError') {
+        return {
+          success: false,
+          items: [],
+          error: 'Délai d\'analyse dépassé. Veuillez vérifier votre connexion.',
+          code: 'TIMEOUT'
+        };
+      }
     }
 
     // 2. Basculement direct client avec la clé effective
     let lastError = null;
     for (const model of VISION_MODELS) {
       const clientCtrl = new AbortController();
-      const clientTimer = setTimeout(() => clientCtrl.abort(), 14000);
+      const clientTimer = setTimeout(() => {
+        try { clientCtrl.abort('TIMEOUT'); } catch (_) {}
+      }, 25000);
       try {
         const items = await this.callSingleVisionModel(model, base64Data, effectiveKey, clientCtrl.signal);
         clearTimeout(clientTimer);
@@ -283,16 +312,26 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
         clearTimeout(clientTimer);
         lastError = err;
         console.warn(`Modèle direct ${model} échoué :`, err.message);
-        // Si la clé est déclarée invalide (401/403), inutile de tester les autres modèles avec la même clé
         if (err.code === 'UNAUTHORIZED') break;
+        if (err.name === 'AbortError' || err === 'TIMEOUT' || err.code === 'TIMEOUT') {
+          lastError = new Error('Délai d\'analyse dépassé');
+          lastError.code = 'TIMEOUT';
+          break;
+        }
       }
     }
+
+    const finalMsg = lastError?.code === 'TIMEOUT'
+      ? 'Délai d\'analyse dépassé. Veuillez vérifier votre connexion et réessayez.'
+      : (lastError?.message || 'Reconnaissance IA indisponible');
 
     return {
       success: false,
       items: [],
-      error: lastError?.message || 'Reconnaissance IA indisponible',
+      error: finalMsg,
       code: lastError?.code || 'FAILED'
+    };
+  },
     };
   },
 
