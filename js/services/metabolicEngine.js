@@ -2,7 +2,7 @@ import { FoodRepository } from '../data/foods.js?v=16';
 
 /**
  * Convertit une valeur en nombre fini, sinon retourne la valeur par défaut.
- * Évite toute propagation de NaN dans les calculs de glucides / bolus.
+ * Évite toute propagation de NaN dans les calculs nutritionnels.
  */
 function finiteOr(value, fallback) {
   const n = Number(value);
@@ -10,8 +10,8 @@ function finiteOr(value, fallback) {
 }
 
 /**
- * Moteur de calcul des glucides nets, protéines, charge glycémique, bolus d'insuline
- * et génération de l'Indice Protéique et du Verdict Métabolique.
+ * Moteur métabolique de nutrition sportive, synthèse protéique,
+ * recharge en glycogène et gestion du jeûne intermittent 18/6.
  * Supporte à la fois les aliments du catalogue marocain et tout aliment libre reconnu par IA.
  */
 export const MetabolicEngine = {
@@ -52,7 +52,7 @@ export const MetabolicEngine = {
     return { totalCarbs, fiber, netCarbs, protein, glycemicLoad, gi };
   },
 
-  evaluatePlate(items, settings, activeSlot, currentBGMgDl) {
+  evaluatePlate(items, settings = {}, activeSlot = 'noon') {
     let totalGrams = 0;
     let totalCarbs = 0;
     let totalFiber = 0;
@@ -212,54 +212,7 @@ export const MetabolicEngine = {
 
     const avgGI = netCarbs > 0 ? Math.round(weightedGISum / netCarbs) : 0;
 
-    // Sélection du ratio Insuline / Glucides selon la période
-    const ratioBySlot = {
-      morning: settings.ratioMorning,
-      noon: settings.ratioNoon,
-      evening: settings.ratioEvening
-    };
-    const activeRatio = Math.max(1, finiteOr(ratioBySlot[activeSlot], 10) || 10);
-    const mealBolus = netCarbs / activeRatio;
-    const targetBG = Math.min(250, Math.max(70, finiteOr(settings.targetBG, 100)));
-    const isf = Math.max(5, finiteOr(settings.isf, 50) || 50);
-
-    // Calcul de la dose de correction selon la glycémie actuelle & Garde-fous cliniques
-    let glycemiaWarning = null;
-    let corrBolus = 0;
-
-    if (currentBGMgDl !== null && !isNaN(currentBGMgDl) && currentBGMgDl > 0) {
-      if (currentBGMgDl < 70) {
-        glycemiaWarning = {
-          level: 'danger',
-          type: 'hypo',
-          badgeText: '🔴 ALERTE HYPOGLYCÉMIE (< 70 mg/dL)',
-          headline: 'Arrêt Bolus — Règle des 15g requise immédiatement',
-          description: 'Votre glycémie est inférieure à 70 mg/dL (0.70 g/L). Prenez immédiatement 15g de glucides rapides (3 morceaux de sucre ou 120ml de jus d\'orange). Patientez 15 minutes et recontrôlez avant toute injection.'
-        };
-      } else if (currentBGMgDl > 250) {
-        glycemiaWarning = {
-          level: 'warning',
-          type: 'hyper',
-          badgeText: '🟠 ALERTE HYPERGLYCÉMIE (> 250 mg/dL)',
-          headline: 'Hyperglycémie sévère — Hydratation & Cétones',
-          description: 'Glycémie très élevée. Buvez de l\'eau plate abondamment et contrôlez votre acétonurie/acétonémie avant tout repas copieux.'
-        };
-      }
-
-      // Correction continue sur toute la plage non hypoglycémique :
-      // positive au-dessus de la cible, négative (réduction du bolus repas) en dessous.
-      // (Auparavant : réduction appliquée entre 70-79 mg/dL mais pas entre 80 et la cible.)
-      if (currentBGMgDl >= 70) {
-        corrBolus = (currentBGMgDl - targetBG) / isf;
-      }
-    }
-
-    // En cas d'hypoglycémie avérée, neutralisation du bolus pour sécurité vitale
-    const totalBolus = (glycemiaWarning && glycemiaWarning.type === 'hypo')
-      ? 0
-      : Math.max(0, mealBolus + corrBolus);
-
-    // Arbre de décision du Verdict Métabolique (intégrant le Score d'Amorti)
+    // Arbre de décision du Verdict Métabolique Sportif & Jeûne Intermittent
     let verdict = {
       boxClass: 'bg-slate-50 border-slate-200',
       iconClass: 'bg-slate-200 text-slate-600',
@@ -267,16 +220,16 @@ export const MetabolicEngine = {
       ringColor: '#10b981',
       tag: 'En attente de photo',
       headline: 'Photographiez votre plat',
-      description: 'Dès la photo prise, GlucoScan estime le grammage de chaque aliment et affiche son verdict.'
+      description: 'Dès la photo prise, MacroScan estime les protéines, glucides nets et l’amorti énergétique.'
     };
 
     if (items.length > 0) {
       const topName = highestCarbContributor
         ? highestCarbContributor.food.name.split('(')[0].trim()
         : 'féculents';
-      const countLabel = items.length > 1 ? `Total repas (${items.length} aliments cumulés)` : `Total aliment`;
+      const countLabel = items.length > 1 ? `Total repas (${items.length} aliments)` : `Total aliment`;
       const topDetail = highestCarbContributor
-        ? ` (dont ~${Math.round(highestCarbContributor.netCarbs)}g provenant de : ${topName}, portion ${highestCarbContributor.grams}g)`
+        ? ` (dont ~${Math.round(highestCarbContributor.netCarbs)}g de : ${topName}, ${highestCarbContributor.grams}g)`
         : '';
 
       if (amorti.status === 'optimal' && totalGL < 24) {
@@ -285,9 +238,9 @@ export const MetabolicEngine = {
           iconClass: 'bg-emerald-600 text-white',
           iconName: 'shield-check',
           ringColor: '#10b981',
-          tag: '🟢 VERDICT : PIC GLYCÉMIQUE AMORTI',
-          headline: 'Repas stabilisé par les protéines & fibres',
-          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail}. Excellent amorti ((P+F)/G: ${amortiRatio.toFixed(2)}) avec ${roundedProtein}g de protéines et ${roundedFiber}g de fibres : le pic est freiné.`
+          tag: '🟢 VERDICT : ÉNERGIE STABLE & ANABOLISME',
+          headline: 'Ratio Protéines / Glucides Idéal pour le Muscle',
+          description: `${countLabel} : ${roundedProtein}g de protéines pour l'anabolisme et ${Math.round(netCarbs)}g de glucides nets${topDetail}. L'amorti élevé freine l'absorption : énergie continue sans coup de barre ni stockage gras.`
         };
       } else if (amorti.status === 'risk' || totalGL >= 26 || netCarbs > 65) {
         verdict = {
@@ -295,9 +248,9 @@ export const MetabolicEngine = {
           iconClass: 'bg-rose-600 text-white',
           iconName: 'flame',
           ringColor: '#ef4444',
-          tag: '🔴 VERDICT : RISQUE DE PIC GLYCÉMIQUE',
-          headline: 'Charge glucidique élevée & faible amorti',
-          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail}. Ratio d'amorti insuffisant ((P+F)/G: ${amortiRatio.toFixed(2)}). Ajoutez des protéines (œufs, poulet, sardines) ou réduisez le féculent.`
+          tag: '🔴 VERDICT : CHARGE GLUCIDIQUE RAPIDE',
+          headline: 'Dominance Glucidique • Risque de Coup de Barre',
+          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail} pour seulement ${roundedProtein}g de protéines. Pic rapide suivi de somnolence et fringale précoce. Ajoutez des protéines (œufs, poulet, thon, sardines).`
         };
       } else {
         verdict = {
@@ -305,9 +258,9 @@ export const MetabolicEngine = {
           iconClass: 'bg-amber-500 text-white',
           iconName: 'alert-circle',
           ringColor: '#f59e0b',
-          tag: '🟠 VERDICT : IMPACT MODÉRÉ',
-          headline: 'Hausse glycémique modérée prévue',
-          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets${topDetail}. Ratio d'amorti intermédiaire ((P+F)/G: ${amortiRatio.toFixed(2)}). Associez plus de fibres pour freiner encore l'absorption.`
+          tag: '🟠 VERDICT : APPORT ÉNERGÉTIQUE MODÉRÉ',
+          headline: 'Énergie Correcte • Protéines à Consolider',
+          description: `${countLabel} : ${Math.round(netCarbs)}g de glucides nets et ${roundedProtein}g de protéines. Énergie suffisante pour l'effort ; complétez avec des fibres ou une portion protéinée pour prolonger la satiété.`
         };
       }
     }
@@ -324,10 +277,6 @@ export const MetabolicEngine = {
       proteinIndex,
       avgGI,
       totalGL: Math.round(totalGL * 10) / 10,
-      mealBolus: Math.round(mealBolus * 10) / 10,
-      corrBolus: Math.round(corrBolus * 10) / 10,
-      totalBolus: Math.round(totalBolus * 10) / 10,
-      glycemiaWarning,
       verdict
     };
   }

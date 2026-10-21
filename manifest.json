@@ -1,7 +1,7 @@
 {
-  "name": "GlucoScan Maroc — Scanner Photo Glucides & Bolus",
-  "short_name": "GlucoScan",
-  "description": "Reconnaissance photo de plats marocains, estimation du grammage, calcul des glucides nets, bolus d'insuline et verdict métabolique.",
+  "name": "MacroFit Maroc — Nutrition Sportive & Jeûne Intermittent",
+  "short_name": "MacroFit",
+  "description": "Reconnaissance photo de nutrition sportive, calcul du grammage, protéines, glucides nets, seuil anabolique et jeûne 18/6.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f8fafc",

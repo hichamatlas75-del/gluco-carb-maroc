@@ -6,18 +6,12 @@ import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } f
 import { ProfileService } from './services/profileService.js?v=30';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v19 - Double Profil, Sync Déterministe & Grade Premium)
+ * Contrôleur principal MacroFit Maroc (Nutrition Sportive & Jeûne Intermittent 18/6)
  */
 const DEFAULT_SETTINGS = {
-  userMode: 'insulin',     // 'insulin' (Diabète & Insuline) ou 'wellness' (Santé & 18/6)
-  ratioMorning: 8,
-  ratioNoon: 10,
-  ratioEvening: 10,
-  isf: 50,
-  targetBG: 100,
-  bgUnit: 'mg/dL',
-  dailyTargetProtein: 100, // Cible journalière protéines (ex: 100g)
-  dailyTargetCarbs: 120,   // Cible journalière glucides nets (ex: 120g)
+  dailyTargetProtein: 130, // Cible journalière protéines (ex: 130g pour sportif)
+  dailyTargetCarbs: 160,   // Cible journalière glucides nets (ex: 160g énergie/glycogène)
+  theme: 'auto',           // 'light', 'dark', 'auto'
   geminiKey: ''
 };
 
@@ -89,9 +83,6 @@ if (activeProfileInit) {
     if (Array.isArray(profileRecord.history) && profileRecord.history.length > 0) {
       state.history = profileRecord.history;
     }
-    if (profileRecord.mode) {
-      state.settings.userMode = profileRecord.mode;
-    }
   }
 
   // Synchronisation automatique en arrière-plan avec le Cloud Supabase (Mobile ⇄ PC)
@@ -100,10 +91,6 @@ if (activeProfileInit) {
       state.history = res.history;
       if (res.settings) {
         state.settings = { ...state.settings, ...res.settings };
-      }
-      if (res.mode) {
-        state.settings.userMode = res.mode;
-        UIRenderer.renderUserMode(res.mode);
       }
       StorageService.save('glucoscan_history_v3', state.history);
       StorageService.save('glucoscan_settings_v3', state.settings);
@@ -156,12 +143,20 @@ function spreadPinsAutomatically(items, forceAll = false) {
   });
 }
 
-function getCurrentBGMgDl() {
-  const el = document.getElementById('inputBloodGlucose');
-  if (!el || !el.value.trim()) return null;
-  const val = parseFloat(el.value);
-  if (Number.isNaN(val) || val <= 0) return null;
-  return state.settings.bgUnit === 'g/L' ? Math.round(val * 100) : Math.round(val);
+function applyTheme(theme) {
+  state.settings.theme = theme || 'auto';
+  StorageService.save('glucoscan_settings_v3', state.settings);
+  const isDark = theme === 'dark' || (theme === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  if (isDark) {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+  const themeIcon = document.getElementById('iconThemeBtn');
+  if (themeIcon) {
+    themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+    if (window.lucide) window.lucide.createIcons();
+  }
 }
 
 function syncQuickPinEditor() {
@@ -215,8 +210,7 @@ function updateUI() {
   const evaluation = MetabolicEngine.evaluatePlate(
     state.items,
     state.settings,
-    state.activeSlot,
-    getCurrentBGMgDl()
+    state.activeSlot
   );
   UIRenderer.renderDashboard(state, evaluation);
   const todayTotals = getTodayTotals(state.history);
@@ -399,17 +393,18 @@ function updateDailyCarbCalculator() {
   const profileEl = document.getElementById('guideSelectProfile');
   if (!weightEl || !profileEl) return;
 
-  const weight = Math.min(180, Math.max(35, parseFloat(weightEl.value) || 72));
+  const weight = Math.min(180, Math.max(35, parseFloat(weightEl.value) || 75));
   const profile = profileEl.value;
 
-  let factorPerKg = 2.1; // Diabète / Équilibre glycémique (~130-175g/j)
-  if (profile === 'standard') factorPerKg = 3.0; // Adulte actif standard (~180-250g/j)
-  if (profile === 'lowcarb') factorPerKg = 1.3;  // Low-Carb modéré (~85-120g/j)
+  let factorPerKg = 2.2; // Maintien & Jeûne 18/6
+  if (profile === 'hypertrophy') factorPerKg = 3.5; // Prise de muscle sec & force
+  if (profile === 'cutting') factorPerKg = 1.4;     // Sèche & Définition musculaire
+  if (profile === 'standard') factorPerKg = 2.8;
 
   const dailyTotal = Math.round((weight * factorPerKg) / 5) * 5;
-  const morning = Math.round(dailyTotal * 0.26);
-  const noon = Math.round(dailyTotal * 0.40);
-  const evening = Math.max(15, dailyTotal - morning - noon);
+  const morning = Math.round(dailyTotal * 0.35);
+  const noon = Math.round(dailyTotal * 0.50);
+  const evening = Math.max(10, dailyTotal - morning - noon);
 
   document.getElementById('guideOutDailyCarbs').textContent = `${dailyTotal} g / jour`;
   document.getElementById('guideOutMorning').textContent = `~${morning}g`;
@@ -502,15 +497,15 @@ function updateFasting186View() {
         badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500 text-white';
         badgeEl.textContent = `Phase 1 : Digestion (${elapsedH}h / 18h)`;
         countEl.className = 'text-xs font-extrabold text-amber-900 tabular-nums';
-        titleEl.textContent = 'Phase 1 : Digestion & Assimilation (0-4h de jeûne)';
-        descEl.textContent = 'L’organisme digère et absorbe les nutriments du dernier repas. L’insuline est active.';
+        titleEl.textContent = 'Phase 1 : Digestion & Assimilation Musculaire (0-4h de jeûne)';
+        descEl.textContent = 'L’organisme digère et absorbe les nutriments du dernier repas. Synthèse protéique active.';
         barEl.className = 'h-full bg-amber-500 rounded-full transition-all duration-500';
       } else if (elapsedH < 8) {
         activePhaseIndex = 2;
         phaseData = {
           phaseIndex: 2,
           name: 'Phase 2 : Glycogène (4-8h)',
-          shortName: '4-8h • Baisse Insuline',
+          shortName: '4-8h • Déstockage Foie',
           sub: 'Post-Absorptive',
           tip: '⚡ Déstockage Foie',
           color: '#3b82f6' // Bleu
@@ -519,8 +514,8 @@ function updateFasting186View() {
         badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-600 text-white';
         badgeEl.textContent = `Phase 2 : Déstockage Foie (${elapsedH}h / 18h)`;
         countEl.className = 'text-xs font-extrabold text-blue-900 tabular-nums';
-        titleEl.textContent = 'Phase 2 : Chute de l’Insuline & Déstockage du Foie (4-8h)';
-        descEl.textContent = 'Digestion terminée. L’insuline redescend au repos. Le foie maintient la glycémie.';
+        titleEl.textContent = 'Phase 2 : Déstockage Hépatique & Transition Énergétique (4-8h)';
+        descEl.textContent = 'Digestion terminée. Transition énergétique. Le foie mobilise le glycogène pour stabiliser l’énergie.';
         barEl.className = 'h-full bg-blue-600 rounded-full transition-all duration-500';
       } else if (elapsedH < 12) {
         activePhaseIndex = 3;
@@ -536,8 +531,8 @@ function updateFasting186View() {
         badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-600 text-white';
         badgeEl.textContent = `Phase 3 : Bascule Métabolique (${elapsedH}h / 18h)`;
         countEl.className = 'text-xs font-extrabold text-teal-900 tabular-nums';
-        titleEl.textContent = 'Phase 3 : Bascule Métabolique & Brûlage des Graisses (8-12h)';
-        descEl.textContent = 'Glycogène épuisé. Le corps bascule en lipolyse active et brûle les réserves de graisse.';
+        titleEl.textContent = 'Phase 3 : Bascule Métabolique & Lipolyse (8-12h)';
+        descEl.textContent = 'Glycogène hépatique réduit. Le corps active le déstockage des acides gras pour préserver le muscle.';
         barEl.className = 'h-full bg-teal-600 rounded-full transition-all duration-500';
       } else if (elapsedH < 16) {
         activePhaseIndex = 4;
@@ -553,8 +548,8 @@ function updateFasting186View() {
         badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-600 text-white';
         badgeEl.textContent = `Phase 4 : Cétose & Nettoyage (${elapsedH}h / 18h)`;
         countEl.className = 'text-xs font-extrabold text-purple-900 tabular-nums';
-        titleEl.textContent = 'Phase 4 : Cétose Douce & Déclenchement de l’Autophagie (12-16h)';
-        descEl.textContent = 'Insuline au plus bas. Corps cétoniques pour le cerveau. Nettoyage cellulaire en cours.';
+        titleEl.textContent = 'Phase 4 : Cétose Douce & Récupération Cellulaire (12-16h)';
+        descEl.textContent = 'Corps cétoniques pour le cerveau. Autophagie amorcée pour le recyclage cellulaire.';
         barEl.className = 'h-full bg-purple-600 rounded-full transition-all duration-500';
       } else {
         activePhaseIndex = 5;
@@ -570,8 +565,8 @@ function updateFasting186View() {
         badgeEl.className = 'text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-600 text-white animate-pulse';
         badgeEl.textContent = `Phase 5 : Zone d’Or Finale (${elapsedH}h / 18h)`;
         countEl.className = 'text-xs font-extrabold text-emerald-900 tabular-nums';
-        titleEl.textContent = 'Phase 5 : Pic Maximal d’Autophagie & Sensibilité Rétablie (16-18h)';
-        descEl.textContent = 'Nettoyage cellulaire à son apogée. Récepteurs rénovés prêts pour le Ftour de 10h00.';
+        titleEl.textContent = 'Phase 5 : Zone d’Or Finale & Récepteurs Musculaires (16-18h)';
+        descEl.textContent = 'Sensibilité maximale à l’absorption des nutriments. Muscles réceptifs pour le repas de rupture (10h00).';
         barEl.className = 'h-full bg-emerald-500 rounded-full transition-all duration-500';
       }
 
@@ -658,29 +653,12 @@ function switchToTab(target) {
   }
   if (target === 'settings') {
     const pInp = document.getElementById('inpDailyTargetProtein');
-    if (pInp) pInp.value = state.settings.dailyTargetProtein || 100;
+    if (pInp) pInp.value = state.settings.dailyTargetProtein || 130;
     const cInp = document.getElementById('inpDailyTargetCarbs');
-    if (cInp) cInp.value = state.settings.dailyTargetCarbs || 120;
+    if (cInp) cInp.value = state.settings.dailyTargetCarbs || 160;
     const todayTotals = getTodayTotals(state.history);
     UIRenderer.renderDailySynthesis(todayTotals, state.settings);
-    UIRenderer.renderUserMode(state.settings.userMode || 'insulin');
 
-    document.getElementById('inpRatioMorning').value = state.settings.ratioMorning;
-    document.getElementById('inpRatioNoon').value = state.settings.ratioNoon;
-    document.getElementById('inpRatioEvening').value = state.settings.ratioEvening;
-
-    const isGL = state.settings.bgUnit === 'g/L';
-    const targetUnitEl = document.getElementById('lblTargetBGUnit');
-    const isfUnitEl = document.getElementById('lblISFUnit');
-    if (targetUnitEl) targetUnitEl.textContent = isGL ? 'Cible en g/L (ex: 1.00)' : 'Cible en mg/dL (ex: 100)';
-    if (isfUnitEl) isfUnitEl.textContent = isGL ? 'Baisse en g/L pour 1 UI (ex: 0.50)' : 'Baisse mg/dL pour 1 UI';
-
-    document.getElementById('inpISF').value = isGL && state.settings.isf >= 5
-      ? (state.settings.isf / 100).toFixed(2)
-      : state.settings.isf;
-    document.getElementById('inpTargetBG').value = isGL
-      ? (state.settings.targetBG / 100).toFixed(2)
-      : state.settings.targetBG;
     document.getElementById('inpGeminiKey').value = state.settings.geminiKey || '';
     if (window.lucide) window.lucide.createIcons();
   }
@@ -698,25 +676,11 @@ function bindEvents() {
     el.addEventListener('click', () => switchToTab('settings'));
   });
 
-  // Double Profil : Diabète & Insuline vs Santé & Jeûne 18/6
-  document.getElementById('btnModeInsulin')?.addEventListener('click', () => {
-    state.settings.userMode = 'insulin';
-    StorageService.save('glucoscan_settings_v3', state.settings);
-    ProfileService.saveProfileData(state.settings, state.history);
-    UIRenderer.renderUserMode('insulin');
-    UIRenderer.renderHistoryView(state.history, state.settings);
-    updateUI();
-    showToast('Mode Diabète & Insuline actif');
-  });
-
-  document.getElementById('btnModeWellness')?.addEventListener('click', () => {
-    state.settings.userMode = 'wellness';
-    StorageService.save('glucoscan_settings_v3', state.settings);
-    ProfileService.saveProfileData(state.settings, state.history);
-    UIRenderer.renderUserMode('wellness');
-    UIRenderer.renderHistoryView(state.history, state.settings);
-    updateUI();
-    showToast('Mode Santé & 18/6 actif (Insuline masquée)');
+  // Bascule Mode Sombre / Mode Clair
+  document.getElementById('btnToggleTheme')?.addEventListener('click', () => {
+    const isDark = document.documentElement.classList.contains('dark');
+    applyTheme(isDark ? 'light' : 'dark');
+    showToast(isDark ? '☀️ Thème clair activé' : '🌙 Thème sombre activé');
   });
 
   // Rapport Médical (PDF / Impression)
@@ -882,10 +846,6 @@ function bindEvents() {
       const names = (h.items || []).map(i => `${escapeHTML(i.name)} (${i.grams}g)`).join(', ');
       const itemId = escapeHTML(h.id || h.timestamp);
       const proteinVal = h.totalProtein ? Math.round(Number(h.totalProtein) * 10) / 10 : 0;
-      const bolusVal = (state.settings.userMode !== 'wellness' && h.totalBolus !== undefined && h.totalBolus !== null && !isNaN(h.totalBolus))
-        ? `💉 Bolus: ${Number(h.totalBolus).toFixed(1)} UI`
-        : '';
-
       const giVal = Number(h.avgGI);
       let giColorClass = 'bg-slate-100 text-slate-700 border-slate-200';
       if (giVal > 0) {
@@ -908,7 +868,7 @@ function bindEvents() {
         : `<div class="w-13 h-13 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0 text-lg font-bold">🍽️</div>`;
 
       return `
-        <div class="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-2xs space-y-2 hover:border-emerald-300 transition-all">
+        <div class="surface-card rounded-2xl p-3 border border-slate-200/80 shadow-2xs space-y-2 hover:border-emerald-300 transition-all">
           <div class="flex items-start gap-2.5">
             ${imageThumb}
             <div class="flex-1 min-w-0">
@@ -930,7 +890,7 @@ function bindEvents() {
               <span class="text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 font-extrabold">🥩 ${proteinVal}g prot</span>
               <span>🌾 ${h.netCarbs}g nets</span>
             </div>
-            ${bolusVal ? `<span class="text-cyan-700 font-extrabold">${bolusVal}</span>` : ''}
+            <span class="text-slate-400">⚖️ ${Number(h.totalGrams) || 0}g</span>
           </div>
         </div>
       `;
@@ -1023,7 +983,7 @@ function bindEvents() {
       if (avatar) avatar.textContent = (activeProfile.username[0] || 'U').toUpperCase();
       if (name) name.textContent = activeProfile.username;
       if (modeBadge) {
-        modeBadge.textContent = activeProfile.mode === 'wellness' ? '🌿 Mode Santé & 18/6' : '💉 Mode Diabète & Insuline';
+        modeBadge.textContent = '⚡ Nutrition Sportive & Jeûne 18/6';
       }
       if (countLabel) {
         countLabel.textContent = `${state.history.length} repas dans votre journal`;
@@ -1052,10 +1012,6 @@ function bindEvents() {
         if (res && res.success && Array.isArray(res.history)) {
           state.history = res.history;
           if (res.settings) state.settings = { ...state.settings, ...res.settings };
-          if (res.mode) {
-            state.settings.userMode = res.mode;
-            UIRenderer.renderUserMode(res.mode);
-          }
           StorageService.save('glucoscan_history_v3', state.history);
           StorageService.save('glucoscan_settings_v3', state.settings);
           updateUI();
@@ -1097,26 +1053,6 @@ function bindEvents() {
     formProfileLogin?.classList.add('hidden');
   });
 
-  // Sélection visuelle radio Diabète vs Santé 18/6 dans formulaire Nouveau Profil
-  document.querySelectorAll('input[name="radRegUserMode"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      const isInsulin = e.target.value === 'insulin';
-      const lblInsulin = document.getElementById('lblChoiceInsulin');
-      const lblWellness = document.getElementById('lblChoiceWellness');
-      if (isInsulin) {
-        lblInsulin?.classList.add('border-emerald-500', 'bg-emerald-50/70');
-        lblInsulin?.classList.remove('border-slate-200', 'bg-slate-50', 'opacity-70');
-        lblWellness?.classList.add('border-slate-200', 'bg-slate-50', 'opacity-70');
-        lblWellness?.classList.remove('border-emerald-500', 'bg-emerald-50/70', 'border-cyan-600', 'bg-cyan-50/70');
-      } else {
-        lblWellness?.classList.add('border-cyan-600', 'bg-cyan-50/70');
-        lblWellness?.classList.remove('border-slate-200', 'bg-slate-50', 'opacity-70');
-        lblInsulin?.classList.add('border-slate-200', 'bg-slate-50', 'opacity-70');
-        lblInsulin?.classList.remove('border-emerald-500', 'bg-emerald-50/70');
-      }
-    });
-  });
-
   // Connexion au profil existant avec synchronisation Cloud prioritaire (Mobile ⇄ PC)
   formProfileLogin?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1139,10 +1075,6 @@ function bindEvents() {
       }
       if (Array.isArray(profile.history)) {
         state.history = profile.history;
-      }
-      if (profile.mode) {
-        state.settings.userMode = profile.mode;
-        UIRenderer.renderUserMode(profile.mode);
       }
       StorageService.save('glucoscan_settings_v3', state.settings);
       StorageService.save('glucoscan_history_v3', state.history);
@@ -1171,14 +1103,11 @@ function bindEvents() {
     e.preventDefault();
     const username = document.getElementById('inpRegUsername').value.trim();
     const password = document.getElementById('inpRegPassword').value;
-    const mode = document.querySelector('input[name="radRegUserMode"]:checked')?.value || 'insulin';
 
     if (!username || !password) return;
 
     try {
-      const profile = await ProfileService.register(username, password, mode, state.settings, state.history);
-      state.settings.userMode = mode;
-      UIRenderer.renderUserMode(mode);
+      const profile = await ProfileService.register(username, password, 'sport', state.settings, state.history);
       StorageService.save('glucoscan_settings_v3', state.settings);
 
       updateAuthUI();
@@ -1216,10 +1145,6 @@ function bindEvents() {
         if (res.settings) {
           state.settings = { ...state.settings, ...res.settings };
           StorageService.save('glucoscan_settings_v3', state.settings);
-        }
-        if (res.mode) {
-          state.settings.userMode = res.mode;
-          UIRenderer.renderUserMode(res.mode);
         }
         updateAuthUI();
         updateUI();
@@ -1654,22 +1579,6 @@ function bindEvents() {
     }
   });
 
-  // Glycémie actuelle & bascule mg/dL ⇄ g/L
-  document.getElementById('inputBloodGlucose')?.addEventListener('input', updateUI);
-  document.getElementById('btnSwitchBGUnit')?.addEventListener('click', () => {
-    const inp = document.getElementById('inputBloodGlucose');
-    const v = parseFloat(inp.value);
-    if (state.settings.bgUnit === 'mg/dL') {
-      state.settings.bgUnit = 'g/L';
-      if (!Number.isNaN(v) && v > 0) inp.value = (v / 100).toFixed(2);
-    } else {
-      state.settings.bgUnit = 'mg/dL';
-      if (!Number.isNaN(v) && v > 0) inp.value = String(Math.round(v * 100));
-    }
-    StorageService.save('glucoscan_settings_v3', state.settings);
-    updateUI();
-  });
-
   // Ouverture / Fermeture du Catalogue d'Ajout ou de Correction (Remplacement)
   function syncCatalogModalHeader() {
     const banner = document.getElementById('catalogReplaceBanner');
@@ -1862,12 +1771,10 @@ function bindEvents() {
       showToast('Assiette vide : ajoutez d’abord des aliments');
       return false;
     }
-    const currentBG = getCurrentBGMgDl();
     const ev = MetabolicEngine.evaluatePlate(
       state.items,
       state.settings,
-      state.activeSlot,
-      currentBG
+      state.activeSlot
     );
     const newLog = {
       id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
@@ -1879,10 +1786,6 @@ function bindEvents() {
       totalProtein: ev.totalProtein,
       totalFiber: ev.totalFiber || 0,
       proteinIndexLabel: ev.proteinIndex.label,
-      mealBolus: ev.mealBolus,
-      corrBolus: ev.corrBolus,
-      totalBolus: ev.totalBolus,
-      bgBefore: currentBG,
       avgGI: ev.avgGI || 50,
       totalGL: ev.totalGL || 0,
       imageUrl: state.currentPlateImage || null,
@@ -1931,8 +1834,7 @@ function bindEvents() {
     const ev = MetabolicEngine.evaluatePlate(
       state.items,
       state.settings,
-      state.activeSlot,
-      getCurrentBGMgDl()
+      state.activeSlot
     );
     const lines = state.items.map(i => {
       const f = MetabolicEngine.resolveFoodEntry(i);
@@ -1940,7 +1842,7 @@ function bindEvents() {
       return `• ${f ? f.name.split('(')[0].trim() : i.foodId} (~${i.grams}g) : ${m.netCarbs.toFixed(1)}g nets • ${m.protein.toFixed(1)}g prot`;
     }).join('\n');
 
-    const text = `📸 *GlucoScan Maroc*\n${ev.verdict.tag}\n${lines}\n⚖️ Poids: ${ev.totalGrams}g | 🥗 *Glucides Nets: ${ev.netCarbs}g*\n🥩 *Protéines: ${ev.totalProtein}g (${ev.proteinIndex.label})*\n💉 *Bolus Estimé: ${ev.totalBolus.toFixed(1)} UI*`;
+    const text = `📸 *MacroFit Maroc*\n${ev.verdict.tag}\n${lines}\n⚖️ Poids: ${ev.totalGrams}g | 🥗 *Glucides Nets: ${ev.netCarbs}g*\n🥩 *Protéines: ${ev.totalProtein}g (${ev.proteinIndex.label})*\n⚡ *Buffer Satiété (P+F)/G: ${ev.amortiRatio}*`;
     try {
       if (navigator.clipboard) await navigator.clipboard.writeText(text);
       showToast('Résumé copié !');
@@ -1955,20 +1857,8 @@ function bindEvents() {
   // Sauvegarde des paramètres
   document.getElementById('formSettings')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    state.settings.dailyTargetProtein = Math.max(30, parseFloat(document.getElementById('inpDailyTargetProtein').value) || 100);
-    state.settings.dailyTargetCarbs = Math.max(30, parseFloat(document.getElementById('inpDailyTargetCarbs').value) || 120);
-    state.settings.ratioMorning = Math.max(1, parseFloat(document.getElementById('inpRatioMorning').value) || 8);
-    state.settings.ratioNoon = Math.max(1, parseFloat(document.getElementById('inpRatioNoon').value) || 10);
-    state.settings.ratioEvening = Math.max(1, parseFloat(document.getElementById('inpRatioEvening').value) || 10);
-
-    const isGL = state.settings.bgUnit === 'g/L';
-    const rawISF = parseFloat(document.getElementById('inpISF').value) || (isGL ? 0.5 : 50);
-    const isfMgDl = (isGL && rawISF < 5) ? Math.round(rawISF * 100) : Math.round(rawISF);
-    state.settings.isf = Math.min(300, Math.max(5, isfMgDl));
-
-    const rawTarget = parseFloat(document.getElementById('inpTargetBG').value) || (isGL ? 1.0 : 100);
-    const targetMgDl = (isGL && rawTarget < 5) ? Math.round(rawTarget * 100) : Math.round(rawTarget);
-    state.settings.targetBG = Math.min(250, Math.max(70, targetMgDl));
+    state.settings.dailyTargetProtein = Math.max(30, parseFloat(document.getElementById('inpDailyTargetProtein').value) || 130);
+    state.settings.dailyTargetCarbs = Math.max(30, parseFloat(document.getElementById('inpDailyTargetCarbs').value) || 160);
 
     const enteredKey = document.getElementById('inpGeminiKey').value.trim();
     state.settings.geminiKey = enteredKey.length >= 15 ? enteredKey : '';
@@ -2028,13 +1918,7 @@ function bindEvents() {
             ...state.settings,
             dailyTargetProtein: Math.max(30, Number(data.settings.dailyTargetProtein) || DEFAULT_SETTINGS.dailyTargetProtein),
             dailyTargetCarbs: Math.max(30, Number(data.settings.dailyTargetCarbs) || DEFAULT_SETTINGS.dailyTargetCarbs),
-            ratioMorning: Math.max(1, Number(data.settings.ratioMorning) || DEFAULT_SETTINGS.ratioMorning),
-            ratioNoon: Math.max(1, Number(data.settings.ratioNoon) || DEFAULT_SETTINGS.ratioNoon),
-            ratioEvening: Math.max(1, Number(data.settings.ratioEvening) || DEFAULT_SETTINGS.ratioEvening),
-            isf: Math.min(300, Math.max(5, Number(data.settings.isf) || DEFAULT_SETTINGS.isf)),
-            targetBG: Math.min(250, Math.max(70, Number(data.settings.targetBG) || DEFAULT_SETTINGS.targetBG)),
-            bgUnit: data.settings.bgUnit === 'g/L' ? 'g/L' : 'mg/dL',
-            userMode: data.settings.userMode === 'wellness' ? 'wellness' : 'insulin'
+            theme: data.settings.theme || 'auto'
           };
         }
         if (Array.isArray(data.history)) {
@@ -2048,10 +1932,6 @@ function bindEvents() {
             totalProtein: Math.round(Number(h.totalProtein || h.protein) * 10 || 0) / 10,
             totalFiber: Math.round(Number(h.totalFiber || h.fiber) * 10 || 0) / 10,
             proteinIndexLabel: String(h.proteinIndexLabel || 'Modéré'),
-            mealBolus: Number(h.mealBolus) || 0,
-            corrBolus: Number(h.corrBolus) || 0,
-            totalBolus: Number.isFinite(Number(h.totalBolus)) ? Math.round(Number(h.totalBolus) * 10) / 10 : null,
-            bgBefore: Number(h.bgBefore) || null,
             avgGI: Math.round(Number(h.avgGI) || 50),
             totalGL: Math.round(Number(h.totalGL) * 10 || 0) / 10,
             imageUrl: safeImageUrl(h.imageUrl),
@@ -2097,6 +1977,14 @@ function bindEvents() {
 function init() {
   try {
     spreadPinsAutomatically(state.items, false);
+    applyTheme(state.settings.theme || 'auto');
+    if (window.matchMedia) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        if (state.settings.theme === 'auto') {
+          applyTheme('auto');
+        }
+      });
+    }
     bindEvents();
     updateUI();
     updateFasting186View();
@@ -2108,7 +1996,7 @@ function init() {
       navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
   } catch (err) {
-    console.error('Erreur initialisation GlucoScan:', err);
+    console.error('Erreur initialisation MacroFit:', err);
   }
 }
 

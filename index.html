@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#ffffff" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="GlucoScan" />
-  <meta name="description" content="GlucoScan Maroc — Scanner photo de plats marocains, estimation automatique du grammage, glucides nets, bolus d'insuline et verdict métabolique." />
-  <title>GlucoScan Maroc — Scanner Photo & Verdict Glycémique</title>
+  <meta name="apple-mobile-web-app-title" content="MacroFit" />
+  <meta name="description" content="MacroFit Maroc — Scanner photo de nutrition sportive, protéines, glucides nets, seuil anabolique et jeûne intermittent 18/6." />
+  <title>MacroFit Maroc — Nutrition Sportive &amp; Jeûne Intermittent 18/6</title>
 
   <!-- Manifeste PWA & Icônes Apple iOS -->
   <link rel="manifest" href="./manifest.json" />
@@ -23,6 +23,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: {
@@ -47,42 +48,44 @@
     <!-- ========================================== -->
     <!-- HEADER MOBILE                              -->
     <!-- ========================================== -->
-    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+    <header class="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
       <div class="flex items-center gap-2.5">
         <div class="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shadow-emerald-600/30">
           <i data-lucide="camera" class="w-5 h-5"></i>
         </div>
         <div>
           <div class="flex items-center gap-1.5">
-            <h1 class="text-base font-extrabold tracking-tight text-slate-900">GlucoScan <span class="text-emerald-600">Maroc</span></h1>
-            <span id="engineBadge" class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">IA Vision</span>
+            <h1 class="text-base font-extrabold tracking-tight text-slate-900 dark:text-white">MacroFit <span class="text-emerald-600">Maroc</span></h1>
+            <span id="engineBadge" class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">IA Vision</span>
           </div>
-          <p class="text-[11px] text-slate-500 font-medium">Photo • Grammage • Verdict & Bolus</p>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Photo • Macro-nutriments • Jeûne 18/6</p>
         </div>
       </div>
 
       <!-- Sélecteur de repas (Matin / Midi / Soir) -->
-      <div class="flex items-center bg-slate-100 rounded-xl p-0.5 border border-slate-200">
-        <button type="button" data-slot="morning" class="slot-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500">Matin</button>
-        <button type="button" data-slot="noon" class="slot-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500">Midi</button>
-        <button type="button" data-slot="evening" class="slot-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500">Soir</button>
+      <div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200 dark:border-slate-700">
+        <button type="button" data-slot="morning" class="slot-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500 dark:text-slate-400">Matin</button>
+        <button type="button" data-slot="noon" class="slot-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500 dark:text-slate-400">Midi</button>
+        <button type="button" data-slot="evening" class="slot-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500 dark:text-slate-400">Soir</button>
       </div>
     </header>
 
-    <!-- BARRE PROFIL DOUBLE MODE (Diabète & Insuline vs Santé & 18/6) & CLOUD SYNC -->
+    <!-- BARRE STATUT SPORTIF, THEME & MON PROFIL -->
     <div class="px-3.5 pt-2 flex items-center justify-between gap-2">
-      <div class="flex-1 bg-slate-100 p-0.5 rounded-2xl flex items-center border border-slate-200 shadow-2xs">
-        <button type="button" id="btnModeInsulin" class="flex-1 py-1 px-1.5 rounded-xl text-[10.5px] font-extrabold flex items-center justify-center gap-1 transition-all bg-white text-emerald-800 shadow-xs">
-          <span>💉</span> <span class="truncate">Diabète &amp; Insuline</span>
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
+          <span>⚡</span> Nutrition Sportive &amp; 18/6
+        </span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button type="button" id="btnToggleTheme" class="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:text-emerald-700 shadow-2xs flex items-center justify-center transition-all" title="Changer le thème (Clair / Sombre)">
+          <i id="iconThemeBtn" data-lucide="moon" class="w-4 h-4"></i>
         </button>
-        <button type="button" id="btnModeWellness" class="flex-1 py-1 px-1.5 rounded-xl text-[10.5px] font-bold flex items-center justify-center gap-1 transition-all text-slate-500 hover:text-slate-900">
-          <span>🌿</span> <span class="truncate">Santé &amp; 18/6</span>
+        <button type="button" id="btnOpenAuthModal" class="py-1 px-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:text-emerald-700 shadow-2xs flex items-center gap-1.5 text-[10.5px] font-extrabold flex-shrink-0 transition-all" title="Mon Profil Utilisateur &amp; Sauvegarde">
+          <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-600"></i>
+          <span id="lblAuthStatusBadge">Invité</span>
         </button>
       </div>
-      <button type="button" id="btnOpenAuthModal" class="py-1 px-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-emerald-700 shadow-2xs flex items-center gap-1.5 text-[10.5px] font-extrabold flex-shrink-0 transition-all" title="Mon Profil Utilisateur &amp; Sauvegarde">
-        <i data-lucide="user" class="w-3.5 h-3.5 text-emerald-600"></i>
-        <span id="lblAuthStatusBadge">Invité</span>
-      </button>
     </div>
 
     <!-- ========================================== -->
@@ -286,31 +289,31 @@
           </div>
         </div>
 
-        <!-- MODULE 2 : VERDICT MÉTABOLIQUE & BOLUS D'INSULINE -->
+        <!-- MODULE 2 : VERDICT SPORTIF & NUTRITION MACRO -->
         <div class="surface-card rounded-3xl p-4 space-y-3.5">
           <!-- Bannière du Verdict -->
-          <div id="verdictBox" class="rounded-2xl p-3.5 bg-slate-50 border border-slate-200 flex items-start gap-3 transition-all">
-            <div id="verdictBadgeIcon" class="w-10 h-10 rounded-2xl bg-slate-200 text-slate-600 flex items-center justify-center flex-shrink-0">
+          <div id="verdictBox" class="rounded-2xl p-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-start gap-3 transition-all">
+            <div id="verdictBadgeIcon" class="w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center flex-shrink-0">
               <i data-lucide="camera" class="w-5 h-5"></i>
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-1">
                 <span id="verdictStatusTag" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">En attente d'image</span>
-                <span id="verdictMetricsPill" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-600">IG 0 • CG 0</span>
+                <span id="verdictMetricsPill" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">IG 0 • CG 0</span>
               </div>
-              <h3 id="verdictHeadline" class="text-sm font-extrabold text-slate-900 mt-0.5">Photographiez votre plat</h3>
-              <p id="verdictDescription" class="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                Dès la photo prise, GlucoScan calcule le grammage approximatif, les glucides nets et affiche son verdict santé.
+              <h3 id="verdictHeadline" class="text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">Photographiez votre plat</h3>
+              <p id="verdictDescription" class="text-xs text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed">
+                Dès la photo prise, MacroFit calcule le grammage approximatif, les glucides nets et évalue la qualité anabolique du repas.
               </p>
             </div>
           </div>
 
-          <!-- Anneau Glucides Nets + Synthèse Bolus -->
+          <!-- Anneau Glucides Nets + Synthèse Énergie -->
           <div class="grid grid-cols-12 gap-3 items-center">
             <div class="col-span-5 flex justify-center">
               <div class="relative w-28 h-28 flex items-center justify-center">
                 <svg class="w-full h-full" viewBox="0 0 120 120">
-                  <circle cx="60" cy="60" r="48" fill="none" stroke="#f1f5f9" stroke-width="10" />
+                  <circle cx="60" cy="60" r="48" fill="none" stroke="currentColor" class="text-slate-100 dark:text-slate-800" stroke-width="10" />
                   <circle id="carbRingCircle" class="ring-transition" cx="60" cy="60" r="48" fill="none"
                     stroke="#10b981" stroke-width="10" stroke-linecap="round"
                     stroke-dasharray="301.59" stroke-dashoffset="301.59" />
@@ -318,7 +321,7 @@
                 <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
                   <span class="text-[9px] font-extrabold uppercase text-slate-400">Glucides Nets</span>
                   <div class="flex items-baseline gap-0.5">
-                    <span id="outNetCarbs" class="text-2xl font-extrabold font-mono text-slate-900">0</span>
+                    <span id="outNetCarbs" class="text-2xl font-extrabold font-mono text-slate-900 dark:text-white">0</span>
                     <span class="text-xs font-bold text-slate-500">g</span>
                   </div>
                   <span id="outTotalGrams" class="text-[10px] font-mono font-semibold text-slate-500">0g pesés</span>
@@ -328,42 +331,27 @@
 
             <div class="col-span-7 space-y-2">
               <div class="grid grid-cols-2 gap-1.5">
-                <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-2">
+                <div class="bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-xl p-2">
                   <span class="text-[10px] font-bold text-slate-400 block">Totaux</span>
-                  <span class="text-sm font-extrabold font-mono text-slate-800"><span id="outTotalCarbs">0</span>g</span>
+                  <span class="text-sm font-extrabold font-mono text-slate-800 dark:text-slate-200"><span id="outTotalCarbs">0</span>g</span>
                 </div>
-                <div class="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2">
-                  <span class="text-[10px] font-bold text-emerald-700 block">Fibres</span>
-                  <span class="text-sm font-extrabold font-mono text-emerald-700">-<span id="outTotalFiber">0</span>g</span>
-                </div>
-              </div>
-
-              <!-- Dose d'insuline recommandée (Mode Diabète & Insuline) -->
-              <div id="cardBolusEstimBox" class="mode-insulin-only rounded-2xl bg-cyan-50 border border-cyan-200 p-2.5 flex items-center justify-between">
-                <div>
-                  <span class="text-[9px] font-extrabold uppercase tracking-wider text-cyan-800 block">Bolus Estimé</span>
-                  <div class="flex items-baseline gap-1">
-                    <span id="outTotalBolus" class="text-2xl font-extrabold font-mono text-cyan-700">0.0</span>
-                    <span class="text-xs font-bold text-cyan-700">UI</span>
-                  </div>
-                </div>
-                <div class="text-right text-[10px] font-mono text-cyan-900 space-y-0.5">
-                  <div>Repas: <strong id="outMealBolus">0.0</strong>u</div>
-                  <div>Corr: <strong id="outCorrBolus">+0.0</strong>u</div>
+                <div class="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl p-2">
+                  <span class="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 block">Fibres</span>
+                  <span class="text-sm font-extrabold font-mono text-emerald-700 dark:text-emerald-400">-<span id="outTotalFiber">0</span>g</span>
                 </div>
               </div>
 
-              <!-- Bloc Alternatif Mode Santé & 18/6 (Sans Insuline) -->
-              <div id="cardWellnessBox" class="mode-wellness-only hidden rounded-2xl bg-emerald-50 border border-emerald-200 p-2.5 flex items-center justify-between">
+              <!-- Bloc Performance & Énergie Récupération -->
+              <div class="rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-2.5 flex items-center justify-between">
                 <div>
-                  <span class="text-[9px] font-extrabold uppercase tracking-wider text-emerald-800 block">Santé &amp; 18/6</span>
+                  <span class="text-[9px] font-extrabold uppercase tracking-wider text-emerald-800 dark:text-emerald-400 block">Performance &amp; Énergie</span>
                   <div class="flex items-baseline gap-1">
-                    <span class="text-xs font-extrabold text-emerald-900">Stabilisation Glycémique</span>
+                    <span class="text-xs font-extrabold text-emerald-950 dark:text-emerald-200">Recharge Glycogène</span>
                   </div>
                 </div>
-                <div class="text-right text-[10px] font-mono text-emerald-900 space-y-0.5">
-                  <div>Satiété: <strong class="text-emerald-700">Maximale</strong></div>
-                  <div>Digestif: <strong class="text-emerald-700">Léger</strong></div>
+                <div class="text-right text-[10px] font-mono text-emerald-900 dark:text-emerald-300 space-y-0.5">
+                  <div>Satiété : <strong class="text-emerald-700 dark:text-emerald-400">Optimale</strong></div>
+                  <div>Digestion : <strong class="text-emerald-700 dark:text-emerald-400">Légère</strong></div>
                 </div>
               </div>
             </div>
@@ -429,33 +417,10 @@
                 <div id="barAmortiProgress" class="h-full bg-slate-300 rounded-full transition-all duration-500" style="width: 0%;"></div>
               </div>
               <p id="lblAmortiDesc" class="text-[10.5px] text-slate-600 leading-snug">
-                Si ce ratio est élevé (≥ 0.70), les protéines et fibres neutralisent le pic glycémique.
+                Si ce ratio est élevé (≥ 0.70), les protéines et fibres neutralisent le pic glycémique et stabilisent l'énergie.
               </p>
             </div>
           </div>
-
-          <!-- Glycémie pré-repas (Mode Diabète & Insuline) -->
-          <div class="mode-insulin-only bg-slate-50 rounded-2xl p-2.5 border border-slate-200/80 flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center">
-                <i data-lucide="droplet" class="w-4 h-4"></i>
-              </div>
-              <div>
-                <label for="inputBloodGlucose" class="text-xs font-bold text-slate-800 block">Glycémie avant repas</label>
-                <button type="button" id="btnSwitchBGUnit" class="text-[10px] font-mono font-bold text-cyan-700 underline">
-                  Mode <span id="lblBGUnit">mg/dL</span> (changer)
-                </button>
-              </div>
-            </div>
-            <div class="relative w-28">
-              <input id="inputBloodGlucose" type="number" inputmode="decimal" step="any" placeholder="120"
-                class="w-full bg-white border border-slate-300 focus:border-cyan-600 rounded-xl px-2.5 py-1.5 text-right font-mono font-extrabold text-sm text-slate-900 focus:outline-none pr-12" />
-              <span id="lblBGSuffix" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400">mg/dL</span>
-            </div>
-          </div>
-
-          <!-- Alerte d'Urgence Médicale Glycémique (Hypo / Hyper) -->
-          <div id="glycemiaAlertBox" class="hidden rounded-2xl p-3 border transition-all text-xs"></div>
         </div>
 
         <!-- MODULE 3 : LISTE DES ALIMENTS RECONNUS, CORRECTION MANUELLE & GRAMMAGE -->
@@ -524,11 +489,11 @@
             <div id="chartSevenDays" class="grid grid-cols-7 gap-1.5 items-end h-28 pt-4"></div>
           </div>
 
-          <!-- BOUTONS D'EXPORTATION RAPPORT MÉDICAL & TABLEUR CSV -->
+          <!-- BOUTONS D'EXPORTATION RAPPORT SPORT & TABLEUR CSV -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button type="button" id="btnExportMedicalReport" class="w-full py-2.5 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition-all">
               <i data-lucide="file-text" class="w-4 h-4"></i>
-              Rapport PDF Médecin
+              Bilan Sport &amp; Jeûne (PDF)
             </button>
             <button type="button" id="btnExportHistoryCSV" class="w-full py-2.5 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition-all">
               <i data-lucide="table" class="w-4 h-4 text-emerald-400"></i>
@@ -613,77 +578,32 @@
         </div>
 
         <form id="formSettings" class="surface-card rounded-3xl p-4 space-y-4">
-          <div class="border-b border-slate-100 pb-2.5">
-            <h2 class="text-base font-extrabold text-slate-900">Paramètres Médicaux &amp; Vision IA</h2>
-            <p class="text-xs text-slate-500">Objectifs journaliers, ratios insuline et reconnaissance photo.</p>
+          <div class="border-b border-slate-100 dark:border-slate-800 pb-2.5">
+            <h2 class="text-base font-extrabold text-slate-900 dark:text-white">Paramètres Nutrition Sportive &amp; Vision IA</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Objectifs journaliers, masse musculaire et reconnaissance photo.</p>
           </div>
 
-          <!-- NOUVEAU : OBJECTIFS NUTRITIONNELS JOURNALIERS -->
+          <!-- OBJECTIFS NUTRITIONNELS JOURNALIERS -->
           <div class="space-y-2">
             <label class="text-xs font-extrabold uppercase text-slate-500 block">Objectifs Journaliers (Jauges de Synthèse)</label>
             <div class="grid grid-cols-2 gap-2">
-              <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
-                <span class="text-[11px] font-bold text-slate-600 block mb-1">🥩 Cible Protéines</span>
+              <div class="bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <span class="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">🥩 Cible Protéines</span>
                 <div class="flex items-center gap-1">
-                  <input id="inpDailyTargetProtein" type="number" min="30" max="300" step="5" required
-                    class="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
+                  <input id="inpDailyTargetProtein" type="number" min="30" max="350" step="5" required
+                    class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900 dark:text-white" />
                   <span class="text-xs font-mono font-bold text-slate-400">g/j</span>
                 </div>
               </div>
-              <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
-                <span class="text-[11px] font-bold text-slate-600 block mb-1">🌾 Cible Glucides</span>
+              <div class="bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <span class="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">🌾 Cible Glucides Nets</span>
                 <div class="flex items-center gap-1">
                   <input id="inpDailyTargetCarbs" type="number" min="30" max="500" step="5" required
-                    class="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
+                    class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900 dark:text-white" />
                   <span class="text-xs font-mono font-bold text-slate-400">g/j</span>
                 </div>
               </div>
             </div>
-          </div>
-
-          <!-- SECTION SPÉCIFIQUE MODE INSULINE (Ratios I/G, FSI, Glycémie Cible) -->
-          <div class="mode-insulin-only space-y-2">
-            <label class="text-xs font-extrabold uppercase text-slate-500 block">1. Ratio Insuline / Glucides (g pour 1 UI)</label>
-            <div class="grid grid-cols-3 gap-2">
-              <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
-                <span class="text-[11px] font-bold text-slate-600 block mb-1">🌅 Matin</span>
-                <input id="inpRatioMorning" type="number" step="0.5" min="1" max="100" required
-                  class="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
-              </div>
-              <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
-                <span class="text-[11px] font-bold text-slate-600 block mb-1">☀️ Midi</span>
-                <input id="inpRatioNoon" type="number" step="0.5" min="1" max="100" required
-                  class="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
-              </div>
-              <div class="bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
-                <span class="text-[11px] font-bold text-slate-600 block mb-1">🌙 Soir</span>
-                <input id="inpRatioEvening" type="number" step="0.5" min="1" max="100" required
-                  class="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
-              </div>
-            </div>
-          </div>
-
-          <div class="mode-insulin-only grid grid-cols-2 gap-2.5">
-            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
-              <label for="inpISF" class="text-xs font-bold text-slate-700 block">Sensibilité (FSI)</label>
-              <span id="lblISFUnit" class="text-[10px] text-slate-500 block mb-1">Baisse mg/dL pour 1 UI</span>
-              <input id="inpISF" type="number" step="any" min="1" max="300" required
-                class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
-            </div>
-            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
-              <label for="inpTargetBG" class="text-xs font-bold text-slate-700 block">Glycémie Cible</label>
-              <span id="lblTargetBGUnit" class="text-[10px] text-slate-500 block mb-1">Cible en mg/dL</span>
-              <input id="inpTargetBG" type="number" step="any" min="0.5" max="300" required
-                class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
-            </div>
-          </div>
-
-          <!-- AVIS EN MODE SANTÉ & BIEN-ÊTRE -->
-          <div class="mode-wellness-only hidden p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-950 space-y-1">
-            <span class="font-extrabold flex items-center gap-1 text-emerald-900">🌿 Mode Santé &amp; Jeûne 18/6 Actif</span>
-            <p class="text-[11px] text-emerald-800 leading-relaxed">
-              Les calculs de bolus d'insuline et de sensibilité FSI sont masqués. L'application calcule vos ratios Protéines/Glucides, le score d'amorti du pic et le timer de jeûne.
-            </p>
           </div>
 
           <!-- SERVEUR CLOUD SUPABASE & IA SÉCURISÉE -->
@@ -752,26 +672,27 @@
             <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-start gap-2.5">
               <span class="w-6 h-6 rounded-lg bg-emerald-600 text-white font-mono font-extrabold text-xs flex items-center justify-center flex-shrink-0">2</span>
               <div>
-                <h3 class="font-extrabold text-slate-900">Calcul des Glucides Nets &amp; Charge Glycémique</h3>
+                <h3 class="font-extrabold text-slate-900">Glucides Nets &amp; Recharge Glycogénique</h3>
                 <p class="text-[11px] text-slate-600 mt-0.5">
-                  Les fibres alimentaires ne se transforment pas en sucre dans le sang et ralentissent la digestion. GlucoScan calcule donc :
+                  Les fibres ralentissent la digestion et protègent la glycémie. MacroFit calcule :
                 </p>
                 <div class="mt-1.5 px-2.5 py-1.5 rounded-xl bg-white border border-emerald-200 font-mono text-[11px] font-bold text-emerald-800">
                   Glucides Nets = Glucides Totaux − Fibres
                 </div>
+                <p class="text-[10px] text-slate-500 mt-1">Les glucides nets reconstituent directement le glycogène intramusculaire pour vos entraînements.</p>
               </div>
             </div>
 
             <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-start gap-2.5">
               <span class="w-6 h-6 rounded-lg bg-cyan-600 text-white font-mono font-extrabold text-xs flex items-center justify-center flex-shrink-0">3</span>
               <div>
-                <h3 class="font-extrabold text-slate-900">Estimation du Bolus d'Insuline &amp; Verdict</h3>
+                <h3 class="font-extrabold text-slate-900">Seuil Anabolique Protéique &amp; Buffer (P+F)/G</h3>
                 <p class="text-[11px] text-slate-600 mt-0.5">
-                  Selon vos paramètres personnels (Matin, Midi, Soir) :
+                  Pour stimuler la synthèse musculaire (mTOR) et éviter les baisses d'énergie :
                 </p>
                 <div class="mt-1.5 px-2.5 py-1.5 rounded-xl bg-white border border-cyan-200 font-mono text-[11px] font-bold text-cyan-900 space-y-0.5">
-                  <div>Dose Repas = Glucides Nets ÷ Ratio I/G</div>
-                  <div>Correction = (Glycémie − Cible) ÷ Sensibilité (FSI)</div>
+                  <div>Cible Repas : ≥ 30g à 40g de Protéines complètes</div>
+                  <div>Buffer Satiété = (Protéines + Fibres) ÷ Glucides Nets (≥ 0.70)</div>
                 </div>
               </div>
             </div>
@@ -780,29 +701,29 @@
           <!-- Légende des 3 Verdicts -->
           <div class="grid grid-cols-3 gap-1.5 pt-1">
             <div class="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-              <span class="text-xs font-extrabold text-emerald-800 block">🟢 Feu Vert</span>
-              <span class="text-[10px] text-emerald-700 font-medium">≤ 35g nets • CG &lt; 14</span>
+              <span class="text-xs font-extrabold text-emerald-800 block">🟢 Optimal</span>
+              <span class="text-[10px] text-emerald-700 font-medium">Énergie stable &amp; Satiété</span>
             </div>
             <div class="p-2 rounded-xl bg-amber-50 border border-amber-200 text-center">
               <span class="text-xs font-extrabold text-amber-800 block">🟠 Modéré</span>
-              <span class="text-[10px] text-amber-700 font-medium">36–65g nets • CG &lt; 26</span>
+              <span class="text-[10px] text-amber-700 font-medium">Recharge active</span>
             </div>
             <div class="p-2 rounded-xl bg-rose-50 border border-rose-200 text-center">
-              <span class="text-xs font-extrabold text-rose-800 block">🔴 Pic Élevé</span>
-              <span class="text-[10px] text-rose-700 font-medium">&gt; 65g nets • CG ≥ 26</span>
+              <span class="text-xs font-extrabold text-rose-800 block">🔴 Pic Rapide</span>
+              <span class="text-[10px] text-rose-700 font-medium">À consommer post-séance</span>
             </div>
           </div>
         </div>
 
-        <!-- CARTE 2 : BESOIN JOURNALIER D'UN ADULTE + CALCULATEUR INTERACTIF -->
+        <!-- CARTE 2 : BESOIN JOURNALIER DU SPORTIF + CALCULATEUR INTERACTIF -->
         <div class="surface-card rounded-3xl p-4 space-y-3.5">
           <div class="flex items-center gap-2.5 border-b border-slate-100 pb-2.5">
             <div class="w-9 h-9 rounded-2xl bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center flex-shrink-0">
               <i data-lucide="calculator" class="w-5 h-5"></i>
             </div>
             <div>
-              <h2 class="text-sm font-extrabold text-slate-900">Besoin Journalier en Glucides d'un Adulte</h2>
-              <p class="text-[11px] text-slate-500">Repères OMS / ANSES &amp; Simulateur personnalisé</p>
+              <h2 class="text-sm font-extrabold text-slate-900">Besoins Nutritionnels du Sportif</h2>
+              <p class="text-[11px] text-slate-500">Repères d'entraînement &amp; Simulateur personnalisé</p>
             </div>
           </div>
 
@@ -810,42 +731,42 @@
           <div class="p-3 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-2.5">
             <div class="flex items-center justify-between gap-2">
               <label for="guideInputWeight" class="text-xs font-extrabold text-slate-800">Votre poids (kg) :</label>
-              <input id="guideInputWeight" type="number" min="35" max="180" value="72"
+              <input id="guideInputWeight" type="number" min="35" max="180" value="75"
                 class="w-20 bg-white border border-emerald-300 rounded-xl px-2.5 py-1 text-center font-mono font-extrabold text-sm text-slate-900" />
             </div>
 
             <div>
-              <label for="guideSelectProfile" class="text-xs font-extrabold text-slate-800 block mb-1">Votre profil nutritionnel :</label>
+              <label for="guideSelectProfile" class="text-xs font-extrabold text-slate-800 block mb-1">Votre objectif sportif :</label>
               <select id="guideSelectProfile" class="w-full bg-white border border-emerald-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 focus:outline-none">
-                <option value="diabetes" selected>🩺 Équilibre Glycémique / Diabète (Recommandé)</option>
-                <option value="standard">🏃 Adulte Actif Standard (Équilibre général)</option>
-                <option value="lowcarb">🥗 Contrôle Strict / Perte de poids (Low-Carb modéré)</option>
+                <option value="hypertrophy" selected>💪 Prise de Muscle Sec &amp; Force (1.8–2.2g/kg prot)</option>
+                <option value="maintenance">⚡ Performance &amp; Maintien 18/6 (1.5–1.8g/kg prot)</option>
+                <option value="cutting">🔥 Sèche &amp; Définition Musculaire (Contrôle glucidique)</option>
               </select>
             </div>
 
             <div class="bg-white rounded-2xl p-3 border border-emerald-200 space-y-2">
               <div class="flex items-baseline justify-between">
                 <span class="text-[11px] font-extrabold uppercase text-slate-500">Besoin Quotidien Estimé :</span>
-                <span id="guideOutDailyCarbs" class="text-lg font-extrabold font-mono text-emerald-700">150 g / jour</span>
+                <span id="guideOutDailyCarbs" class="text-lg font-extrabold font-mono text-emerald-700">165 g / jour</span>
               </div>
               <div class="grid grid-cols-3 gap-1.5 pt-1.5 border-t border-slate-100 text-center">
                 <div class="bg-slate-50 rounded-xl p-1.5">
-                  <span class="text-[10px] font-bold text-slate-500 block">🌅 Matin</span>
-                  <span id="guideOutMorning" class="text-xs font-mono font-extrabold text-slate-900">~40g</span>
+                  <span class="text-[10px] font-bold text-slate-500 block">🌅 Matin (10h)</span>
+                  <span id="guideOutMorning" class="text-xs font-mono font-extrabold text-slate-900">~55g</span>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-1.5">
-                  <span class="text-[10px] font-bold text-slate-500 block">☀️ Midi</span>
-                  <span id="guideOutNoon" class="text-xs font-mono font-extrabold text-slate-900">~60g</span>
+                  <span class="text-[10px] font-bold text-slate-500 block">☀️ Midi (15h)</span>
+                  <span id="guideOutNoon" class="text-xs font-mono font-extrabold text-slate-900">~85g</span>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-1.5">
-                  <span class="text-[10px] font-bold text-slate-500 block">🌙 Soir</span>
-                  <span id="guideOutEvening" class="text-xs font-mono font-extrabold text-slate-900">~50g</span>
+                  <span class="text-[10px] font-bold text-slate-500 block">🌙 Collation</span>
+                  <span id="guideOutEvening" class="text-xs font-mono font-extrabold text-slate-900">~25g</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Repères fixes adultes -->
+          <!-- Repères fixes sportifs -->
           <div class="space-y-2 text-xs">
             <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
               <div>
@@ -857,75 +778,75 @@
 
             <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
               <div>
-                <p class="font-extrabold text-slate-900">🩺 Adulte Diabétique / Glycémie stable</p>
-                <p class="text-[11px] text-slate-500">Soit 35g à 55g de glucides nets par repas</p>
+                <p class="font-extrabold text-slate-900">🔥 Sportif en Sèche / Jeûne 18/6</p>
+                <p class="text-[11px] text-slate-500">Définition musculaire et combustion des graisses</p>
               </div>
-              <span class="font-mono font-extrabold text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">130–180 g / j</span>
+              <span class="font-mono font-extrabold text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">120–160 g / j</span>
             </div>
 
             <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
               <div>
-                <p class="font-extrabold text-slate-900">🏃 Adulte Actif (Non-diabétique)</p>
-                <p class="text-[11px] text-slate-500">45% à 50% des apports caloriques (55–75g/repas)</p>
+                <p class="font-extrabold text-slate-900">💪 Prise de Muscle Sec &amp; Force</p>
+                <p class="text-[11px] text-slate-500">Recharge optimale du glycogène post-entraînement</p>
               </div>
-              <span class="font-mono font-extrabold text-xs text-slate-800 bg-white px-2.5 py-1 rounded-xl border border-slate-200">180–250 g / j</span>
+              <span class="font-mono font-extrabold text-xs text-slate-800 bg-white px-2.5 py-1 rounded-xl border border-slate-200">200–320 g / j</span>
             </div>
 
             <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
               <div>
                 <p class="font-extrabold text-slate-900">🌾 Objectif Fibres Alimentaires</p>
-                <p class="text-[11px] text-slate-500">Ralentit l'absorption du sucre et protège l'intestin</p>
+                <p class="text-[11px] text-slate-500">Microbiote sain, satiété et transit</p>
               </div>
-              <span class="font-mono font-extrabold text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">25–30 g / j</span>
+              <span class="font-mono font-extrabold text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">30–40 g / j</span>
             </div>
 
             <div class="p-2.5 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-center justify-between">
               <div>
-                <p class="font-extrabold text-slate-900">🥩 Objectif Protéines & Satiété (Adultes)</p>
-                <p class="text-[11px] text-slate-500">1.0 à 1.4g / kg / jour (soit ~25–35g par repas principal)</p>
+                <p class="font-extrabold text-slate-900">🥩 Objectif Protéines Athlète</p>
+                <p class="text-[11px] text-slate-500">1.6 à 2.2g / kg / jour pour la synthèse musculaire</p>
               </div>
-              <span class="font-mono font-extrabold text-xs text-amber-800 bg-white px-2.5 py-1 rounded-xl border border-amber-200">70–100 g / j</span>
+              <span class="font-mono font-extrabold text-xs text-amber-800 bg-white px-2.5 py-1 rounded-xl border border-amber-200">120–170 g / j</span>
             </div>
           </div>
         </div>
 
-        <!-- CARTE SPÉCIALE : APPORT PROTÉIQUE APRÈS 50 ANS & PRÉSERVATION MUSCULAIRE -->
+        <!-- CARTE SPÉCIALE : PROTÉINES & SYNTHÈSE MUSCULAIRE (mTOR) -->
         <div class="surface-card rounded-3xl p-4 space-y-3.5 border-2 border-emerald-200/80 bg-gradient-to-b from-white to-emerald-50/20">
           <div class="flex items-center gap-2.5 border-b border-slate-100 pb-2.5">
             <div class="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
               <i data-lucide="biceps-flexed" class="w-5 h-5"></i>
             </div>
             <div>
-              <h2 class="text-sm font-extrabold text-slate-900">Protéines &amp; Capital Musculaire après 50 ans</h2>
-              <p class="text-[11px] text-emerald-800 font-bold">Prévention de la Sarcopénie &amp; Régulation du Diabète</p>
+              <h2 class="text-sm font-extrabold text-slate-900">Protéines, Voie mTOR &amp; Hypertrophie</h2>
+              <p class="text-[11px] text-emerald-800 font-bold">Seuil de Leucine &amp; Préservation Musculaire en 18/6</p>
             </div>
           </div>
 
-          <!-- Alerte médicale : Le Muscle = Pompe à Glucose -->
-          <div class="p-3 rounded-2xl bg-amber-50 border border-amber-200 space-y-1.5 text-xs text-amber-950">
-            <div class="flex items-center gap-1.5 font-extrabold text-amber-900">
-              <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 flex-shrink-0"></i>
-              <span>Pourquoi le muscle est votre meilleur allié anti-diabète :</span>
+          <!-- Importance du Muscle -->
+          <div class="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1.5 text-xs text-emerald-950">
+            <div class="flex items-center gap-1.5 font-extrabold text-emerald-900">
+              <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
+              <span>Le muscle : Votre réservoir d'énergie et de puissance :</span>
             </div>
-            <p class="text-[11.5px] leading-relaxed text-amber-900/90">
-              Le muscle est le <strong>principal capteur de sucre du corps</strong> : plus de <strong>80% du glucose</strong> après un repas est absorbé et stocké par vos muscles sains. Dès 50 ans, sans apport protéique suffisant, on perd naturellement 1% à 2% de masse musculaire par an (<em>sarcopénie</em>), ce qui aggrave directement la résistance à l'insuline et favorise les pics glycémiques.
+            <p class="text-[11.5px] leading-relaxed text-emerald-900/90">
+              Le muscle est le <strong>principal réservoir de glycogène du corps</strong> : plus de <strong>400g à 500g</strong> de glucides y sont stockés. En jeûne intermittent 18/6, un apport protéique suffisant déclenche la voie <strong>mTOR</strong>, active la synthèse protéique musculaire et préserve 100% de votre masse maigre.
             </p>
           </div>
 
-          <!-- Besoins chiffrés après 50 ans -->
+          <!-- Besoins chiffrés -->
           <div class="space-y-2">
-            <h3 class="text-xs font-extrabold uppercase text-slate-500 tracking-wider">Vos besoins réels selon le consensus clinique (ESPEN &amp; PROT-AGE) :</h3>
+            <h3 class="text-xs font-extrabold uppercase text-slate-500 tracking-wider">Vos besoins réels pour le sport &amp; le jeûne :</h3>
             
             <div class="grid grid-cols-2 gap-2">
               <div class="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1">
-                <span class="text-[10px] font-bold text-slate-500 block uppercase">Adulte de 20-40 ans</span>
-                <span class="text-base font-black font-mono text-slate-600">0.8 g / kg</span>
+                <span class="text-[10px] font-bold text-slate-500 block uppercase">Sédentaire</span>
+                <span class="text-base font-black font-mono text-slate-600">0.8 à 1.0 g / kg</span>
                 <span class="text-[10px] text-slate-400 block">Maintien basique</span>
               </div>
               <div class="p-3 rounded-2xl bg-emerald-50 border-2 border-emerald-500 text-center space-y-1 shadow-2xs">
-                <span class="text-[10px] font-black text-emerald-800 block uppercase">Après 50 ans (Priorité)</span>
-                <span class="text-base font-black font-mono text-emerald-700">1.2 à 1.5 g / kg</span>
-                <span class="text-[10px] text-emerald-800 font-bold block">Résistance anabolique</span>
+                <span class="text-[10px] font-black text-emerald-800 block uppercase">Sportif &amp; Jeûne 18/6</span>
+                <span class="text-base font-black font-mono text-emerald-700">1.6 à 2.2 g / kg</span>
+                <span class="text-[10px] text-emerald-800 font-bold block">Synthèse &amp; Force</span>
               </div>
             </div>
 
@@ -1058,38 +979,38 @@
           </div>
         </div>
 
-        <!-- CARTE 4 : LES 5 RÈGLES D'OR ANTI-PIC GLYCÉMIQUE -->
+        <!-- CARTE 4 : LES 5 RÈGLES D'OR PERFORMANCE & ÉNERGIE STABLE -->
         <div class="surface-card rounded-3xl p-4 space-y-3">
           <div class="flex items-center gap-2.5 border-b border-slate-100 pb-2.5">
             <div class="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
               <i data-lucide="shield-check" class="w-5 h-5"></i>
             </div>
             <div>
-              <h2 class="text-sm font-extrabold text-slate-900">5 Règles d'Or pour Stabiliser la Glycémie</h2>
-              <p class="text-[11px] text-slate-500">Conseils pratiques validés scientifiquement</p>
+              <h2 class="text-sm font-extrabold text-slate-900">5 Règles d'Or Performance &amp; Énergie Stable</h2>
+              <p class="text-[11px] text-slate-500">Conseils validés pour sportifs &amp; pratiquants du 18/6</p>
             </div>
           </div>
 
           <ul class="space-y-2 text-[11px] text-slate-700 leading-relaxed">
             <li class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
-              <strong class="text-slate-900 block">1. Respectez l'ordre des aliments dans l'assiette (-40% de pic)</strong>
-              Commencez toujours par les <strong>légumes/salades</strong> (fibres), poursuivez avec les <strong>protéines</strong> (viande, poulet, poisson, œufs) et terminez par le <strong>pain ou les féculents</strong>.
+              <strong class="text-slate-900 block">1. Priorité aux protéines et fibres (Satiété &amp; mTOR)</strong>
+              Commencez votre repas par les <strong>protéines</strong> (œufs, poulet, sardines, kefta) et les <strong>légumes/salades</strong> (fibres). Cela stimule la synthèse musculaire et évite tout coup de fatigue post-prandial.
             </li>
             <li class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
-              <strong class="text-slate-900 block">2. Ne mangez jamais de glucides « nus » à jeun</strong>
-              Au Ftour, accompagnez toujours le pain ou la galette d'œufs, de fromage frais, d'huile d'olive ou d'amandes pour ralentir la vidange gastrique.
+              <strong class="text-slate-900 block">2. Ne consommez pas de glucides « nus » à jeun</strong>
+              Au repas de 10h, accompagnez toujours vos glucides d'œufs, d'huile d'olive vierge ou de Jben pour lisser la courbe d'absorption et préserver votre clarté mentale.
             </li>
             <li class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
               <strong class="text-slate-900 block">3. Remplacez le pain blanc par l'Orge (Ch3ir) ou le Complet</strong>
-              1/3 de pain d'orge contient <strong>3 fois plus de fibres</strong> que le pain blanc et évite la chute d'énergie 2 heures après le repas.
+              1/3 de pain d'orge contient <strong>3 fois plus de fibres</strong> que le pain blanc et fournit une diffusion énergétique lente idéale pour les efforts de l'après-midi.
             </li>
             <li class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
-              <strong class="text-slate-900 block">4. Attention aux sucres liquides (Atay sucré &amp; Jus)</strong>
-              Un fruit pressé perd ses fibres et fait monter la glycémie aussi vite qu'un soda. Préférez le fruit entier et l'Atay sans sucre (<em>mesouss</em>).
+              <strong class="text-slate-900 block">4. Hydratation et minéraux pendant les 18h de jeûne</strong>
+              De 16h00 à 10h00, buvez régulièrement de l'eau minérale ou des infusions non sucrées pour soutenir le filtrage rénal, les électrolytes et la combustion des lipides.
             </li>
             <li class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
-              <strong class="text-slate-900 block">5. Marche digestive de 10 à 15 minutes après le repas</strong>
-              Une simple marche après le déjeuner ou le dîner permet aux muscles d'absorber directement le glucose sanguin sans effort.
+              <strong class="text-slate-900 block">5. Marche digestive ou entraînement à jeun</strong>
+              S'entraîner ou marcher en fin de jeûne (vers 9h00) maximise la lipolyse et rend les cellules musculaires ultra-sensibles aux nutriments du repas de 10h.
             </li>
           </ul>
         </div>
@@ -1210,13 +1131,13 @@
                     <h3 class="font-extrabold text-slate-900 text-xs">Phase Post-Prandiale</h3>
                     <span id="fastingActiveBadge1" class="hidden text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500 text-white animate-pulse">EN COURS</span>
                   </div>
-                  <span class="text-[9px] font-bold text-amber-800 uppercase bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">Digestion</span>
+                  <span class="text-[9px] font-bold text-amber-800 uppercase bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">Assimilation</span>
                 </div>
                 <p class="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                  L'estomac digère et l'intestin absorbe le repas. L'insuline monte pour faire entrer le glucose dans les cellules.
+                  L'estomac digère et l'intestin absorbe le repas. Les acides aminés et nutriments sont acheminés vers les muscles pour la synthèse protéique.
                 </p>
                 <div class="mt-1.5 text-[10px] font-mono font-bold text-slate-600 bg-white p-1 rounded-lg border border-slate-200">
-                  ⚡ Carburant : Glucose direct du repas • Stockage actif
+                  ⚡ Carburant : Nutriments du repas • Anabolisme actif
                 </div>
               </div>
             </div>
@@ -1232,13 +1153,13 @@
                     <h3 class="font-extrabold text-slate-900 text-xs">Phase Post-Absorptive</h3>
                     <span id="fastingActiveBadge2" class="hidden text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-blue-600 text-white animate-pulse">EN COURS</span>
                   </div>
-                  <span class="text-[9px] font-bold text-blue-800 uppercase bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">Baisse Insuline</span>
+                  <span class="text-[9px] font-bold text-blue-800 uppercase bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">Déstockage Foie</span>
                 </div>
                 <p class="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                  La digestion est terminée. Le taux d'insuline chute. Le foie libère son glycogène de réserve pour maintenir une glycémie stable sans pic ni hypoglycémie.
+                  La digestion est terminée. Le métabolisme se stabilise. Le foie mobilise son glycogène de réserve pour fournir une énergie constante et propre.
                 </p>
                 <div class="mt-1.5 text-[10px] font-mono font-bold text-blue-800 bg-blue-50/60 p-1 rounded-lg border border-blue-200">
-                  ⚡ Carburant : Glycogène du foie (sucre de réserve)
+                  ⚡ Carburant : Glycogène hépatique (énergie continue)
                 </div>
               </div>
             </div>
@@ -1301,10 +1222,10 @@
                   <span class="text-[9px] font-black text-emerald-800 uppercase bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-300">Pic Maximal</span>
                 </div>
                 <p class="text-[11px] text-emerald-900 mt-1 leading-relaxed">
-                  Pic d'autophagie et rajeunissement cellulaire. Chute maximale de l'inflammation. Quand vous prenez votre repas à 10h00, vos récepteurs à l'insuline sont totalement réinitialisés : le glucose est capté directement par le muscle sans stockage graisseux.
+                  Pic d'autophagie et rajeunissement cellulaire. Chute maximale de l'inflammation. Quand vous prenez votre repas à 10h00, vos récepteurs musculaires sont ultra-sensibles : les acides aminés et le glycogène sont absorbés directement pour la reconstruction musculaire.
                 </p>
                 <div class="mt-1.5 text-[10px] font-mono font-bold text-emerald-900 bg-white p-1 rounded-lg border border-emerald-300">
-                  ✨ Sensibilité maximale à l'insuline rétablie
+                  ✨ Réceptivité musculaire et anabolique maximale
                 </div>
               </div>
             </div>
@@ -1402,7 +1323,7 @@
           </div>
 
           <div class="p-2.5 rounded-xl bg-cyan-50/70 border border-cyan-200 text-[11px] text-cyan-950 leading-relaxed">
-            <strong>Pourquoi finir à 15h00 est un atout majeur :</strong> En prenant votre dernier repas (poulet, sardines ou kefta + morceau de khobz) vers 15h, votre corps brûle la totalité du glucose pendant l'après-midi. Vous passez toute la soirée et la nuit avec une <strong>insuline basse</strong>, zéro stockage nocturne et un sommeil profond.
+            <strong>Pourquoi finir à 15h00 est un atout majeur :</strong> En prenant votre dernier repas (poulet, sardines ou kefta + morceau de khobz) vers 15h, vos muscles assimilent les nutriments pendant l'après-midi. Vous passez toute la soirée et la nuit en repos digestif complet, favorisant le pic nocturne d'hormone de croissance et un sommeil profond réparateur.
           </div>
 
           <button type="button" id="btnLoadMeal15h" class="w-full py-2.5 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs">
@@ -1411,13 +1332,13 @@
           </button>
         </div>
 
-        <!-- CARTE 4 : ANALYSE MÉDICALE DE VOTRE PROTOCOLE 18/6 -->
+        <!-- CARTE 4 : ANALYSE SPORTIVE DE VOTRE PROTOCOLE 18/6 -->
         <div class="surface-card rounded-3xl p-4 space-y-2.5">
-          <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Les 4 Bénéfices de votre rythme 10h / 15h</h3>
+          <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Les 4 Bénéfices Athlétiques de votre rythme 10h / 15h</h3>
           <div class="space-y-2 text-[11px] text-slate-700 leading-relaxed">
             <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
-              <strong class="text-slate-900 block">🔥 1. Sensibilité maximale à l'insuline (18h de repos)</strong>
-              De 16h00 à 10h00 le lendemain, votre pancréas est au repos complet : la résistance à l'insuline diminue fortement et la glycémie à jeun du matin se stabilise.
+              <strong class="text-slate-900 block">🔥 1. Flexibilité Métabolique &amp; Lipolyse (18h de repos)</strong>
+              De 16h00 à 10h00 le lendemain, le tube digestif est au repos complet : le corps optimise l'oxydation des lipides, conserve le glycogène musculaire et stabilise l'énergie sans coup de barre.
             </div>
             <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
               <strong class="text-slate-900 block">🐟 2. Synergie Sardines / Poulet / Œufs / Huile d'Olive</strong>
@@ -1635,8 +1556,8 @@
                 <h4 id="activeProfileName" class="text-sm font-black text-slate-900 truncate">Hicham</h4>
                 <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               </div>
-              <p id="activeProfileModeBadge" class="text-[10.5px] font-extrabold text-emerald-800 mt-0.5">
-                💉 Mode Diabète &amp; Insuline
+              <p id="activeProfileModeBadge" class="text-[10.5px] font-extrabold text-emerald-800 dark:text-emerald-300 mt-0.5">
+                ⚡ Nutrition Sportive &amp; Jeûne 18/6
               </p>
               <p id="activeProfileMealsCount" class="text-[10px] text-slate-500">
                 0 repas enregistrés
@@ -1758,21 +1679,11 @@
                 class="w-full bg-slate-50 border border-slate-200 focus:border-emerald-600 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none" />
             </div>
 
-            <div class="space-y-1.5 pt-0.5">
-              <label class="text-[10px] font-extrabold uppercase text-slate-500 block">Profil d'utilisation :</label>
-              <div class="grid grid-cols-2 gap-2">
-                <label id="lblChoiceInsulin" class="cursor-pointer border-2 border-emerald-500 bg-emerald-50/70 rounded-xl p-2 flex flex-col items-center text-center gap-0.5 transition-all">
-                  <input type="radio" name="radRegUserMode" value="insulin" checked class="sr-only">
-                  <span class="text-sm">💉</span>
-                  <span class="text-[11px] font-extrabold text-emerald-950">Diabète &amp; Insuline</span>
-                  <span class="text-[9px] text-emerald-700">Calculateur Bolus</span>
-                </label>
-                <label id="lblChoiceWellness" class="cursor-pointer border-2 border-slate-200 bg-slate-50 rounded-xl p-2 flex flex-col items-center text-center gap-0.5 transition-all opacity-70">
-                  <input type="radio" name="radRegUserMode" value="wellness" class="sr-only">
-                  <span class="text-sm">🌿</span>
-                  <span class="text-[11px] font-extrabold text-slate-800">Santé &amp; 18/6</span>
-                  <span class="text-[9px] text-slate-500">Chrono-jeûne &amp; Glucides</span>
-                </label>
+            <div class="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-2.5">
+              <span class="text-lg">⚡</span>
+              <div>
+                <span class="text-[11px] font-extrabold text-emerald-950 dark:text-emerald-200 block">Nutrition Sportive &amp; Jeûne 18/6</span>
+                <span class="text-[10px] text-emerald-700 dark:text-emerald-400">Suivi macronutriments, mTOR, glycogène &amp; chrono-jeûne</span>
               </div>
             </div>
 

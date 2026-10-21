@@ -1,5 +1,19 @@
 :root {
   color-scheme: light;
+  --bg-app: #f8fafc;
+  --surface-card: #ffffff;
+  --border-subtle: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg-app: #0b0f19;
+  --surface-card: #131a2a;
+  --border-subtle: #1e293b;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
 }
 
 * {
@@ -14,24 +28,97 @@ body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-/* Coque Mobile-First 100% Thème Clair */
+.dark body {
+  background-color: #05070d;
+  color: #f8fafc;
+}
+
+/* Coque Mobile-First avec support Safe Areas (iOS & Android) */
 .mobile-app {
   max-width: 430px;
   min-height: 100dvh;
   margin: 0 auto;
-  background-color: #f8fafc;
+  background-color: var(--bg-app);
   position: relative;
   box-shadow: 0 0 40px rgba(15, 23, 42, 0.08);
   display: flex;
   flex-direction: column;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  transition: background-color 0.25s ease;
+}
+
+.dark .mobile-app {
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.4);
 }
 
 .surface-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.03);
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+
+.dark .surface-card {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* Header & Nav avec Safe Areas */
+header.sticky {
+  padding-top: max(12px, env(safe-area-inset-top, 12px));
+}
+
+nav.fixed {
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
+}
+
+.dark header.sticky {
+  background-color: rgba(19, 26, 42, 0.92) !important;
+  border-color: #1e293b !important;
+}
+
+.dark nav.fixed {
+  background-color: rgba(19, 26, 42, 0.95) !important;
+  border-color: #1e293b !important;
+}
+
+/* Animation et style des étiquettes (Pins) sur la photo */
+@keyframes pinPop {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0;
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pinPulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6), 0 4px 12px rgba(0, 0, 0, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0), 0 4px 14px rgba(0, 0, 0, 0.35);
+  }
+}
+
+.food-pin-node {
+  animation: pinPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.food-pin-selected {
+  animation: pinPulseGlow 2s infinite ease-in-out;
+  transform: translate(-50%, -50%) scale(1.06) !important;
+  z-index: 40 !important;
 }
 
 /* Animation du faisceau laser lors du scan photo */
@@ -62,6 +149,22 @@ body {
   z-index: 20;
 }
 
+/* Effet Shimmer de chargement */
+@keyframes shimmerWave {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.scanner-shimmer {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(16, 185, 129, 0.18) 50%, rgba(255, 255, 255, 0) 100%);
+  background-size: 200% 100%;
+  animation: shimmerWave 1.8s infinite;
+}
+
 /* Anneau SVG progressif */
 .ring-transition {
   transition: stroke-dashoffset 0.5s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.3s ease;
@@ -69,7 +172,29 @@ body {
   transform-origin: 50% 50%;
 }
 
-/* Masquage des barres de défilement horizontales */
+/* Transitions d'onglets fluides */
+.tab-view-pane {
+  animation: fadeInView 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInView {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Chiffres tabulaires (stabilité visuelle sur les jauges et poids) */
+.font-mono, [data-tabular] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Masquage des barres de défilement */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -86,21 +211,24 @@ input[type="number"]::-webkit-outer-spin-button {
   margin: 0;
 }
 
-/* ==========================================================================
-   VERSION RESPONSIVE POUR ÉCRANS LARGES (TABLETTES & DESKTOPS - GRADE PREMIUM)
-   ========================================================================== */
+/* Version Responsive Desktop & Tablettes */
 @media (min-width: 860px) {
   body {
     background-color: #f1f5f9;
+  }
+
+  .dark body {
+    background-color: #03060a;
   }
 
   .mobile-app {
     max-width: 980px;
     margin: 20px auto 40px auto;
     border-radius: 28px;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--border-subtle);
     box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.12);
     min-height: calc(100dvh - 60px);
+    padding-bottom: 90px;
   }
 
   nav.fixed {
@@ -127,4 +255,3 @@ input[type="number"]::-webkit-outer-spin-button {
 #viewportBox [data-pin-index] {
   cursor: pointer;
 }
-

@@ -224,7 +224,7 @@ export const VisionAnalyzer = {
    * Appel direct au service Google Generative Language API
    */
   async callSingleVisionModel(modelName, base64Data, apiKey, signal) {
-    const prompt = `Tu es un expert en nutrition clinique et diabétologie. Analyse cette photo de repas :
+    const prompt = `Tu es un expert en nutrition sportive, macronutriments et cuisine marocaine et internationale. Analyse cette photo de repas :
 1. Identifie uniquement les aliments et boissons caloriques consommés par UNE SEULE personne.
 2. EXCLUSION OBLIGATOIRE : NE PAS inclure l'eau pure (bouteille d'eau, verre d'eau minérale, carafe), ni les théières vides, couverts, serviettes ou objets sans calories.
 3. PORTION INDIVIDUELLE : Estime la portion réelle consommée par une personne pour son repas. Ne compte JAMAIS une corbeille entière de pain : pour le pain (Khobz, pain céréales, baguette), compte la portion d'une personne soit 1 morceau (~60g à 80g max). Pour les œufs (omelette, khlii), compte la portion d'une personne (~120g à 180g max).

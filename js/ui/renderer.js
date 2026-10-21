@@ -87,76 +87,63 @@ const FASTING_186_IDS = new Set([
 ]);
 
 export const UIRenderer = {
-  renderUserMode(userMode = 'insulin') {
-    const isInsulin = userMode === 'insulin';
-    const btnInsulin = document.getElementById('btnModeInsulin');
-    const btnWellness = document.getElementById('btnModeWellness');
-
-    if (btnInsulin && btnWellness) {
-      if (isInsulin) {
-        btnInsulin.className = 'flex-1 py-1 px-1.5 rounded-xl text-[10.5px] font-extrabold flex items-center justify-center gap-1 transition-all bg-white text-emerald-800 shadow-xs';
-        btnWellness.className = 'flex-1 py-1 px-1.5 rounded-xl text-[10.5px] font-bold flex items-center justify-center gap-1 transition-all text-slate-500 hover:text-slate-900';
-      } else {
-        btnWellness.className = 'flex-1 py-1 px-1.5 rounded-xl text-[10.5px] font-extrabold flex items-center justify-center gap-1 transition-all bg-white text-emerald-800 shadow-xs';
-        btnInsulin.className = 'flex-1 py-1 px-1.5 rounded-xl text-[10.5px] font-bold flex items-center justify-center gap-1 transition-all text-slate-500 hover:text-slate-900';
-      }
-    }
-
-    document.querySelectorAll('.mode-insulin-only').forEach(el => {
-      el.classList.toggle('hidden', !isInsulin);
-    });
-
-    document.querySelectorAll('.mode-wellness-only').forEach(el => {
-      el.classList.toggle('hidden', isInsulin);
-    });
-  },
-
   renderDashboard(state, evaluation) {
-    // Mode d'utilisation (Diabète & Insuline vs Santé & 18/6)
-    this.renderUserMode(state.settings.userMode || 'insulin');
-
     // Badge moteur IA
-    document.getElementById('engineBadge').textContent = 'IA Vision';
+    const badgeEl = document.getElementById('engineBadge');
+    if (badgeEl) badgeEl.textContent = 'IA Vision';
 
     // Boutons Matin / Midi / Soir
     document.querySelectorAll('.slot-btn').forEach(btn => {
       const isCurrent = btn.getAttribute('data-slot') === state.activeSlot;
       btn.className = isCurrent
-        ? 'slot-btn px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-white text-emerald-700 shadow-xs transition-all'
-        : 'slot-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500 transition-all';
+        ? 'slot-btn px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-xs transition-all'
+        : 'slot-btn px-2 py-1 rounded-lg text-[11px] font-bold text-slate-500 dark:text-slate-400 transition-all';
     });
 
     // Carte Verdict
     const vBox = document.getElementById('verdictBox');
     const vIcon = document.getElementById('verdictBadgeIcon');
-    vBox.className = `rounded-2xl p-3.5 border flex items-start gap-3 transition-all ${evaluation.verdict.boxClass}`;
-    vIcon.className = `w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${evaluation.verdict.iconClass}`;
-    vIcon.innerHTML = `<i data-lucide="${evaluation.verdict.iconName}" class="w-5 h-5"></i>`;
+    if (vBox && vIcon) {
+      vBox.className = `rounded-2xl p-3.5 border flex items-start gap-3 transition-all ${evaluation.verdict.boxClass}`;
+      vIcon.className = `w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 ${evaluation.verdict.iconClass}`;
+      vIcon.innerHTML = `<i data-lucide="${evaluation.verdict.iconName}" class="w-5 h-5"></i>`;
+    }
 
-    document.getElementById('verdictStatusTag').textContent = evaluation.verdict.tag;
-    document.getElementById('verdictMetricsPill').textContent = `IG ${evaluation.avgGI} • CG ${evaluation.totalGL}`;
-    document.getElementById('verdictHeadline').textContent = evaluation.verdict.headline;
-    document.getElementById('verdictDescription').textContent = evaluation.verdict.description;
+    const tagEl = document.getElementById('verdictStatusTag');
+    if (tagEl) tagEl.textContent = evaluation.verdict.tag;
+    const pillEl = document.getElementById('verdictMetricsPill');
+    if (pillEl) pillEl.textContent = `IG ${evaluation.avgGI} • CG ${evaluation.totalGL}`;
+    const headEl = document.getElementById('verdictHeadline');
+    if (headEl) headEl.textContent = evaluation.verdict.headline;
+    const descEl = document.getElementById('verdictDescription');
+    if (descEl) descEl.textContent = evaluation.verdict.description;
 
-    // Compteurs et Anneau SVG (affichage sans équivoque du nombre d'aliments et poids global)
-    document.getElementById('outNetCarbs').textContent = String(evaluation.netCarbs);
+    // Compteurs et Anneau SVG
+    const netCarbsEl = document.getElementById('outNetCarbs');
+    if (netCarbsEl) netCarbsEl.textContent = String(evaluation.netCarbs);
+
     const nItems = state.items.length;
-    document.getElementById('outTotalGrams').textContent = nItems > 1
-      ? `${evaluation.totalGrams}g (${nItems} aliments)`
-      : (nItems === 1 ? `${evaluation.totalGrams}g pesés` : '0g');
-    document.getElementById('outTotalCarbs').textContent = String(evaluation.totalCarbs);
-    document.getElementById('outTotalFiber').textContent = String(evaluation.totalFiber);
-    document.getElementById('outTotalBolus').textContent = evaluation.totalBolus.toFixed(1);
-    document.getElementById('outMealBolus').textContent = evaluation.mealBolus.toFixed(1);
-    document.getElementById('outCorrBolus').textContent = `${evaluation.corrBolus >= 0 ? '+' : ''}${evaluation.corrBolus.toFixed(1)}`;
+    const totGramsEl = document.getElementById('outTotalGrams');
+    if (totGramsEl) {
+      totGramsEl.textContent = nItems > 1
+        ? `${evaluation.totalGrams}g (${nItems} aliments)`
+        : (nItems === 1 ? `${evaluation.totalGrams}g pesés` : '0g');
+    }
+
+    const totCarbsEl = document.getElementById('outTotalCarbs');
+    if (totCarbsEl) totCarbsEl.textContent = String(evaluation.totalCarbs);
+    const totFibEl = document.getElementById('outTotalFiber');
+    if (totFibEl) totFibEl.textContent = String(evaluation.totalFiber);
 
     const ring = document.getElementById('carbRingCircle');
-    const circumference = 301.59;
-    const pct = Math.min(1, evaluation.netCarbs / 80);
-    ring.style.strokeDashoffset = (circumference * (1 - pct)).toFixed(2);
-    ring.style.stroke = evaluation.verdict.ringColor;
+    if (ring) {
+      const circumference = 301.59;
+      const pct = Math.min(1, evaluation.netCarbs / 80);
+      ring.style.strokeDashoffset = (circumference * (1 - pct)).toFixed(2);
+      ring.style.stroke = evaluation.verdict.ringColor;
+    }
 
-    // Bloc Protéines & Indice Satiété
+    // Bloc Protéines & Indice Satiété / Anabolisme
     const outProt = document.getElementById('outTotalProtein');
     if (outProt) outProt.textContent = evaluation.totalProtein.toFixed(1);
 
@@ -182,7 +169,7 @@ export const UIRenderer = {
       barProt.className = `h-full rounded-full transition-all duration-500 ${evaluation.proteinIndex.barColor}`;
     }
 
-    // Indicateur Intelligent : Amorti Glycémique (Ratio Protéines+Fibres / Glucides)
+    // Indicateur Intelligent : Amorti Énergétique (Ratio Protéines+Fibres / Glucides)
     const amorti = evaluation.amorti;
     const badgeAmorti = document.getElementById('lblAmortiBadge');
     if (badgeAmorti && amorti) {
@@ -206,28 +193,13 @@ export const UIRenderer = {
       barAmorti.className = `h-full rounded-full transition-all duration-500 ${amorti.barColor}`;
     }
 
-    document.getElementById('lblBGUnit').textContent = state.settings.bgUnit;
-    document.getElementById('lblBGSuffix').textContent = state.settings.bgUnit;
+    this.renderPins(state.items, state.selectedPinIndex, state.pinsVisible !== false);
+    this.renderRecognizedList(state.items, state.selectedPinIndex);
 
-    // Alerte médicale d'Urgence (Hypoglycémie / Hyperglycémie)
-    const alertBox = document.getElementById('glycemiaAlertBox');
-    if (alertBox) {
-      if (evaluation.glycemiaWarning) {
-        const w = evaluation.glycemiaWarning;
-        alertBox.className = w.type === 'hypo'
-          ? 'rounded-2xl p-3 border bg-rose-50 border-rose-300 text-rose-900 space-y-1 block shadow-xs animate-pulse'
-          : 'rounded-2xl p-3 border bg-amber-50 border-amber-300 text-amber-950 space-y-1 block shadow-xs';
-        alertBox.innerHTML = `
-          <div class="flex items-center gap-1.5 font-black text-xs">
-            <span>${w.badgeText}</span>
-          </div>
-          <p class="text-[11px] font-semibold leading-relaxed">${w.description}</p>
-        `;
-      } else {
-        alertBox.className = 'hidden';
-        alertBox.innerHTML = '';
-      }
+    if (window.lucide) {
+      window.lucide.createIcons();
     }
+  },
 
     this.renderPins(state.items, state.selectedPinIndex, state.pinsVisible !== false);
     this.renderRecognizedList(state.items, state.selectedPinIndex);
@@ -357,7 +329,7 @@ export const UIRenderer = {
 
       return `
         <div data-pin-index="${idx}"
-             class="food-pin pointer-events-auto cursor-grab active:cursor-grabbing select-none absolute -translate-x-1/2 -translate-y-1/2 px-2.5 py-1 rounded-full border flex items-center gap-1.5 text-[10.5px] font-extrabold whitespace-nowrap transition-all ${glassStyle}"
+             class="food-pin food-pin-node pointer-events-auto cursor-grab active:cursor-grabbing select-none absolute -translate-x-1/2 -translate-y-1/2 px-2.5 py-1 rounded-full border flex items-center gap-1.5 text-[10.5px] font-extrabold whitespace-nowrap transition-all ${glassStyle} ${isSelected ? 'food-pin-selected' : ''}"
              style="left:${x}%; top:${y}%; touch-action:none; -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);">
           <span class="text-white/50 text-[10px] leading-none font-mono pr-0.5" title="Glisser pour déplacer">⋮⋮</span>
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.9)]"></span>
@@ -581,9 +553,6 @@ export const UIRenderer = {
       const proteinVal = h.totalProtein ? Math.round(Number(h.totalProtein) * 10) / 10 : 0;
       const totalGramsVal = Math.round(Number(h.totalGrams) || 0);
       const netCarbsVal = Math.round(Number(h.netCarbs) * 10 || 0) / 10;
-      const bolusVal = (!isWellness && h.totalBolus !== undefined && h.totalBolus !== null && !isNaN(h.totalBolus))
-        ? `💉 Bolus: ${Number(h.totalBolus).toFixed(1)} UI`
-        : '';
 
       const giVal = Number(h.avgGI);
       const giBadge = giVal > 0 ? (
@@ -620,8 +589,9 @@ export const UIRenderer = {
             </div>
           </div>
           <div class="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10.5px] font-mono font-bold text-slate-700">
-            <span>⚖️ ${totalGramsVal}g • 🌾 ${netCarbsVal}g nets • 🥩 ${proteinVal}g prot</span>
-            ${bolusVal ? `<span class="text-cyan-700 font-extrabold">${bolusVal}</span>` : ''}
+            <span class="text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">🥩 ${proteinVal}g prot</span>
+            <span>🌾 ${netCarbsVal}g glucides nets</span>
+            <span class="text-slate-400">⚖️ ${totalGramsVal}g</span>
           </div>
         </div>
       `;
@@ -685,15 +655,14 @@ export const UIRenderer = {
       return;
     }
 
-    const isWellness = settings?.userMode === 'wellness';
     const totalCarbs = history.reduce((sum, h) => sum + (Number(h.netCarbs) || 0), 0);
     const totalProt = history.reduce((sum, h) => sum + (Number(h.totalProtein) || 0), 0);
-    const totalBolus = history.reduce((sum, h) => sum + (Number(h.totalBolus) || 0), 0);
+    const totalGL = history.reduce((sum, h) => sum + (Number(h.totalGL) || 0), 0);
     const avgCarbs = Math.round(totalCarbs / history.length);
     const avgProt = Math.round(totalProt / history.length);
-    const avgBolus = (totalBolus / history.length).toFixed(1);
+    const avgGL = Math.round((totalGL / history.length) * 10) / 10;
 
-    const rows = history.slice(0, 30).map(h => {
+    const rows = history.slice(0, 40).map(h => {
       const d = new Date(h.timestamp).toLocaleDateString('fr-FR', {
         day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
       });
@@ -701,46 +670,30 @@ export const UIRenderer = {
       const totalG = Math.round(Number(h.totalGrams) || 0);
       const netC = Math.round(Number(h.netCarbs) * 10 || 0) / 10;
       const protVal = h.totalProtein ? (Math.round(Number(h.totalProtein) * 10) / 10) : '--';
-      const bolusCell = isWellness
-        ? ''
-        : `<td style="padding: 8px 6px; text-align: right; color: #0284c7;"><strong>${Number(h.totalBolus || 0).toFixed(1)} UI</strong></td>`;
       return `
         <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
           <td style="padding: 8px 6px;"><strong>${escapeHTML(d)}</strong></td>
           <td style="padding: 8px 6px;">${names}</td>
           <td style="padding: 8px 6px; text-align: right;">${totalG}g</td>
+          <td style="padding: 8px 6px; text-align: right; color: #059669;"><strong>${protVal}g</strong></td>
           <td style="padding: 8px 6px; text-align: right;"><strong>${netC}g</strong></td>
-          <td style="padding: 8px 6px; text-align: right;">${protVal}g</td>
-          ${bolusCell}
+          <td style="padding: 8px 6px; text-align: right;">${h.totalGL || '--'}</td>
           <td style="padding: 8px 6px; text-align: center;">${escapeHTML(h.verdictTag || 'Normal')}</td>
         </tr>
       `;
     }).join('');
-
-    const kpiBolusCard = isWellness
-      ? ''
-      : `
-        <div class="kpi-card">
-          <div class="kpi-val" style="color: #0284c7;">${avgBolus} UI</div>
-          <div class="kpi-lbl">Bolus Moyen Estimé</div>
-        </div>
-      `;
-
-    const tableBolusHeader = isWellness
-      ? ''
-      : `<th style="text-align: right;">Bolus</th>`;
 
     const html = `
       <!DOCTYPE html>
       <html lang="fr">
       <head>
         <meta charset="UTF-8">
-        <title>Rapport Médical Glycémique &amp; Nutritionnel — GlucoScan Maroc</title>
+        <title>Bilan Nutritionnel Sportif &amp; Jeûne Intermittent — MacroScan Maroc</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; margin: 24px; line-height: 1.4; }
           .header { border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
           .badge { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 12px; }
-          .kpi-grid { display: grid; grid-template-columns: repeat(${isWellness ? 3 : 4}, 1fr); gap: 12px; margin-bottom: 24px; }
+          .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
           .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; text-align: center; }
           .kpi-val { font-size: 20px; font-weight: 800; color: #0f172a; font-family: monospace; }
           .kpi-lbl { font-size: 11px; color: #64748b; font-weight: bold; margin-top: 4px; }
@@ -753,11 +706,11 @@ export const UIRenderer = {
       <body>
         <div class="header">
           <div>
-            <h1 style="margin: 0; font-size: 22px; color: #0f172a;">🩺 Rapport Médical Glycémique &amp; Nutritionnel</h1>
-            <p style="margin: 4px 0 0; font-size: 12px; color: #64748b;">Généré par GlucoScan Maroc • Dossier Patient</p>
+            <h1 style="margin: 0; font-size: 22px; color: #0f172a;">🏋️ Bilan Nutritionnel Sportif &amp; Jeûne 18/6</h1>
+            <p style="margin: 4px 0 0; font-size: 12px; color: #64748b;">Suivi Macros, Masse Musculaire &amp; Amorti Énergétique</p>
           </div>
           <div style="text-align: right;">
-            <span class="badge">Export Médical Officiel</span>
+            <span class="badge">Rapport Nutrition Sportive</span>
             <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;">Date: ${new Date().toLocaleDateString('fr-FR')}</p>
           </div>
         </div>
@@ -765,29 +718,32 @@ export const UIRenderer = {
         <div class="kpi-grid">
           <div class="kpi-card">
             <div class="kpi-val">${history.length}</div>
-            <div class="kpi-lbl">Repas Scannés</div>
+            <div class="kpi-lbl">Repas Enregistrés</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val" style="color: #059669;">${avgProt}g</div>
+            <div class="kpi-lbl">Protéines Moy. / Repas</div>
           </div>
           <div class="kpi-card">
             <div class="kpi-val">${avgCarbs}g</div>
             <div class="kpi-lbl">Glucides Moy. / Repas</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-val">${avgProt}g</div>
-            <div class="kpi-lbl">Protéines Moy. / Repas</div>
+            <div class="kpi-val" style="color: #0284c7;">${avgGL}</div>
+            <div class="kpi-lbl">Charge Glycémique Moy.</div>
           </div>
-          ${kpiBolusCard}
         </div>
 
-        <h3 style="font-size: 14px; margin-bottom: 8px;">Détail chronologique des repas journalisés</h3>
+        <h3 style="font-size: 14px; margin-bottom: 8px;">Historique des repas &amp; apports en macros</h3>
         <table>
           <thead>
             <tr>
               <th>Date &amp; Heure</th>
               <th>Composition du Plat</th>
               <th style="text-align: right;">Poids</th>
-              <th style="text-align: right;">Glucides</th>
-              <th style="text-align: right;">Protéines</th>
-              ${tableBolusHeader}
+              <th style="text-align: right; color:#059669;">Protéines</th>
+              <th style="text-align: right;">Glucides Nets</th>
+              <th style="text-align: right;">Charge Glyc.</th>
               <th style="text-align: center;">Verdict</th>
             </tr>
           </thead>
@@ -797,8 +753,8 @@ export const UIRenderer = {
         </table>
 
         <div class="footer">
-          <div>Observations du Médecin / Diabétologue : _________________________________</div>
-          <div>Signature &amp; Cachet :</div>
+          <div>Protocole : Jeûne Intermittent 18/6 (Fenêtre 10h-16h) • Recomposition Corporelle</div>
+          <div>Généré par MacroScan Maroc</div>
         </div>
 
         <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: center;">
@@ -826,14 +782,13 @@ export const UIRenderer = {
     }
     const sanitizeCSV = (str) => {
       let s = String(str ?? '');
-      // Neutralisation injection formule CSV (=, +, -, @)
       if (/^[=+\-@\t\r]/.test(s)) {
         s = `'` + s;
       }
       return `"${s.replace(/"/g, '""')}"`;
     };
 
-    const headers = ['Date', 'Heure', 'Aliments', 'Poids_Total_g', 'Glucides_Nets_g', 'Proteines_g', 'Index_Glycemique', 'Charge_Glycemique', 'Bolus_UI', 'Verdict'];
+    const headers = ['Date', 'Heure', 'Aliments', 'Poids_Total_g', 'Proteines_g', 'Glucides_Nets_g', 'Fibres_g', 'Index_Glycemique', 'Charge_Glycemique', 'Verdict'];
     const rows = history.map(h => {
       const d = new Date(h.timestamp);
       const dateStr = getLocalDateString(d);
@@ -844,11 +799,11 @@ export const UIRenderer = {
         sanitizeCSV(timeStr),
         sanitizeCSV(names),
         Math.round(Number(h.totalGrams) || 0),
-        Math.round(Number(h.netCarbs) * 10 || 0) / 10,
         Math.round(Number(h.totalProtein) * 10 || 0) / 10,
+        Math.round(Number(h.netCarbs) * 10 || 0) / 10,
+        Math.round(Number(h.totalFiber) * 10 || 0) / 10,
         Math.round(Number(h.avgGI) || 0),
         Math.round(Number(h.totalGL) * 10 || 0) / 10,
-        h.totalBolus !== undefined && h.totalBolus !== null && !isNaN(h.totalBolus) ? Number(h.totalBolus).toFixed(1) : '0.0',
         sanitizeCSV(h.verdictTag || '')
       ].join(';');
     });
@@ -858,9 +813,9 @@ export const UIRenderer = {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `glucoscan-repas-${getLocalDateString()}.csv`;
+    link.download = `macroscan-repas-${getLocalDateString()}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-    showToast('📊 Export CSV généré (compatible Excel & Dossier Médical) !');
+    showToast('📊 Export CSV généré (compatible Excel & Suivi Sportif) !');
   }
 };

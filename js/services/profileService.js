@@ -269,7 +269,7 @@ export const ProfileService = {
 
     const mode = (source === 'local'
       ? (settings.userMode || profile?.mode || cloudAccount?.user_mode)
-      : (cloudAccount?.user_mode || settings.userMode || profile?.mode)) || 'insulin';
+      : (cloudAccount?.user_mode || settings.userMode || profile?.mode)) || 'sport';
     settings.userMode = mode;
 
     return {
@@ -290,7 +290,7 @@ export const ProfileService = {
     }
     const history = this.mergeHistories(profile?.history || [], cloudAccount?.history || []);
     if (!cloudAccount) {
-      return { history, settings: stripMeta(profile?.settings || {}), mode: profile?.mode || 'insulin', updatedAt: profile?.settingsUpdatedAt || new Date(0).toISOString() };
+      return { history, settings: stripMeta(profile?.settings || {}), mode: profile?.mode || 'sport', updatedAt: profile?.settingsUpdatedAt || new Date(0).toISOString() };
     }
     const resolved = this.resolveSettings(profile, cloudAccount);
     return { history, ...resolved };
@@ -302,7 +302,7 @@ export const ProfileService = {
       username: key,
       display_name: profile.username,
       password_hash: profile.passwordHash,
-      user_mode: profile.mode || 'insulin',
+      user_mode: profile.mode || 'sport',
       settings: {
         ...cloudSafeSettings(profile.settings),
         [META_SETTINGS_UPDATED_AT]: profile.settingsUpdatedAt || new Date(0).toISOString(),
@@ -316,7 +316,7 @@ export const ProfileService = {
   /**
    * Inscription d'un nouveau profil avec sauvegarde locale et Cloud
    */
-  async register(username, password, mode = 'insulin', currentSettings = null, currentHistory = []) {
+  async register(username, password, mode = 'sport', currentSettings = null, currentHistory = []) {
     const cleanUser = String(username || '').trim();
     if (cleanUser.length < 2) {
       throw new Error('Le pseudo doit contenir au moins 2 caractères');
@@ -335,7 +335,7 @@ export const ProfileService = {
     }
 
     const passwordHash = await this.hashPassword(cleanUser, password);
-    const safeMode = mode === 'wellness' ? 'wellness' : 'insulin';
+    const safeMode = 'sport';
     const newProfile = {
       id: 'usr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
       username: cleanUser,
@@ -425,7 +425,7 @@ export const ProfileService = {
     this.activeProfile = {
       id: profile.id,
       username: profile.username,
-      mode: profile.mode || 'insulin',
+      mode: profile.mode || 'sport',
       createdAt: profile.createdAt
     };
     localStorage.setItem(STORAGE_KEY_ACTIVE, JSON.stringify(this.activeProfile));
