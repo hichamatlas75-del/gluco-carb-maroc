@@ -2,7 +2,7 @@ import { FoodRepository } from '../data/foods.js?v=17';
 import { MetabolicEngine } from '../services/metabolicEngine.js?v=17';
 
 /**
- * Fonctions de rendu DOM et protection XSS
+ * Fonctions de rendu DOM, protection XSS et utilitaires de dates
  */
 export function escapeHTML(str) {
   return String(str || '')
@@ -13,8 +13,29 @@ export function escapeHTML(str) {
     .replace(/'/g, '&#039;');
 }
 
+export function safeImageUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('data:image/') || trimmed.startsWith('https://') || trimmed.startsWith('http://')) {
+    return trimmed.replace(/"/g, '&quot;');
+  }
+  return null;
+}
+
+export function getLocalDateString(dateInput = new Date()) {
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 let toastTimer = null;
 export function showToast(message) {
+  try {
+    if (navigator.vibrate) navigator.vibrate(12);
+  } catch (_) {}
   const banner = document.getElementById('toastBanner');
   const label = document.getElementById('toastLabel');
   if (!banner || !label) return;
@@ -168,6 +189,26 @@ export const UIRenderer = {
 
     document.getElementById('lblBGUnit').textContent = state.settings.bgUnit;
     document.getElementById('lblBGSuffix').textContent = state.settings.bgUnit;
+
+    // Alerte médicale d'Urgence (Hypoglycémie / Hyperglycémie)
+    const alertBox = document.getElementById('glycemiaAlertBox');
+    if (alertBox) {
+      if (evaluation.glycemiaWarning) {
+        const w = evaluation.glycemiaWarning;
+        alertBox.className = w.type === 'hypo'
+          ? 'rounded-2xl p-3 border bg-rose-50 border-rose-300 text-rose-900 space-y-1 block shadow-xs animate-pulse'
+          : 'rounded-2xl p-3 border bg-amber-50 border-amber-300 text-amber-950 space-y-1 block shadow-xs';
+        alertBox.innerHTML = `
+          <div class="flex items-center gap-1.5 font-black text-xs">
+            <span>${w.badgeText}</span>
+          </div>
+          <p class="text-[11px] font-semibold leading-relaxed">${w.description}</p>
+        `;
+      } else {
+        alertBox.className = 'hidden';
+        alertBox.innerHTML = '';
+      }
+    }
 
     this.renderPins(state.items, state.selectedPinIndex, state.pinsVisible !== false);
     this.renderRecognizedList(state.items, state.selectedPinIndex);
@@ -463,14 +504,14 @@ export const UIRenderer = {
       const d = new Date(now);
       d.setDate(now.getDate() - i);
       days.push({
-        key: d.toISOString().slice(0, 10),
+        key: getLocalDateString(d),
         label: d.toLocaleDateString('fr-FR', { weekday: 'short' }),
         netCarbs: 0
       });
     }
 
     for (const h of history) {
-      const k = String(h.timestamp || '').slice(0, 10);
+      const k = getLocalDateString(h.timestamp);
       const day = days.find(d => d.key === k);
       if (day) day.netCarbs += Number(h.netCarbs) || 0;
     }
@@ -520,8 +561,9 @@ export const UIRenderer = {
             : `<span class="text-[9.5px] font-extrabold text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200">IG ${Math.round(giVal)}</span>`
       ) : '';
 
-      const imageThumb = h.imageUrl
-        ? `<img src="${h.imageUrl}" alt="Repas" class="w-12 h-12 object-cover rounded-xl border border-slate-200 shadow-2xs shrink-0">`
+      const validImg = safeImageUrl(h.imageUrl);
+      const imageThumb = validImg
+        ? `<img src="${validImg}" alt="Repas" class="w-12 h-12 object-cover rounded-xl border border-slate-200 shadow-2xs shrink-0">`
         : `<div class="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0 text-base font-bold">🍽️</div>`;
 
       return `
@@ -709,7 +751,7 @@ export const UIRenderer = {
           <div>Signature &amp; Cachet :</div>
         </div>
 
-        <div style="margin-top: 24px; text-align: center;">
+        <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: center;">
           <button onclick="window.print()" style="padding: 10px 20px; background: #059669; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;">
             🖨️ Imprimer ou Enregistrer en PDF
           </button>
@@ -725,5 +767,41 @@ export const UIRenderer = {
     } else {
       showToast('Autorisez les fenêtres pop-up pour afficher le PDF');
     }
+  },
+
+  exportHistoryCSV(history) {
+    if (!Array.isArray(history) || history.length === 0) {
+      showToast('Aucun repas à exporter');
+      return;
+    }
+    const headers = ['Date', 'Heure', 'Aliments', 'Poids_Total_g', 'Glucides_Nets_g', 'Proteines_g', 'Index_Glycemique', 'Charge_Glycemique', 'Bolus_UI', 'Verdict'];
+    const rows = history.map(h => {
+      const d = new Date(h.timestamp);
+      const dateStr = getLocalDateString(d);
+      const timeStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const names = (h.items || []).map(i => `${i.name} (${i.grams}g)`).join(' + ').replace(/;/g, ' ');
+      return [
+        dateStr,
+        timeStr,
+        `"${names}"`,
+        h.totalGrams || 0,
+        h.netCarbs || 0,
+        h.totalProtein || 0,
+        h.avgGI || 0,
+        h.totalGL || 0,
+        h.totalBolus !== undefined && h.totalBolus !== null ? Number(h.totalBolus).toFixed(1) : 0,
+        `"${(h.verdictTag || '').replace(/"/g, '""')}"`
+      ].join(';');
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `glucoscan-repas-${getLocalDateString()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('📊 Export CSV généré (compatible Excel & Dossier Médical) !');
   }
 };

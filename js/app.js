@@ -2,15 +2,12 @@ import { FoodRepository } from './data/foods.js?v=26';
 import { StorageService } from './services/storage.js?v=26';
 import { MetabolicEngine } from './services/metabolicEngine.js?v=26';
 import { VisionAnalyzer } from './services/visionAnalyzer.js?v=26';
-import { UIRenderer, showToast, escapeHTML } from './ui/renderer.js?v=26';
-import { SupabaseService } from './services/supabaseClient.js?v=26';
+import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=26';
 import { ProfileService } from './services/profileService.js?v=26';
 
 /**
- * Contrôleur principal GlucoScan Maroc (v18 - Double Profil, Supabase Cloud & Garde-fous Maroc)
+ * Contrôleur principal GlucoScan Maroc (v19 - Double Profil, Sync Déterministe & Grade Premium)
  */
-const EMBEDDED_API_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
-
 const DEFAULT_SETTINGS = {
   userMode: 'insulin',     // 'insulin' (Diabète & Insuline) ou 'wellness' (Santé & 18/6)
   ratioMorning: 8,
@@ -21,7 +18,7 @@ const DEFAULT_SETTINGS = {
   bgUnit: 'mg/dL',
   dailyTargetProtein: 100, // Cible journalière protéines (ex: 100g)
   dailyTargetCarbs: 120,   // Cible journalière glucides nets (ex: 120g)
-  geminiKey: EMBEDDED_API_KEY
+  geminiKey: ''
 };
 
 function detectDefaultSlot() {
@@ -32,15 +29,15 @@ function detectDefaultSlot() {
 }
 
 function getTodayTotals(history) {
-  const todayStr = new Date().toDateString();
+  const todayKey = getLocalDateString();
   let consumedCarbs = 0;
   let consumedProtein = 0;
   let mealCount = 0;
 
   for (const log of (history || [])) {
-    if (!log.timestamp) continue;
-    const logDate = new Date(log.timestamp).toDateString();
-    if (logDate === todayStr) {
+    if (!log || !log.timestamp) continue;
+    const logDate = getLocalDateString(log.timestamp);
+    if (logDate === todayKey) {
       consumedCarbs += Number(log.netCarbs) || 0;
       consumedProtein += Number(log.totalProtein || log.protein) || 0;
       mealCount++;
@@ -61,7 +58,7 @@ const state = {
     ...savedSettings,
     geminiKey: (savedSettings.geminiKey && savedSettings.geminiKey.trim().length > 20)
       ? savedSettings.geminiKey.trim()
-      : EMBEDDED_API_KEY
+      : ''
   },
   activeSlot: detectDefaultSlot(),
   items: StorageService.load('glucoscan_items_v3', []),
@@ -69,7 +66,7 @@ const state = {
   mediaStream: null,
   displayObjectUrl: null,
   currentPlateImage: null,
-  selectedCalendarDate: new Date().toISOString().slice(0, 10),
+  selectedCalendarDate: getLocalDateString(),
   viewCalendarYear: new Date().getFullYear(),
   viewCalendarMonth: new Date().getMonth(),
   catalogFilter: '',
@@ -264,15 +261,14 @@ async function handleImageSource(source) {
     // Image nette calibrée (720px, qualité 0.82) pour l'analyse IA Vision
     const compressedDataUrl = await VisionAnalyzer.compressImageSource(source, 720, 0.82);
 
-    // Sauvegarde immédiate pour l'historique / profil puis compression miniature asynchrone
-    state.currentPlateImage = compressedDataUrl;
-    VisionAnalyzer.compressImageSource(source, 280, 0.65)
-      .then(thumb => { if (thumb) state.currentPlateImage = thumb; })
-      .catch(() => {});
+    // Vignette allégée (180px, qualité 0.6) pour un stockage ultra-léger dans le journal sans saturer le localStorage
+    VisionAnalyzer.compressImageSource(source, 180, 0.6)
+      .then(thumb => { state.currentPlateImage = thumb; })
+      .catch(() => { state.currentPlateImage = null; });
 
     const detected = await VisionAnalyzer.detectWithGemini(
       compressedDataUrl,
-      state.settings.geminiKey || EMBEDDED_API_KEY
+      state.settings.geminiKey || ''
     );
 
     clearTimeout(watchdog);
@@ -332,6 +328,7 @@ async function startWebRTC() {
     const video = document.getElementById('cameraVideo');
     video.srcObject = stream;
     video.classList.remove('hidden');
+    video.play().catch(() => {});
     document.getElementById('plateImage').classList.add('hidden');
     document.getElementById('emptyCameraState').classList.add('hidden');
     document.getElementById('primaryCaptureActions').classList.add('hidden');
@@ -439,7 +436,7 @@ function updateFasting186View() {
       const elapsedFast = totalMinutesNow >= endEatMin
         ? (totalMinutesNow - endEatMin)
         : (24 * 60 - endEatMin + totalMinutesNow);
-      const remainFast = 18 * 60 - elapsedFast;
+      const remainFast = Math.max(0, 18 * 60 - elapsedFast);
       const remH = Math.floor(remainFast / 60);
       const remM = remainFast % 60;
       const elapsedH = Math.floor(elapsedFast / 60);
@@ -625,8 +622,19 @@ function switchToTab(target) {
     document.getElementById('inpRatioMorning').value = state.settings.ratioMorning;
     document.getElementById('inpRatioNoon').value = state.settings.ratioNoon;
     document.getElementById('inpRatioEvening').value = state.settings.ratioEvening;
-    document.getElementById('inpISF').value = state.settings.isf;
-    document.getElementById('inpTargetBG').value = state.settings.targetBG;
+
+    const isGL = state.settings.bgUnit === 'g/L';
+    const targetUnitEl = document.getElementById('lblTargetBGUnit');
+    const isfUnitEl = document.getElementById('lblISFUnit');
+    if (targetUnitEl) targetUnitEl.textContent = isGL ? 'Cible en g/L (ex: 1.00)' : 'Cible en mg/dL (ex: 100)';
+    if (isfUnitEl) isfUnitEl.textContent = isGL ? 'Baisse en g/L pour 1 UI (ex: 0.50)' : 'Baisse mg/dL pour 1 UI';
+
+    document.getElementById('inpISF').value = isGL && state.settings.isf >= 5
+      ? (state.settings.isf / 100).toFixed(2)
+      : state.settings.isf;
+    document.getElementById('inpTargetBG').value = isGL
+      ? (state.settings.targetBG / 100).toFixed(2)
+      : state.settings.targetBG;
     document.getElementById('inpGeminiKey').value = state.settings.geminiKey || '';
   }
 }
@@ -667,9 +675,18 @@ function bindEvents() {
     UIRenderer.exportMedicalReport(state.history, state.settings);
   });
 
-  // Suppression d'un repas de l'historique (Journal & Profil)
+  // Export Tableur CSV (Excel / DMP Médecin)
+  document.getElementById('btnExportHistoryCSV')?.addEventListener('click', () => {
+    UIRenderer.exportHistoryCSV(state.history);
+  });
+
+  // Suppression d'un repas de l'historique (Journal & Profil) avec persistance Tombstone
   const deleteMealFromHistory = (targetId) => {
     if (!targetId) return;
+    try {
+      if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
+    } catch (_) {}
+    ProfileService.recordDeletedMeal(targetId);
     const countBefore = state.history.length;
     state.history = state.history.filter(h => String(h.id || h.timestamp) !== String(targetId));
 
@@ -717,15 +734,15 @@ function bindEvents() {
     const startDayOffset = (firstDay.getDay() + 6) % 7;
     const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
 
-    // Dictionnaire des repas par jour (format YYYY-MM-DD)
+    // Dictionnaire des repas par jour (format local YYYY-MM-DD)
     const mealsByDate = new Map();
     for (const h of state.history) {
       if (!h.timestamp) continue;
-      const dateStr = String(h.timestamp).slice(0, 10);
+      const dateStr = getLocalDateString(h.timestamp);
       mealsByDate.set(dateStr, (mealsByDate.get(dateStr) || 0) + 1);
     }
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getLocalDateString();
 
     let html = '';
     // Cases vides avant le 1er du mois
@@ -774,10 +791,10 @@ function bindEvents() {
     const countLabel = document.getElementById('lblProfileSelectedDateCount');
     if (!container) return;
 
-    const selectedDate = state.selectedCalendarDate || new Date().toISOString().slice(0, 10);
+    const selectedDate = state.selectedCalendarDate || getLocalDateString();
     const [y, m, d] = selectedDate.split('-');
     const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
-    const isToday = selectedDate === new Date().toISOString().slice(0, 10);
+    const isToday = selectedDate === getLocalDateString();
 
     const formattedDate = isToday
       ? `Aujourd'hui (${dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })})`
@@ -790,8 +807,8 @@ function bindEvents() {
       `;
     }
 
-    // Filtrer les repas de la date choisie
-    const meals = state.history.filter(h => String(h.timestamp || '').slice(0, 10) === selectedDate);
+    // Filtrer les repas de la date choisie (format local)
+    const meals = state.history.filter(h => getLocalDateString(h.timestamp) === selectedDate);
 
     if (countLabel) {
       countLabel.textContent = `${meals.length} repas`;
@@ -836,8 +853,9 @@ function bindEvents() {
         ? `<span class="text-[9.5px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200">CG ${h.totalGL}</span>`
         : '';
 
-      const imageThumb = h.imageUrl
-        ? `<img src="${h.imageUrl}" alt="Repas" class="w-13 h-13 object-cover rounded-xl border border-slate-200 shadow-2xs shrink-0">`
+      const validImg = safeImageUrl(h.imageUrl);
+      const imageThumb = validImg
+        ? `<img src="${validImg}" alt="Repas" class="w-13 h-13 object-cover rounded-xl border border-slate-200 shadow-2xs shrink-0">`
         : `<div class="w-13 h-13 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0 text-lg font-bold">🍽️</div>`;
 
       return `
@@ -897,7 +915,7 @@ function bindEvents() {
     const today = new Date();
     state.viewCalendarYear = today.getFullYear();
     state.viewCalendarMonth = today.getMonth();
-    state.selectedCalendarDate = today.toISOString().slice(0, 10);
+    state.selectedCalendarDate = getLocalDateString(today);
     renderProfileCalendar();
     renderProfileDateMeals();
   });
@@ -923,9 +941,10 @@ function bindEvents() {
     if (perm === 'granted') {
       showToast('🔔 Rappels 10h (repas) et 15h45 (fin de fenêtre) activés !');
       try {
+        const appIconSvg = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%2310b981'/><circle cx='50' cy='50' r='28' fill='none' stroke='%23ffffff' stroke-width='8'/><circle cx='50' cy='50' r='12' fill='%23ffffff'/></svg>";
         new Notification('GlucoScan Maroc — Mon 18/6', {
           body: 'Rappels actifs pour votre protocole 10h & 15h.',
-          icon: './manifest.json'
+          icon: appIconSvg
         });
       } catch (_) {}
     } else {
@@ -1498,6 +1517,7 @@ function bindEvents() {
 
     const deltaBtn = e.target.closest('[data-delta]');
     if (deltaBtn) {
+      try { if (navigator.vibrate) navigator.vibrate(10); } catch (_) {}
       const idx = parseInt(deltaBtn.getAttribute('data-index'), 10);
       const delta = parseInt(deltaBtn.getAttribute('data-delta'), 10);
       if (state.items[idx]) {
@@ -1795,16 +1815,17 @@ function bindEvents() {
 
   // Réinitialiser les repas comptabilisés aujourd'hui
   document.getElementById('btnResetTodayLogs')?.addEventListener('click', () => {
-    const todayStr = new Date().toDateString();
+    const todayKey = getLocalDateString();
     const countBefore = state.history.length;
-    state.history = state.history.filter(item => {
-      if (!item || !item.timestamp) return true;
-      return new Date(item.timestamp).toDateString() !== todayStr;
-    });
+    const removedItems = state.history.filter(item => getLocalDateString(item?.timestamp) === todayKey);
+    removedItems.forEach(it => ProfileService.recordDeletedMeal(it.id || it.timestamp));
+    state.history = state.history.filter(item => getLocalDateString(item?.timestamp) !== todayKey);
     const removedCount = countBefore - state.history.length;
     StorageService.save('glucoscan_history_v3', state.history);
     ProfileService.saveProfileData(state.settings, state.history);
     updateUI();
+    renderProfileCalendar();
+    renderProfileDateMeals();
     showToast(removedCount > 0 ? `Réinitialisé (${removedCount} repas retiré(s))` : 'Aucun repas à réinitialiser aujourd’hui');
   });
 
@@ -1841,10 +1862,18 @@ function bindEvents() {
     state.settings.ratioMorning = Math.max(1, parseFloat(document.getElementById('inpRatioMorning').value) || 8);
     state.settings.ratioNoon = Math.max(1, parseFloat(document.getElementById('inpRatioNoon').value) || 10);
     state.settings.ratioEvening = Math.max(1, parseFloat(document.getElementById('inpRatioEvening').value) || 10);
-    state.settings.isf = Math.max(5, parseFloat(document.getElementById('inpISF').value) || 50);
-    state.settings.targetBG = Math.max(70, parseFloat(document.getElementById('inpTargetBG').value) || 100);
+
+    const isGL = state.settings.bgUnit === 'g/L';
+    const rawISF = parseFloat(document.getElementById('inpISF').value) || (isGL ? 0.5 : 50);
+    const isfMgDl = (isGL && rawISF < 5) ? Math.round(rawISF * 100) : Math.round(rawISF);
+    state.settings.isf = Math.min(300, Math.max(5, isfMgDl));
+
+    const rawTarget = parseFloat(document.getElementById('inpTargetBG').value) || (isGL ? 1.0 : 100);
+    const targetMgDl = (isGL && rawTarget < 5) ? Math.round(rawTarget * 100) : Math.round(rawTarget);
+    state.settings.targetBG = Math.min(250, Math.max(70, targetMgDl));
+
     const enteredKey = document.getElementById('inpGeminiKey').value.trim();
-    state.settings.geminiKey = enteredKey.length > 20 ? enteredKey : EMBEDDED_API_KEY;
+    state.settings.geminiKey = enteredKey.length > 20 ? enteredKey : '';
     StorageService.save('glucoscan_settings_v3', state.settings);
     ProfileService.saveProfileData(state.settings, state.history);
     updateUI();
@@ -1876,6 +1905,17 @@ function bindEvents() {
     };
     reader.readAsText(file);
   });
+
+  // Fermeture des modales avec la touche Échap (Accessibilité clavier)
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
+      document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
+      closeFoodCatalogModal();
+      state.selectedPinIndex = null;
+      updateUI();
+    }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1884,4 +1924,9 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   updateFasting186View();
   setInterval(updateFasting186View, 30000);
+
+  // Enregistrement du Service Worker PWA pour le mode hors-ligne
+  if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
 });

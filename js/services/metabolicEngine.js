@@ -208,13 +208,38 @@ export const MetabolicEngine = {
     const activeRatio = Math.max(1, Number(ratioBySlot[activeSlot]) || 10);
     const mealBolus = netCarbs / activeRatio;
 
-    // Calcul de la dose de correction selon la glycémie actuelle
+    // Calcul de la dose de correction selon la glycémie actuelle & Garde-fous cliniques
+    let glycemiaWarning = null;
     let corrBolus = 0;
-    if (currentBGMgDl !== null && (currentBGMgDl > settings.targetBG || currentBGMgDl < 80)) {
-      corrBolus = (currentBGMgDl - settings.targetBG) / Math.max(5, Number(settings.isf) || 50);
+
+    if (currentBGMgDl !== null && !isNaN(currentBGMgDl) && currentBGMgDl > 0) {
+      if (currentBGMgDl < 70) {
+        glycemiaWarning = {
+          level: 'danger',
+          type: 'hypo',
+          badgeText: '🔴 ALERTE HYPOGLYCÉMIE (< 70 mg/dL)',
+          headline: 'Arrêt Bolus — Règle des 15g requise immédiatement',
+          description: 'Votre glycémie est inférieure à 70 mg/dL (0.70 g/L). Prenez immédiatement 15g de glucides rapides (3 morceaux de sucre ou 120ml de jus d\'orange). Patientez 15 minutes et recontrôlez avant toute injection.'
+        };
+      } else if (currentBGMgDl > 250) {
+        glycemiaWarning = {
+          level: 'warning',
+          type: 'hyper',
+          badgeText: '🟠 ALERTE HYPERGLYCÉMIE (> 250 mg/dL)',
+          headline: 'Hyperglycémie sévère — Hydratation & Cétones',
+          description: 'Glycémie très élevée. Buvez de l\'eau plate abondamment et contrôlez votre acétonurie/acétonémie avant tout repas copieux.'
+        };
+      }
+
+      if (currentBGMgDl > settings.targetBG || (currentBGMgDl < 80 && currentBGMgDl >= 70)) {
+        corrBolus = (currentBGMgDl - settings.targetBG) / Math.max(5, Number(settings.isf) || 50);
+      }
     }
 
-    const totalBolus = Math.max(0, mealBolus + corrBolus);
+    // En cas d'hypoglycémie avérée, neutralisation du bolus pour sécurité vitale
+    const totalBolus = (glycemiaWarning && glycemiaWarning.type === 'hypo')
+      ? 0
+      : Math.max(0, mealBolus + corrBolus);
 
     // Arbre de décision du Verdict Métabolique (intégrant le Score d'Amorti)
     let verdict = {
@@ -284,6 +309,7 @@ export const MetabolicEngine = {
       mealBolus: Math.round(mealBolus * 10) / 10,
       corrBolus: Math.round(corrBolus * 10) / 10,
       totalBolus: Math.round(totalBolus * 10) / 10,
+      glycemiaWarning,
       verdict
     };
   }

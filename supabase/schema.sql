@@ -172,6 +172,8 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- 9. Table app_accounts (Gestion de Profils simplifiés Pseudo + Mot de passe sans email)
+-- NOTE DE SÉCURITÉ : Pour un environnement de production strict, utilisez Supabase Auth standard
+-- (auth.users). Si vous utilisez app_accounts en local-first, les mots de passe sont hachés avec sel.
 CREATE TABLE IF NOT EXISTS public.app_accounts (
     username TEXT PRIMARY KEY,
     display_name TEXT NOT NULL,
@@ -185,6 +187,7 @@ CREATE TABLE IF NOT EXISTS public.app_accounts (
 
 ALTER TABLE public.app_accounts ENABLE ROW LEVEL SECURITY;
 
+-- Les profils app_accounts permettent l'accès anonyme ou authentifié pour le mode local-first
 DROP POLICY IF EXISTS "Acces profils app_accounts" ON public.app_accounts;
 CREATE POLICY "Acces profils app_accounts"
     ON public.app_accounts FOR ALL

@@ -216,9 +216,9 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
     const timeoutId = setTimeout(() => controller.abort(), 20000);
 
     const candidates = [this.callEdgeProxy(base64Data, apiKey || '', controller.signal)];
-    if (apiKey) {
-      candidates.push(this.callSingleVisionModel('gemini-3-flash-preview', base64Data, apiKey, controller.signal));
-      candidates.push(this.callSingleVisionModel('gemini-3.5-flash', base64Data, apiKey, controller.signal));
+    if (apiKey && apiKey.length > 20 && !apiKey.startsWith('AQ.')) {
+      candidates.push(this.callSingleVisionModel('gemini-2.5-flash', base64Data, apiKey, controller.signal));
+      candidates.push(this.callSingleVisionModel('gemini-2.5-flash-lite', base64Data, apiKey, controller.signal));
     }
 
     try {
@@ -231,9 +231,12 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
       try {
         const fallbackCtrl = new AbortController();
         const fallbackTimer = setTimeout(() => fallbackCtrl.abort(), 12000);
-        const res = await this.callSingleVisionModel('gemini-3-flash-preview', base64Data, apiKey, fallbackCtrl.signal)
-          .catch(() => this.callSingleVisionModel('gemini-3.5-flash', base64Data, apiKey, fallbackCtrl.signal))
-          .catch(() => this.callEdgeProxy(base64Data, apiKey || '', fallbackCtrl.signal));
+        const hasKey = Boolean(apiKey && apiKey.length > 20 && !apiKey.startsWith('AQ.'));
+        const res = hasKey
+          ? await this.callSingleVisionModel('gemini-2.5-flash', base64Data, apiKey, fallbackCtrl.signal)
+              .catch(() => this.callSingleVisionModel('gemini-2.5-flash-lite', base64Data, apiKey, fallbackCtrl.signal))
+              .catch(() => this.callEdgeProxy(base64Data, apiKey || '', fallbackCtrl.signal))
+          : await this.callEdgeProxy(base64Data, '', fallbackCtrl.signal);
         clearTimeout(fallbackTimer);
         return res;
       } catch {

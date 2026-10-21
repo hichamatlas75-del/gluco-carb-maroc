@@ -1,5 +1,5 @@
 /**
- * Service de persistance locale sécurisée (localStorage avec fallback mémoire)
+ * Service de persistance locale sécurisée et résiliente aux dépassements de quota (5 Mo).
  */
 const memoryStore = {};
 
@@ -14,6 +14,19 @@ const isLocalStorageAvailable = (() => {
   }
 })();
 
+function stripHeavyImagesFromData(data) {
+  if (Array.isArray(data)) {
+    return data.map((item, idx) => {
+      // Conserver les images uniquement pour les 8 repas les plus récents
+      if (idx >= 8 && item && item.imageUrl) {
+        return { ...item, imageUrl: null };
+      }
+      return item;
+    });
+  }
+  return data;
+}
+
 export const StorageService = {
   load(key, fallbackValue) {
     try {
@@ -27,12 +40,30 @@ export const StorageService = {
   },
 
   save(key, value) {
+    let payload = value;
     try {
-      const serialized = JSON.stringify(value);
-      if (isLocalStorageAvailable) {
-        window.localStorage.setItem(key, serialized);
-      } else {
-        memoryStore[key] = serialized;
+      if (!isLocalStorageAvailable) {
+        memoryStore[key] = JSON.stringify(payload);
+        return;
+      }
+
+      try {
+        window.localStorage.setItem(key, JSON.stringify(payload));
+      } catch (quotaErr) {
+        // En cas de dépassement de quota (QuotaExceededError), allègement automatique des images
+        console.warn(`[StorageService] Quota warning sur ${key}. Allègement des images anciennes...`, quotaErr);
+        payload = stripHeavyImagesFromData(payload);
+        try {
+          window.localStorage.setItem(key, JSON.stringify(payload));
+        } catch (_) {
+          // Si toujours plein, réduction de l'historique aux 50 éléments les plus récents
+          if (Array.isArray(payload)) {
+            payload = payload.slice(0, 50).map(it => ({ ...it, imageUrl: null }));
+            window.localStorage.setItem(key, JSON.stringify(payload));
+          } else {
+            memoryStore[key] = JSON.stringify(value);
+          }
+        }
       }
     } catch {
       memoryStore[key] = JSON.stringify(value);

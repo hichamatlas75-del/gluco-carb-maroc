@@ -6,6 +6,7 @@
 
 const STORAGE_KEY_PROFILES = 'glucoscan_profiles_db_v1';
 const STORAGE_KEY_ACTIVE = 'glucoscan_active_profile_v1';
+const STORAGE_KEY_DELETED = 'glucoscan_deleted_meals_v1';
 
 const SUPABASE_REST_URL = 'https://plrqzuwbnuryxtsmimyt.supabase.co/rest/v1';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBscnF6dXdibnVyeXh0c21pbXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0Mzk2OTcsImV4cCI6MjEwODAxNTY5N30.Wzx1Lsh1GGETK_RidTTND1t4Ix3EjhS3qQvlGn-Xglc';
@@ -27,6 +28,36 @@ async function sha256(str) {
 
 export const ProfileService = {
   activeProfile: null,
+
+  async hashPassword(username, password) {
+    const cleanUser = String(username || '').toLowerCase().trim();
+    return sha256(`${cleanUser}:${password}:glucomaroc_salt_v2`);
+  },
+
+  async verifyPassword(username, password, storedHash) {
+    const salted = await this.hashPassword(username, password);
+    if (salted === storedHash) return true;
+    const legacy = await sha256(password);
+    return legacy === storedHash;
+  },
+
+  getDeletedMealIds() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_DELETED);
+      return new Set(data ? JSON.parse(data) : []);
+    } catch (_) {
+      return new Set();
+    }
+  },
+
+  recordDeletedMeal(id) {
+    if (!id) return;
+    try {
+      const set = this.getDeletedMealIds();
+      set.add(String(id));
+      localStorage.setItem(STORAGE_KEY_DELETED, JSON.stringify([...set].slice(-300)));
+    } catch (_) {}
+  },
 
   init() {
     try {
@@ -59,14 +90,16 @@ export const ProfileService = {
 
   /**
    * Fusion intelligente des repas locaux et distants (déduplication par ID/timestamp, tri antéchronologique)
+   * Élimine les repas supprimés localement (Tombstones) pour éviter le problème des "repas zombies".
    */
   mergeHistories(localHist, cloudHist) {
+    const deletedIds = this.getDeletedMealIds();
     const map = new Map();
     const all = [...(cloudHist || []), ...(localHist || [])];
     for (const item of all) {
       if (!item) continue;
       const key = String(item.id || item.timestamp || '');
-      if (!key) continue;
+      if (!key || deletedIds.has(key)) continue;
       if (!map.has(key)) {
         map.set(key, item);
       } else {
@@ -81,7 +114,7 @@ export const ProfileService = {
       const tA = new Date(a.timestamp || 0).getTime();
       const tB = new Date(b.timestamp || 0).getTime();
       return tB - tA;
-    }).slice(0, 200);
+    }).slice(0, 150);
   },
 
   /**
@@ -154,7 +187,7 @@ export const ProfileService = {
       throw new Error(`Le profil "${cleanUser}" existe déjà. Veuillez vous connecter pour synchroniser vos données.`);
     }
 
-    const passwordHash = await sha256(password);
+    const passwordHash = await this.hashPassword(cleanUser, password);
     const newProfile = {
       id: 'usr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
       username: cleanUser,
@@ -200,7 +233,6 @@ export const ProfileService = {
     if (!password) throw new Error('Veuillez saisir votre mot de passe');
 
     const key = cleanUser.toLowerCase();
-    const passwordHash = await sha256(password);
     const profiles = this.getAllProfiles();
     let profile = profiles[key];
 
@@ -208,7 +240,8 @@ export const ProfileService = {
     const cloudAccount = await this.fetchAccountFromCloud(key);
 
     if (cloudAccount) {
-      if (cloudAccount.password_hash !== passwordHash) {
+      const isCloudMatch = await this.verifyPassword(cleanUser, password, cloudAccount.password_hash);
+      if (!isCloudMatch) {
         throw new Error('Mot de passe incorrect pour ce profil.');
       }
 
@@ -235,7 +268,8 @@ export const ProfileService = {
       if (!profile) {
         throw new Error(`Aucun profil trouvé pour "${cleanUser}". Créez-le en cliquant sur "Nouveau profil".`);
       }
-      if (profile.passwordHash !== passwordHash) {
+      const isLocalMatch = await this.verifyPassword(cleanUser, password, profile.passwordHash);
+      if (!isLocalMatch) {
         throw new Error('Mot de passe incorrect pour ce profil.');
       }
       profile.lastLogin = new Date().toISOString();

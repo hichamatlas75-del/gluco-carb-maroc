@@ -1,11 +1,7 @@
 /**
  * Cloudflare Pages Function : /api/scan
- * Proxy IA Vision sécurisé avec masquage de clé, validation et garde-fous nutritionnels marocains.
+ * Proxy IA Vision sécurisé avec validation et garde-fous nutritionnels marocains.
  */
-
-const FALLBACK_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
-const FALLBACK_SUPABASE_URL = 'https://plrqzuwbnuryxtsmimyt.supabase.co';
-const FALLBACK_SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBscnF6dXdibnVyeXh0c21pbXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0Mzk2OTcsImV4cCI6MjEwODAxNTY5N30.Wzx1Lsh1GGETK_RidTTND1t4Ix3EjhS3qQvlGn-Xglc';
 
 const MOROCCAN_PORTION_SAFEGUARDS = {
   pains: { maxSafeGrams: 200, normalPortion: 70, label: '1/4 de pain individuel' },
@@ -15,14 +11,12 @@ const MOROCCAN_PORTION_SAFEGUARDS = {
   huile: { maxSafeGrams: 40, normalPortion: 15, label: '1 cuillère à soupe' }
 };
 
-export async function onRequestPost(context) {
+export async function onRequest(context) {
   const { request, env } = context;
-  const supabaseUrl = env?.SUPABASE_URL || FALLBACK_SUPABASE_URL;
-  const supabaseAnon = env?.SUPABASE_ANON_KEY || FALLBACK_SUPABASE_ANON;
 
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Content-Type': 'application/json'
   };
@@ -31,29 +25,15 @@ export async function onRequestPost(context) {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Méthode non autorisée' }), {
+      status: 405,
+      headers: corsHeaders
+    });
+  }
+
   try {
-    const authHeader = request.headers.get('Authorization') || '';
-    let isGuest = true;
-    let userId = 'guest_' + (request.headers.get('CF-Connecting-IP') || 'anonymous');
-
-    if (authHeader.startsWith('Bearer ') && supabaseUrl && supabaseAnon) {
-      const token = authHeader.replace('Bearer ', '').trim();
-      try {
-        const verifyRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'apikey': supabaseAnon
-          }
-        });
-        if (verifyRes.ok) {
-          const user = await verifyRes.json();
-          userId = user.id;
-          isGuest = false;
-        }
-      } catch (_) {}
-    }
-
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const base64Input = body?.imageBase64;
     if (!base64Input) {
       return new Response(JSON.stringify({ error: 'Image base64 manquante' }), {
@@ -63,7 +43,16 @@ export async function onRequestPost(context) {
     }
 
     const cleanBase64 = base64Input.includes(',') ? base64Input.split(',')[1] : base64Input;
-    const apiKey = env?.GEMINI_API_KEY || body?.apiKey || FALLBACK_KEY;
+    const apiKey = env?.GEMINI_API_KEY || body?.apiKey;
+
+    if (!apiKey || apiKey.startsWith('AQ.') || apiKey.length < 20) {
+      return new Response(JSON.stringify({
+        error: 'Clé API Gemini non configurée. Veuillez ajouter votre clé dans Synthèse > Paramètres IA avancés ou définir la variable GEMINI_API_KEY.'
+      }), {
+        status: 401,
+        headers: corsHeaders
+      });
+    }
 
     const systemPrompt = `Tu es un médecin nutritionniste expert en diabétologie et spécialiste de la gastronomie marocaine.
 Analyse la photo de ce repas :
@@ -80,7 +69,7 @@ Analyse la photo de ce repas :
 Réponds UNIQUEMENT en JSON strict sous cette forme :
 {"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
 
-    const models = ['gemini-3-flash-preview', 'gemini-3.5-flash', 'gemini-3.8-flash'];
+    const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.8-flash'];
     let parsedData = null;
     let lastError = null;
 
@@ -104,7 +93,8 @@ Réponds UNIQUEMENT en JSON strict sous cette forme :
         });
 
         if (!geminiRes.ok) {
-          lastError = new Error(`${model} HTTP ${geminiRes.status}`);
+          const errBody = await geminiRes.text();
+          lastError = new Error(`${model} HTTP ${geminiRes.status}: ${errBody}`);
           continue;
         }
 
@@ -113,7 +103,7 @@ Réponds UNIQUEMENT en JSON strict sous cette forme :
         const match = rawText.match(/\{[\s\S]*\}/);
         if (match) {
           const parsed = JSON.parse(match[0]);
-          if (Array.isArray(parsed?.items)) {
+          if (Array.isArray(parsed?.items) && parsed.items.length > 0) {
             parsedData = parsed;
             break;
           }
@@ -124,10 +114,15 @@ Réponds UNIQUEMENT en JSON strict sous cette forme :
     }
 
     if (!parsedData) {
-      throw lastError || new Error('Reconnaissance indisponible');
+      return new Response(JSON.stringify({
+        error: `Erreur analyse IA : ${lastError?.message || 'Réponse invalide'}`
+      }), {
+        status: 502,
+        headers: corsHeaders
+      });
     }
 
-    const items = (parsedData?.items || []).filter(it => {
+    const items = (parsedData.items || []).filter(it => {
       const n = String(it.customName || it.foodId || '').toLowerCase();
       const isWater = (n.includes('eau') || n.includes('water')) && !n.includes('gateau');
       return !isWater;
@@ -160,11 +155,7 @@ Réponds UNIQUEMENT en JSON strict sous cette forme :
       };
     });
 
-    return new Response(JSON.stringify({
-      items,
-      isGuest,
-      userId
-    }), {
+    return new Response(JSON.stringify({ items }), {
       status: 200,
       headers: corsHeaders
     });

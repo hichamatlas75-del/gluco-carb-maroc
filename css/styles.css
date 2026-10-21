@@ -85,3 +85,37 @@ input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+
+/* ==========================================================================
+   VERSION RESPONSIVE POUR ÉCRANS LARGES (TABLETTES & DESKTOPS - GRADE PREMIUM)
+   ========================================================================== */
+@media (min-width: 860px) {
+  body {
+    background-color: #f1f5f9;
+  }
+
+  .mobile-app {
+    max-width: 980px;
+    margin: 20px auto 40px auto;
+    border-radius: 28px;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.12);
+    min-height: calc(100dvh - 60px);
+  }
+
+  nav.fixed {
+    max-width: 980px;
+    border-radius: 0 0 28px 28px;
+  }
+}
+
+@media (min-width: 1080px) {
+  .mobile-app {
+    max-width: 1040px;
+  }
+
+  nav.fixed {
+    max-width: 1040px;
+  }
+}
+

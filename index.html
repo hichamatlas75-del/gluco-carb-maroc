@@ -10,8 +10,9 @@
   <meta name="description" content="GlucoScan Maroc — Scanner photo de plats marocains, estimation automatique du grammage, glucides nets, bolus d'insuline et verdict métabolique." />
   <title>GlucoScan Maroc — Scanner Photo & Verdict Glycémique</title>
 
-  <!-- Manifeste PWA -->
+  <!-- Manifeste PWA & Icônes Apple iOS -->
   <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%2310b981'/><circle cx='50' cy='50' r='28' fill='none' stroke='%23ffffff' stroke-width='8'/><circle cx='50' cy='50' r='12' fill='%23ffffff'/></svg>" />
 
   <!-- Typographie : Plus Jakarta Sans & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -452,6 +453,9 @@
               <span id="lblBGSuffix" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400">mg/dL</span>
             </div>
           </div>
+
+          <!-- Alerte d'Urgence Médicale Glycémique (Hypo / Hyper) -->
+          <div id="glycemiaAlertBox" class="hidden rounded-2xl p-3 border transition-all text-xs"></div>
         </div>
 
         <!-- MODULE 3 : LISTE DES ALIMENTS RECONNUS, CORRECTION MANUELLE & GRAMMAGE -->
@@ -520,11 +524,17 @@
             <div id="chartSevenDays" class="grid grid-cols-7 gap-1.5 items-end h-28 pt-4"></div>
           </div>
 
-          <!-- BOUTON D'EXPORTATION RAPPORT MÉDICAL (PDF / IMPRESSION) -->
-          <button type="button" id="btnExportMedicalReport" class="w-full py-2.5 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition-all">
-            <i data-lucide="file-text" class="w-4 h-4"></i>
-            Générer le Rapport Médical (PDF / Impression Médecin)
-          </button>
+          <!-- BOUTONS D'EXPORTATION RAPPORT MÉDICAL & TABLEUR CSV -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button type="button" id="btnExportMedicalReport" class="w-full py-2.5 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition-all">
+              <i data-lucide="file-text" class="w-4 h-4"></i>
+              Rapport PDF Médecin
+            </button>
+            <button type="button" id="btnExportHistoryCSV" class="w-full py-2.5 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-xs transition-all">
+              <i data-lucide="table" class="w-4 h-4 text-emerald-400"></i>
+              Export Tableur CSV
+            </button>
+          </div>
         </div>
 
         <div id="historyLogsContainer" class="space-y-2.5"></div>
@@ -656,14 +666,14 @@
           <div class="mode-insulin-only grid grid-cols-2 gap-2.5">
             <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
               <label for="inpISF" class="text-xs font-bold text-slate-700 block">Sensibilité (FSI)</label>
-              <span class="text-[10px] text-slate-500 block mb-1">Baisse mg/dL pour 1 UI</span>
-              <input id="inpISF" type="number" step="1" min="5" max="300" required
+              <span id="lblISFUnit" class="text-[10px] text-slate-500 block mb-1">Baisse mg/dL pour 1 UI</span>
+              <input id="inpISF" type="number" step="any" min="1" max="300" required
                 class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
             </div>
             <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
               <label for="inpTargetBG" class="text-xs font-bold text-slate-700 block">Glycémie Cible</label>
-              <span class="text-[10px] text-slate-500 block mb-1">Cible en mg/dL</span>
-              <input id="inpTargetBG" type="number" step="1" min="70" max="200" required
+              <span id="lblTargetBGUnit" class="text-[10px] text-slate-500 block mb-1">Cible en mg/dL</span>
+              <input id="inpTargetBG" type="number" step="any" min="0.5" max="300" required
                 class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 font-mono font-extrabold text-sm text-slate-900" />
             </div>
           </div>
