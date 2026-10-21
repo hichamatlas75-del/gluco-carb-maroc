@@ -75,7 +75,6 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
               }
             ],
             generationConfig: {
-              temperature: 0.1,
               responseMimeType: 'application/json'
             }
           })
@@ -109,14 +108,31 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
       });
     }
 
-    const filtered = items.filter(it => {
+    const safeNum = (v, def) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : def;
+    };
+
+    const sanitized = items.map((it, idx) => ({
+      foodId: it.foodId || `food_${Date.now()}_${idx}`,
+      customName: it.customName || 'Aliment détecté',
+      grams: Math.round(safeNum(it.grams, 100)),
+      carbs100g: Math.max(0, Math.round(safeNum(it.carbs100g, 0) * 10) / 10),
+      protein100g: Math.max(0, Math.round(safeNum(it.protein100g, 0) * 10) / 10),
+      fiber100g: Math.max(0, Math.round(safeNum(it.fiber100g, 0) * 10) / 10),
+      gi: Math.min(100, Math.max(0, Math.round(safeNum(it.gi, 50)))),
+      x: Math.min(85, Math.max(15, Math.round(safeNum(it.x, 50)))),
+      y: Math.min(85, Math.max(15, Math.round(safeNum(it.y, 50))))
+    }));
+
+    const filtered = sanitized.filter(it => {
       const name = String(it.customName || it.foodId || '').toLowerCase();
       const isWater = (name.includes('eau') || name.includes('water')) && !name.includes('gateau');
       const isZeroCal = Number(it.carbs100g || 0) === 0 && Number(it.fiber100g || 0) === 0 && isWater;
       return !isZeroCal;
     });
 
-    return new Response(JSON.stringify({ items: filtered.length > 0 ? filtered : items }), {
+    return new Response(JSON.stringify({ items: filtered.length > 0 ? filtered : sanitized }), {
       status: 200,
       headers: corsHeaders
     });

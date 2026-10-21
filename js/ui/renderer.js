@@ -523,10 +523,11 @@ export const UIRenderer = {
     }).join('');
   },
 
-  renderHistoryView(history) {
+  renderHistoryView(history, settings = null) {
     const chart = document.getElementById('chartSevenDays');
     const list = document.getElementById('historyLogsContainer');
     const avg = document.getElementById('lblWeeklyAverage');
+    const isWellness = settings?.userMode === 'wellness';
 
     const days = [];
     const now = new Date();
@@ -575,10 +576,12 @@ export const UIRenderer = {
         hour: '2-digit',
         minute: '2-digit'
       });
-      const names = (h.items || []).map(i => `${escapeHTML(i.name)} (${i.grams}g)`).join(', ');
+      const names = (h.items || []).map(i => `${escapeHTML(i.name)} (${Number(i.grams) || 0}g)`).join(', ');
       const itemId = escapeHTML(h.id || h.timestamp);
       const proteinVal = h.totalProtein ? Math.round(Number(h.totalProtein) * 10) / 10 : 0;
-      const bolusVal = h.totalBolus !== undefined && h.totalBolus !== null && !isNaN(h.totalBolus)
+      const totalGramsVal = Math.round(Number(h.totalGrams) || 0);
+      const netCarbsVal = Math.round(Number(h.netCarbs) * 10 || 0) / 10;
+      const bolusVal = (!isWellness && h.totalBolus !== undefined && h.totalBolus !== null && !isNaN(h.totalBolus))
         ? `💉 Bolus: ${Number(h.totalBolus).toFixed(1)} UI`
         : '';
 
@@ -617,7 +620,7 @@ export const UIRenderer = {
             </div>
           </div>
           <div class="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10.5px] font-mono font-bold text-slate-700">
-            <span>⚖️ ${h.totalGrams}g • 🌾 ${h.netCarbs}g nets • 🥩 ${proteinVal}g prot</span>
+            <span>⚖️ ${totalGramsVal}g • 🌾 ${netCarbsVal}g nets • 🥩 ${proteinVal}g prot</span>
             ${bolusVal ? `<span class="text-cyan-700 font-extrabold">${bolusVal}</span>` : ''}
           </div>
         </div>
@@ -682,6 +685,7 @@ export const UIRenderer = {
       return;
     }
 
+    const isWellness = settings?.userMode === 'wellness';
     const totalCarbs = history.reduce((sum, h) => sum + (Number(h.netCarbs) || 0), 0);
     const totalProt = history.reduce((sum, h) => sum + (Number(h.totalProtein) || 0), 0);
     const totalBolus = history.reduce((sum, h) => sum + (Number(h.totalBolus) || 0), 0);
@@ -693,19 +697,38 @@ export const UIRenderer = {
       const d = new Date(h.timestamp).toLocaleDateString('fr-FR', {
         day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
       });
-      const names = (h.items || []).map(i => `${i.name} (${i.grams}g)`).join(', ');
+      const names = (h.items || []).map(i => `${escapeHTML(i.name)} (${Number(i.grams) || 0}g)`).join(', ');
+      const totalG = Math.round(Number(h.totalGrams) || 0);
+      const netC = Math.round(Number(h.netCarbs) * 10 || 0) / 10;
+      const protVal = h.totalProtein ? (Math.round(Number(h.totalProtein) * 10) / 10) : '--';
+      const bolusCell = isWellness
+        ? ''
+        : `<td style="padding: 8px 6px; text-align: right; color: #0284c7;"><strong>${Number(h.totalBolus || 0).toFixed(1)} UI</strong></td>`;
       return `
         <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
-          <td style="padding: 8px 6px;"><strong>${d}</strong></td>
-          <td style="padding: 8px 6px;">${escapeHTML(names)}</td>
-          <td style="padding: 8px 6px; text-align: right;">${h.totalGrams}g</td>
-          <td style="padding: 8px 6px; text-align: right;"><strong>${h.netCarbs}g</strong></td>
-          <td style="padding: 8px 6px; text-align: right;">${h.totalProtein || '--'}g</td>
-          <td style="padding: 8px 6px; text-align: right; color: #0284c7;"><strong>${Number(h.totalBolus || 0).toFixed(1)} UI</strong></td>
+          <td style="padding: 8px 6px;"><strong>${escapeHTML(d)}</strong></td>
+          <td style="padding: 8px 6px;">${names}</td>
+          <td style="padding: 8px 6px; text-align: right;">${totalG}g</td>
+          <td style="padding: 8px 6px; text-align: right;"><strong>${netC}g</strong></td>
+          <td style="padding: 8px 6px; text-align: right;">${protVal}g</td>
+          ${bolusCell}
           <td style="padding: 8px 6px; text-align: center;">${escapeHTML(h.verdictTag || 'Normal')}</td>
         </tr>
       `;
     }).join('');
+
+    const kpiBolusCard = isWellness
+      ? ''
+      : `
+        <div class="kpi-card">
+          <div class="kpi-val" style="color: #0284c7;">${avgBolus} UI</div>
+          <div class="kpi-lbl">Bolus Moyen Estimé</div>
+        </div>
+      `;
+
+    const tableBolusHeader = isWellness
+      ? ''
+      : `<th style="text-align: right;">Bolus</th>`;
 
     const html = `
       <!DOCTYPE html>
@@ -717,7 +740,7 @@ export const UIRenderer = {
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; margin: 24px; line-height: 1.4; }
           .header { border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
           .badge { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 12px; }
-          .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+          .kpi-grid { display: grid; grid-template-columns: repeat(${isWellness ? 3 : 4}, 1fr); gap: 12px; margin-bottom: 24px; }
           .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; text-align: center; }
           .kpi-val { font-size: 20px; font-weight: 800; color: #0f172a; font-family: monospace; }
           .kpi-lbl { font-size: 11px; color: #64748b; font-weight: bold; margin-top: 4px; }
@@ -752,10 +775,7 @@ export const UIRenderer = {
             <div class="kpi-val">${avgProt}g</div>
             <div class="kpi-lbl">Protéines Moy. / Repas</div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-val" style="color: #0284c7;">${avgBolus} UI</div>
-            <div class="kpi-lbl">Bolus Moyen Estimé</div>
-          </div>
+          ${kpiBolusCard}
         </div>
 
         <h3 style="font-size: 14px; margin-bottom: 8px;">Détail chronologique des repas journalisés</h3>
@@ -767,7 +787,7 @@ export const UIRenderer = {
               <th style="text-align: right;">Poids</th>
               <th style="text-align: right;">Glucides</th>
               <th style="text-align: right;">Protéines</th>
-              <th style="text-align: right;">Bolus</th>
+              ${tableBolusHeader}
               <th style="text-align: center;">Verdict</th>
             </tr>
           </thead>
@@ -804,23 +824,32 @@ export const UIRenderer = {
       showToast('Aucun repas à exporter');
       return;
     }
+    const sanitizeCSV = (str) => {
+      let s = String(str ?? '');
+      // Neutralisation injection formule CSV (=, +, -, @)
+      if (/^[=+\-@\t\r]/.test(s)) {
+        s = `'` + s;
+      }
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
     const headers = ['Date', 'Heure', 'Aliments', 'Poids_Total_g', 'Glucides_Nets_g', 'Proteines_g', 'Index_Glycemique', 'Charge_Glycemique', 'Bolus_UI', 'Verdict'];
     const rows = history.map(h => {
       const d = new Date(h.timestamp);
       const dateStr = getLocalDateString(d);
       const timeStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      const names = (h.items || []).map(i => `${i.name} (${i.grams}g)`).join(' + ').replace(/;/g, ' ');
+      const names = (h.items || []).map(i => `${i.name || ''} (${Number(i.grams) || 0}g)`).join(' + ').replace(/;/g, ' ');
       return [
-        dateStr,
-        timeStr,
-        `"${names}"`,
-        h.totalGrams || 0,
-        h.netCarbs || 0,
-        h.totalProtein || 0,
-        h.avgGI || 0,
-        h.totalGL || 0,
-        h.totalBolus !== undefined && h.totalBolus !== null ? Number(h.totalBolus).toFixed(1) : 0,
-        `"${(h.verdictTag || '').replace(/"/g, '""')}"`
+        sanitizeCSV(dateStr),
+        sanitizeCSV(timeStr),
+        sanitizeCSV(names),
+        Math.round(Number(h.totalGrams) || 0),
+        Math.round(Number(h.netCarbs) * 10 || 0) / 10,
+        Math.round(Number(h.totalProtein) * 10 || 0) / 10,
+        Math.round(Number(h.avgGI) || 0),
+        Math.round(Number(h.totalGL) * 10 || 0) / 10,
+        h.totalBolus !== undefined && h.totalBolus !== null && !isNaN(h.totalBolus) ? Number(h.totalBolus).toFixed(1) : '0.0',
+        sanitizeCSV(h.verdictTag || '')
       ].join(';');
     });
 

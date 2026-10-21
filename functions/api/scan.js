@@ -91,7 +91,6 @@ Réponds UNIQUEMENT en JSON strict sous cette forme :
               }
             ],
             generationConfig: {
-              temperature: 0.1,
               responseMimeType: 'application/json'
             }
           })
@@ -147,16 +146,21 @@ Réponds UNIQUEMENT en JSON strict sous cette forme :
         grams = MOROCCAN_PORTION_SAFEGUARDS.msemen.normalPortion;
       }
 
+      const safeNum = (v, def) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : def;
+      };
+
       return {
-        foodId: it.foodId || `food_${Date.now()}`,
+        foodId: it.foodId || `food_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
         customName: it.customName || 'Aliment détecté',
         grams,
-        carbs100g: Math.max(0, Math.round(Number(it.carbs100g || 0) * 10) / 10),
-        protein100g: Math.max(0, Math.round(Number(it.protein100g || 0) * 10) / 10),
-        fiber100g: Math.max(0, Math.round(Number(it.fiber100g || 0) * 10) / 10),
-        gi: Math.min(100, Math.max(0, Math.round(Number(it.gi || 50)))),
-        x: Math.min(85, Math.max(15, Math.round(Number(it.x) || 50))),
-        y: Math.min(85, Math.max(15, Math.round(Number(it.y) || 50))),
+        carbs100g: Math.max(0, Math.round(safeNum(it.carbs100g, 0) * 10) / 10),
+        protein100g: Math.max(0, Math.round(safeNum(it.protein100g, 0) * 10) / 10),
+        fiber100g: Math.max(0, Math.round(safeNum(it.fiber100g, 0) * 10) / 10),
+        gi: Math.min(100, Math.max(0, Math.round(safeNum(it.gi, 50)))),
+        x: Math.min(85, Math.max(15, Math.round(safeNum(it.x, 50)))),
+        y: Math.min(85, Math.max(15, Math.round(safeNum(it.y, 50)))),
         portionWarning: warning
       };
     });

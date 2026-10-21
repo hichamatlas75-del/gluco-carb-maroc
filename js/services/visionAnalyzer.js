@@ -20,6 +20,17 @@ function normalizeCoord(val, fallback) {
   return Math.min(82, Math.max(18, Math.round(pct)));
 }
 
+/**
+ * Convertit une valeur IA en nombre fini borné, sinon valeur par défaut.
+ * (Number(undefined) ?? x ne fonctionne pas : Number(undefined) vaut NaN, pas undefined.)
+ */
+function safeNum(val, fallback, min = 0, max = Infinity) {
+  if (val === null || val === undefined || val === '') return fallback;
+  const n = Number(val);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
 export const VisionAnalyzer = {
   /**
    * Prépare une image nette pour l'IA tout en gardant une excellente définition
@@ -95,7 +106,7 @@ export const VisionAnalyzer = {
 
       if (dbFood) {
         // Garde-fou portion marocaine individuelle (max 90g pour le pain)
-        let grams = Math.max(5, Math.round(Number(item.grams) || dbFood.defaultGrams));
+        let grams = Math.round(safeNum(item.grams, dbFood.defaultGrams || 100, 5, 1500));
         if (dbFood.category === 'pains' && grams > 120) {
           grams = Math.min(grams, 85);
         }
@@ -105,7 +116,7 @@ export const VisionAnalyzer = {
           customName: item.customName || dbFood.name,
           grams,
           carbs100g: dbFood.carbs100g,
-          protein100g: typeof item.protein100g === 'number' ? item.protein100g : (dbFood.protein100g || 0),
+          protein100g: safeNum(item.protein100g, dbFood.protein100g || 0, 0, 100),
           fiber100g: dbFood.fiber100g,
           gi: dbFood.gi,
           refPortion: dbFood.refPortion,
@@ -118,11 +129,11 @@ export const VisionAnalyzer = {
       return {
         foodId: `custom_${Date.now()}_${idx}`,
         customName: item.customName || 'Aliment détecté',
-        grams: Math.max(5, Math.round(Number(item.grams) || 100)),
-        carbs100g: Math.max(0, Number(item.carbs100g) ?? 22),
-        protein100g: Math.max(0, Number(item.protein100g) ?? 0),
-        fiber100g: Math.max(0, Number(item.fiber100g) ?? 1),
-        gi: Math.min(100, Math.max(0, Number(item.gi) ?? 55)),
+        grams: Math.round(safeNum(item.grams, 100, 5, 1500)),
+        carbs100g: safeNum(item.carbs100g, 22, 0, 100),
+        protein100g: safeNum(item.protein100g, 0, 0, 100),
+        fiber100g: safeNum(item.fiber100g, 1, 0, 100),
+        gi: Math.round(safeNum(item.gi, 55, 0, 100)),
         refPortion: 'Estimé par IA Vision',
         x: normalizeCoord(item.x, fallbackX),
         y: normalizeCoord(item.y, fallbackY),
@@ -232,7 +243,6 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
         }
       ],
       generationConfig: {
-        temperature: 0.1,
         responseMimeType: 'application/json'
       }
     });

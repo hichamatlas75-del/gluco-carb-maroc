@@ -74,7 +74,8 @@ const state = {
   replaceItemIndex: null,
   selectedPinIndex: null,
   pinsVisible: true,
-  customPresetGI: 50
+  customPresetGI: 50,
+  scanSeq: 0
 };
 
 // Restauration du profil utilisateur actif (si connecté)
@@ -107,7 +108,7 @@ if (activeProfileInit) {
       StorageService.save('glucoscan_history_v3', state.history);
       StorageService.save('glucoscan_settings_v3', state.settings);
       updateUI();
-      UIRenderer.renderHistoryView(state.history);
+      UIRenderer.renderHistoryView(state.history, state.settings);
     }
   }).catch(() => {});
 }
@@ -229,6 +230,9 @@ function updateUI() {
  */
 async function handleImageSource(source) {
   stopWebRTC();
+  const currentScanSeq = ++state.scanSeq;
+  state.currentPlateImage = null;
+
   const img = document.getElementById('plateImage');
   const empty = document.getElementById('emptyCameraState');
   const clearBtn = document.getElementById('btnClearPhoto');
@@ -254,23 +258,31 @@ async function handleImageSource(source) {
   }
 
   const watchdog = setTimeout(() => {
-    overlay.classList.add('hidden');
+    if (currentScanSeq === state.scanSeq) {
+      overlay.classList.add('hidden');
+    }
   }, 35000);
 
   try {
     // Image nette calibrée (700px, qualité 0.78) : upload 10x plus rapide et résolution optimale
     const compressedDataUrl = await VisionAnalyzer.compressImageSource(source, 700, 0.78);
+    if (currentScanSeq !== state.scanSeq) return;
 
     // Vignette allégée (180px, qualité 0.6) pour un stockage ultra-léger dans le journal sans saturer le localStorage
     VisionAnalyzer.compressImageSource(source, 180, 0.6)
-      .then(thumb => { state.currentPlateImage = thumb; })
-      .catch(() => { state.currentPlateImage = null; });
+      .then(thumb => {
+        if (currentScanSeq === state.scanSeq) state.currentPlateImage = thumb;
+      })
+      .catch(() => {
+        if (currentScanSeq === state.scanSeq) state.currentPlateImage = null;
+      });
 
     const res = await VisionAnalyzer.detectWithGemini(
       compressedDataUrl,
       state.settings.geminiKey || ''
     );
 
+    if (currentScanSeq !== state.scanSeq) return;
     clearTimeout(watchdog);
     overlay.classList.add('hidden');
 
@@ -314,6 +326,7 @@ async function handleImageSource(source) {
       });
     }
   } catch (err) {
+    if (currentScanSeq !== state.scanSeq) return;
     clearTimeout(watchdog);
     overlay.classList.add('hidden');
     console.error('Vision analysis error:', err);
@@ -637,7 +650,7 @@ function switchToTab(target) {
     if (window.lucide) window.lucide.createIcons();
   }
   if (target === 'history') {
-    UIRenderer.renderHistoryView(state.history);
+    UIRenderer.renderHistoryView(state.history, state.settings);
   }
   if (target === 'guide') {
     updateDailyCarbCalculator();
@@ -691,6 +704,7 @@ function bindEvents() {
     StorageService.save('glucoscan_settings_v3', state.settings);
     ProfileService.saveProfileData(state.settings, state.history);
     UIRenderer.renderUserMode('insulin');
+    UIRenderer.renderHistoryView(state.history, state.settings);
     updateUI();
     showToast('Mode Diabète & Insuline actif');
   });
@@ -700,6 +714,7 @@ function bindEvents() {
     StorageService.save('glucoscan_settings_v3', state.settings);
     ProfileService.saveProfileData(state.settings, state.history);
     UIRenderer.renderUserMode('wellness');
+    UIRenderer.renderHistoryView(state.history, state.settings);
     updateUI();
     showToast('Mode Santé & 18/6 actif (Insuline masquée)');
   });
@@ -727,7 +742,7 @@ function bindEvents() {
     if (state.history.length < countBefore) {
       StorageService.save('glucoscan_history_v3', state.history);
       ProfileService.saveProfileData(state.settings, state.history);
-      UIRenderer.renderHistoryView(state.history);
+      UIRenderer.renderHistoryView(state.history, state.settings);
       renderProfileCalendar();
       renderProfileDateMeals();
       updateUI();
@@ -1044,7 +1059,7 @@ function bindEvents() {
           StorageService.save('glucoscan_history_v3', state.history);
           StorageService.save('glucoscan_settings_v3', state.settings);
           updateUI();
-          UIRenderer.renderHistoryView(state.history);
+          UIRenderer.renderHistoryView(state.history, state.settings);
           renderProfileCalendar();
           renderProfileDateMeals();
           updateAuthUI();
@@ -1134,7 +1149,7 @@ function bindEvents() {
 
       updateAuthUI();
       updateUI();
-      UIRenderer.renderHistoryView(state.history);
+      UIRenderer.renderHistoryView(state.history, state.settings);
       renderProfileCalendar();
       renderProfileDateMeals();
       document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
@@ -1208,7 +1223,7 @@ function bindEvents() {
         }
         updateAuthUI();
         updateUI();
-        UIRenderer.renderHistoryView(state.history);
+        UIRenderer.renderHistoryView(state.history, state.settings);
         renderProfileCalendar();
         renderProfileDateMeals();
         showToast(`☁️ Synchronisation réussie ! (${state.history.length} repas à jour entre PC et Mobile)`);
@@ -1229,7 +1244,19 @@ function bindEvents() {
   // Déconnexion / Changer de profil
   document.getElementById('btnLogoutProfile')?.addEventListener('click', () => {
     ProfileService.logout();
+    state.history = [];
+    state.items = [];
+    state.settings = { ...DEFAULT_SETTINGS, geminiKey: state.settings.geminiKey || '' };
+    state.currentPlateImage = null;
+    state.selectedPinIndex = null;
+    StorageService.save('glucoscan_history_v3', []);
+    StorageService.save('glucoscan_items_v3', []);
+    StorageService.save('glucoscan_settings_v3', state.settings);
     updateAuthUI();
+    updateUI();
+    UIRenderer.renderHistoryView(state.history, state.settings);
+    renderProfileCalendar();
+    renderProfileDateMeals();
     showToast('Déconnecté. Vous êtes maintenant en mode invité.');
   });
 
@@ -1390,7 +1417,11 @@ function bindEvents() {
       if (state.items[idx]) {
         const removedFood = MetabolicEngine.resolveFoodEntry(state.items[idx]);
         state.items.splice(idx, 1);
-        if (state.selectedPinIndex === idx) state.selectedPinIndex = null;
+        if (state.selectedPinIndex === idx) {
+          state.selectedPinIndex = null;
+        } else if (state.selectedPinIndex > idx) {
+          state.selectedPinIndex--;
+        }
         StorageService.save('glucoscan_items_v3', state.items);
         updateUI();
         showToast(`🗑️ ${removedFood ? removedFood.name.split('(')[0].trim() : 'Aliment'} supprimé`);
@@ -1493,7 +1524,7 @@ function bindEvents() {
   document.getElementById('inpQuickPinGrams')?.addEventListener('input', (e) => {
     const idx = state.selectedPinIndex;
     if (idx === null || !state.items[idx]) return;
-    state.items[idx].grams = Math.max(5, parseInt(e.target.value, 10) || 5);
+    state.items[idx].grams = Math.min(1500, Math.max(5, parseInt(e.target.value, 10) || 5));
     StorageService.save('glucoscan_items_v3', state.items);
     updateUI();
   });
@@ -1588,7 +1619,11 @@ function bindEvents() {
       if (state.items[idx]) {
         const removedFood = MetabolicEngine.resolveFoodEntry(state.items[idx]);
         state.items.splice(idx, 1);
-        if (state.selectedPinIndex === idx) state.selectedPinIndex = null;
+        if (state.selectedPinIndex === idx) {
+          state.selectedPinIndex = null;
+        } else if (state.selectedPinIndex > idx) {
+          state.selectedPinIndex--;
+        }
         StorageService.save('glucoscan_items_v3', state.items);
         updateUI();
         showToast(`🗑️ ${removedFood ? removedFood.name.split('(')[0].trim() : 'Aliment'} supprimé`);
@@ -1613,7 +1648,7 @@ function bindEvents() {
     if (!inp) return;
     const idx = parseInt(inp.getAttribute('data-direct-grams'), 10);
     if (state.items[idx]) {
-      state.items[idx].grams = Math.max(5, parseInt(inp.value, 10) || 5);
+      state.items[idx].grams = Math.min(1500, Math.max(5, parseInt(inp.value, 10) || 5));
       StorageService.save('glucoscan_items_v3', state.items);
       updateUI();
     }
@@ -1822,76 +1857,58 @@ function bindEvents() {
   });
 
   // Enregistrement dans le journal & Partage WhatsApp
-  document.getElementById('btnSaveMealLog')?.addEventListener('click', () => {
-    if (state.items.length === 0) return;
+  function logCurrentPlate(successMessage = 'Repas enregistré') {
+    if (state.items.length === 0) {
+      showToast('Assiette vide : ajoutez d’abord des aliments');
+      return false;
+    }
+    const currentBG = getCurrentBGMgDl();
     const ev = MetabolicEngine.evaluatePlate(
       state.items,
       state.settings,
       state.activeSlot,
-      getCurrentBGMgDl()
+      currentBG
     );
-    state.history.unshift({
-      id: 'log_' + Date.now(),
+    const newLog = {
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
       timestamp: new Date().toISOString(),
+      mealSlot: state.activeSlot || 'noon',
       verdictTag: ev.verdict.tag,
       totalGrams: ev.totalGrams,
       netCarbs: ev.netCarbs,
       totalProtein: ev.totalProtein,
+      totalFiber: ev.totalFiber || 0,
       proteinIndexLabel: ev.proteinIndex.label,
+      mealBolus: ev.mealBolus,
+      corrBolus: ev.corrBolus,
       totalBolus: ev.totalBolus,
+      bgBefore: currentBG,
       avgGI: ev.avgGI || 50,
       totalGL: ev.totalGL || 0,
       imageUrl: state.currentPlateImage || null,
       items: state.items.map(i => {
         const f = MetabolicEngine.resolveFoodEntry(i);
-        return { name: f ? f.name.split('(')[0].trim() : i.foodId, grams: i.grams };
+        return { name: f ? f.name.split('(')[0].trim() : (i.customName || i.foodId), grams: Number(i.grams) || 100 };
       })
-    });
+    };
+    state.history.unshift(newLog);
     state.history = state.history.slice(0, 150);
     StorageService.save('glucoscan_history_v3', state.history);
     ProfileService.saveProfileData(state.settings, state.history);
     updateUI();
     renderProfileCalendar();
     renderProfileDateMeals();
-    showToast('Repas enregistré dans le journal 7j');
+    showToast(successMessage);
+    return true;
+  }
+
+  document.getElementById('btnSaveMealLog')?.addEventListener('click', () => {
+    logCurrentPlate('Repas enregistré dans le journal 7j');
   });
 
   // Bouton d'ajout direct du repas actuel à la synthèse journalière
   document.getElementById('btnLogCurrentMealToDay')?.addEventListener('click', () => {
-    if (state.items.length === 0) {
-      showToast('Assiette vide : ajoutez d’abord des aliments');
-      return;
-    }
-    const ev = MetabolicEngine.evaluatePlate(
-      state.items,
-      state.settings,
-      state.activeSlot,
-      getCurrentBGMgDl()
-    );
-    state.history.unshift({
-      id: 'log_' + Date.now(),
-      timestamp: new Date().toISOString(),
-      verdictTag: ev.verdict.tag,
-      totalGrams: ev.totalGrams,
-      netCarbs: ev.netCarbs,
-      totalProtein: ev.totalProtein,
-      proteinIndexLabel: ev.proteinIndex.label,
-      totalBolus: ev.totalBolus,
-      avgGI: ev.avgGI || 50,
-      totalGL: ev.totalGL || 0,
-      imageUrl: state.currentPlateImage || null,
-      items: state.items.map(i => {
-        const f = MetabolicEngine.resolveFoodEntry(i);
-        return { name: f ? f.name.split('(')[0].trim() : i.foodId, grams: i.grams };
-      })
-    });
-    state.history = state.history.slice(0, 150);
-    StorageService.save('glucoscan_history_v3', state.history);
-    ProfileService.saveProfileData(state.settings, state.history);
-    updateUI();
-    renderProfileCalendar();
-    renderProfileDateMeals();
-    showToast('Repas comptabilisé dans la synthèse du jour !');
+    logCurrentPlate('Repas comptabilisé dans la synthèse du jour !');
   });
 
   // Réinitialiser les repas comptabilisés aujourd'hui
@@ -2005,18 +2022,60 @@ function bindEvents() {
     reader.onload = () => {
       try {
         const data = JSON.parse(String(reader.result));
-        if (data.settings) state.settings = { ...DEFAULT_SETTINGS, ...data.settings };
-        if (Array.isArray(data.history)) state.history = data.history;
+        if (data.settings && typeof data.settings === 'object') {
+          state.settings = {
+            ...DEFAULT_SETTINGS,
+            ...state.settings,
+            dailyTargetProtein: Math.max(30, Number(data.settings.dailyTargetProtein) || DEFAULT_SETTINGS.dailyTargetProtein),
+            dailyTargetCarbs: Math.max(30, Number(data.settings.dailyTargetCarbs) || DEFAULT_SETTINGS.dailyTargetCarbs),
+            ratioMorning: Math.max(1, Number(data.settings.ratioMorning) || DEFAULT_SETTINGS.ratioMorning),
+            ratioNoon: Math.max(1, Number(data.settings.ratioNoon) || DEFAULT_SETTINGS.ratioNoon),
+            ratioEvening: Math.max(1, Number(data.settings.ratioEvening) || DEFAULT_SETTINGS.ratioEvening),
+            isf: Math.min(300, Math.max(5, Number(data.settings.isf) || DEFAULT_SETTINGS.isf)),
+            targetBG: Math.min(250, Math.max(70, Number(data.settings.targetBG) || DEFAULT_SETTINGS.targetBG)),
+            bgUnit: data.settings.bgUnit === 'g/L' ? 'g/L' : 'mg/dL',
+            userMode: data.settings.userMode === 'wellness' ? 'wellness' : 'insulin'
+          };
+        }
+        if (Array.isArray(data.history)) {
+          const sanitizedHistory = data.history.filter(h => h && typeof h === 'object').map(h => ({
+            id: String(h.id || 'log_' + Date.now()),
+            timestamp: h.timestamp && !isNaN(Date.parse(h.timestamp)) ? new Date(h.timestamp).toISOString() : new Date().toISOString(),
+            mealSlot: String(h.mealSlot || 'noon'),
+            verdictTag: String(h.verdictTag || 'Repas'),
+            totalGrams: Math.round(Number(h.totalGrams) || 0),
+            netCarbs: Math.round(Number(h.netCarbs) * 10 || 0) / 10,
+            totalProtein: Math.round(Number(h.totalProtein || h.protein) * 10 || 0) / 10,
+            totalFiber: Math.round(Number(h.totalFiber || h.fiber) * 10 || 0) / 10,
+            proteinIndexLabel: String(h.proteinIndexLabel || 'Modéré'),
+            mealBolus: Number(h.mealBolus) || 0,
+            corrBolus: Number(h.corrBolus) || 0,
+            totalBolus: Number.isFinite(Number(h.totalBolus)) ? Math.round(Number(h.totalBolus) * 10) / 10 : null,
+            bgBefore: Number(h.bgBefore) || null,
+            avgGI: Math.round(Number(h.avgGI) || 50),
+            totalGL: Math.round(Number(h.totalGL) * 10 || 0) / 10,
+            imageUrl: safeImageUrl(h.imageUrl),
+            items: Array.isArray(h.items) ? h.items.map(it => ({
+              name: String(it?.name || 'Aliment').slice(0, 100),
+              grams: Math.round(Math.max(5, Math.min(1500, Number(it?.grams) || 100)))
+            })) : []
+          }));
+          state.history = sanitizedHistory.slice(0, 150);
+        }
         StorageService.save('glucoscan_settings_v3', state.settings);
         StorageService.save('glucoscan_history_v3', state.history);
-        UIRenderer.renderHistoryView(state.history);
+        ProfileService.saveProfileData(state.settings, state.history);
+        UIRenderer.renderHistoryView(state.history, state.settings);
+        renderProfileCalendar();
+        renderProfileDateMeals();
         updateUI();
-        showToast('Sauvegarde importée');
+        showToast('Sauvegarde importée et vérifiée !');
       } catch {
         showToast('Fichier JSON invalide');
       }
     };
     reader.readAsText(file);
+    e.target.value = '';
   });
 
   // Fermeture des modales avec la touche Échap (Accessibilité clavier)

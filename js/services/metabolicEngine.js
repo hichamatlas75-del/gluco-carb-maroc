@@ -1,6 +1,15 @@
 import { FoodRepository } from '../data/foods.js?v=16';
 
 /**
+ * Convertit une valeur en nombre fini, sinon retourne la valeur par défaut.
+ * Évite toute propagation de NaN dans les calculs de glucides / bolus.
+ */
+function finiteOr(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/**
  * Moteur de calcul des glucides nets, protéines, charge glycémique, bolus d'insuline
  * et génération de l'Indice Protéique et du Verdict Métabolique.
  * Supporte à la fois les aliments du catalogue marocain et tout aliment libre reconnu par IA.
@@ -12,17 +21,17 @@ export const MetabolicEngine = {
       return {
         ...dbFood,
         name: entry.customName || dbFood.name,
-        protein100g: typeof entry.protein100g === 'number' ? entry.protein100g : (dbFood.protein100g || 0)
+        protein100g: Math.max(0, finiteOr(entry.protein100g, dbFood.protein100g || 0))
       };
     }
-    if (entry && typeof entry.carbs100g === 'number') {
+    if (entry && Number.isFinite(Number(entry.carbs100g)) && entry.carbs100g !== null && entry.carbs100g !== '') {
       return {
         id: entry.foodId || 'custom',
         name: entry.customName || 'Aliment détecté par IA',
-        carbs100g: entry.carbs100g,
-        protein100g: typeof entry.protein100g === 'number' ? entry.protein100g : 0,
-        fiber100g: entry.fiber100g || 0,
-        gi: entry.gi || 55,
+        carbs100g: Math.max(0, finiteOr(entry.carbs100g, 0)),
+        protein100g: Math.max(0, finiteOr(entry.protein100g, 0)),
+        fiber100g: Math.max(0, finiteOr(entry.fiber100g, 0)),
+        gi: Math.min(100, Math.max(0, finiteOr(entry.gi, 55))),
         refPortion: entry.refPortion || 'Portion estimée sur photo'
       };
     }
@@ -30,13 +39,17 @@ export const MetabolicEngine = {
   },
 
   computeFoodPortion(food, grams) {
-    const factor = Math.max(0, Number(grams) || 0) / 100;
-    const totalCarbs = food.carbs100g * factor;
-    const fiber = food.fiber100g * factor;
+    const factor = Math.max(0, finiteOr(grams, 0)) / 100;
+    const carbs100g = Math.max(0, finiteOr(food.carbs100g, 0));
+    const fiber100g = Math.max(0, finiteOr(food.fiber100g, 0));
+    const protein100g = Math.max(0, finiteOr(food.protein100g, 0));
+    const gi = Math.min(100, Math.max(0, finiteOr(food.gi, 55)));
+    const totalCarbs = carbs100g * factor;
+    const fiber = fiber100g * factor;
     const netCarbs = Math.max(0, totalCarbs - fiber);
-    const protein = (food.protein100g || 0) * factor;
-    const glycemicLoad = (netCarbs * food.gi) / 100;
-    return { totalCarbs, fiber, netCarbs, protein, glycemicLoad };
+    const protein = protein100g * factor;
+    const glycemicLoad = (netCarbs * gi) / 100;
+    return { totalCarbs, fiber, netCarbs, protein, glycemicLoad, gi };
   },
 
   evaluatePlate(items, settings, activeSlot, currentBGMgDl) {
@@ -52,7 +65,7 @@ export const MetabolicEngine = {
     for (const entry of items) {
       const food = this.resolveFoodEntry(entry);
       if (!food) continue;
-      const grams = Math.max(0, Number(entry.grams) || 0);
+      const grams = Math.max(0, finiteOr(entry.grams, 0));
       const macros = this.computeFoodPortion(food, grams);
 
       totalGrams += grams;
@@ -60,7 +73,7 @@ export const MetabolicEngine = {
       totalFiber += macros.fiber;
       netCarbs += macros.netCarbs;
       totalProtein += macros.protein;
-      weightedGISum += macros.netCarbs * food.gi;
+      weightedGISum += macros.netCarbs * macros.gi;
       totalGL += macros.glycemicLoad;
 
       if (!highestCarbContributor || macros.netCarbs > highestCarbContributor.netCarbs) {
@@ -205,8 +218,10 @@ export const MetabolicEngine = {
       noon: settings.ratioNoon,
       evening: settings.ratioEvening
     };
-    const activeRatio = Math.max(1, Number(ratioBySlot[activeSlot]) || 10);
+    const activeRatio = Math.max(1, finiteOr(ratioBySlot[activeSlot], 10) || 10);
     const mealBolus = netCarbs / activeRatio;
+    const targetBG = Math.min(250, Math.max(70, finiteOr(settings.targetBG, 100)));
+    const isf = Math.max(5, finiteOr(settings.isf, 50) || 50);
 
     // Calcul de la dose de correction selon la glycémie actuelle & Garde-fous cliniques
     let glycemiaWarning = null;
@@ -231,8 +246,11 @@ export const MetabolicEngine = {
         };
       }
 
-      if (currentBGMgDl > settings.targetBG || (currentBGMgDl < 80 && currentBGMgDl >= 70)) {
-        corrBolus = (currentBGMgDl - settings.targetBG) / Math.max(5, Number(settings.isf) || 50);
+      // Correction continue sur toute la plage non hypoglycémique :
+      // positive au-dessus de la cible, négative (réduction du bolus repas) en dessous.
+      // (Auparavant : réduction appliquée entre 70-79 mg/dL mais pas entre 80 et la cible.)
+      if (currentBGMgDl >= 70) {
+        corrBolus = (currentBGMgDl - targetBG) / isf;
       }
     }
 
