@@ -1,7 +1,7 @@
 /**
  * Service Worker : GlucoScan Maroc (PWA Hors-Ligne & Cache Rapide)
  */
-const CACHE_NAME = 'glucoscan-v21';
+const CACHE_NAME = 'glucoscan-v22';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

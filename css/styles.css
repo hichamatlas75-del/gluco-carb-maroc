@@ -119,3 +119,12 @@ input[type="number"]::-webkit-outer-spin-button {
   }
 }
 
+#viewportBox {
+  cursor: crosshair;
+}
+
+#viewportBox button,
+#viewportBox [data-pin-index] {
+  cursor: pointer;
+}
+

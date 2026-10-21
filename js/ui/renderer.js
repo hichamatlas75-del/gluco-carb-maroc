@@ -32,21 +32,40 @@ export function getLocalDateString(dateInput = new Date()) {
 }
 
 let toastTimer = null;
-export function showToast(message) {
+export function showToast(message, actionOptions = null) {
   try {
     if (navigator.vibrate) navigator.vibrate(12);
   } catch (_) {}
   const banner = document.getElementById('toastBanner');
   const label = document.getElementById('toastLabel');
+  const actionBtn = document.getElementById('btnToastAction');
   if (!banner || !label) return;
   label.textContent = message;
+
+  if (actionOptions && actionOptions.label && typeof actionOptions.onClick === 'function') {
+    if (actionBtn) {
+      actionBtn.textContent = actionOptions.label;
+      actionBtn.classList.remove('hidden');
+      actionBtn.onclick = (e) => {
+        e.stopPropagation();
+        actionOptions.onClick();
+        banner.classList.add('opacity-0', 'translate-y-2');
+        banner.classList.remove('opacity-100', 'translate-y-0');
+      };
+    }
+  } else if (actionBtn) {
+    actionBtn.classList.add('hidden');
+    actionBtn.onclick = null;
+  }
+
   banner.classList.remove('opacity-0', 'translate-y-2');
   banner.classList.add('opacity-100', 'translate-y-0');
   if (toastTimer) clearTimeout(toastTimer);
+  const duration = actionOptions ? 5500 : 2800;
   toastTimer = setTimeout(() => {
     banner.classList.add('opacity-0', 'translate-y-2');
     banner.classList.remove('opacity-100', 'translate-y-0');
-  }, 2600);
+  }, duration);
 }
 
 const FASTING_186_IDS = new Set([
@@ -291,11 +310,22 @@ export const UIRenderer = {
     const toggleLbl = document.getElementById('lblTogglePins');
     const hintBanner = document.getElementById('pinsHintBanner');
 
-    if (!hasImage || items.length === 0) {
+    if (!hasImage) {
       layer.innerHTML = '';
       if (arrangeBtn) arrangeBtn.classList.add('hidden');
       if (toggleBtn) toggleBtn.classList.add('hidden');
       if (hintBanner) hintBanner.classList.add('hidden');
+      return;
+    }
+
+    if (items.length === 0) {
+      layer.innerHTML = '';
+      if (arrangeBtn) arrangeBtn.classList.add('hidden');
+      if (toggleBtn) toggleBtn.classList.add('hidden');
+      if (hintBanner) {
+        hintBanner.textContent = '👆 Touchez la photo pour ajouter un aliment';
+        hintBanner.classList.remove('hidden');
+      }
       return;
     }
 
@@ -480,12 +510,12 @@ export const UIRenderer = {
         : `+ ${f.defaultGrams}g`;
 
       return `
-        <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
-          <div class="min-w-0 flex-1">
+        <div data-pick-food="${f.id}" class="p-2.5 rounded-2xl bg-slate-50 hover:bg-emerald-50/80 border border-slate-200 hover:border-emerald-300 flex items-center justify-between gap-2 cursor-pointer transition-all active:scale-[0.99]">
+          <div class="min-w-0 flex-1 pointer-events-none">
             <p class="text-xs font-extrabold text-slate-900 truncate">${escapeHTML(f.name)}</p>
             <p class="text-[11px] text-slate-500 truncate">${escapeHTML(f.darija)} • ${f.defaultGrams}g (${m.netCarbs.toFixed(1)}g nets • ${m.protein.toFixed(1)}g prot)</p>
           </div>
-          <button type="button" data-pick-food="${f.id}" class="${btnClass}">
+          <button type="button" class="${btnClass} pointer-events-none">
             ${btnLabel}
           </button>
         </div>

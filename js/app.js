@@ -2,7 +2,7 @@ import { FoodRepository } from './data/foods.js?v=26';
 import { StorageService } from './services/storage.js?v=26';
 import { MetabolicEngine } from './services/metabolicEngine.js?v=26';
 import { VisionAnalyzer } from './services/visionAnalyzer.js?v=29';
-import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=26';
+import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=27';
 import { ProfileService } from './services/profileService.js?v=26';
 
 /**
@@ -286,27 +286,42 @@ async function handleImageSource(source) {
       return;
     }
 
+    // Aucun aliment ou analyse échouée : mettre à jour l'UI et proposer l'ajout manuel
+    updateUI();
     if (isSuccess && items.length === 0) {
-      showToast('Aucun aliment détecté sur cette photo. Vérifiez le cadrage ou cliquez sur + Ajouter');
+      showToast('Aucun aliment détecté sur cette photo.', {
+        label: '+ Ajouter',
+        onClick: () => openFoodCatalogModal(null)
+      });
       return;
     }
 
     // Gestion d'erreur explicite et conviviale (jamais de messages techniques bruts)
     const rawErr = String(res?.error || '');
     if (res?.code === 'TIMEOUT' || rawErr.toLowerCase().includes('aborted') || rawErr.toLowerCase().includes('délai') || rawErr.toLowerCase().includes('timeout')) {
-      showToast('⏱️ Délai réseau dépassé lors de l’analyse photo. Vérifiez votre connexion et réessayez.');
+      showToast('⏱️ Délai réseau dépassé. Ajoutez vos aliments :', {
+        label: '+ Ajouter',
+        onClick: () => openFoodCatalogModal(null)
+      });
     } else if (res?.code === 'UNAUTHORIZED') {
       showToast('⚠️ Clé API invalide ou expirée. Vérifiez vos Paramètres IA (Synthèse).');
     } else if (res?.code === 'RATE_LIMIT') {
       showToast('⏳ Quota IA temporairement dépassé. Réessayez dans un instant.');
     } else {
-      showToast(`⚠️ Analyse impossible : ${rawErr || 'Erreur réseau'}. Ajoutez vos aliments avec + Ajouter.`);
+      showToast(`⚠️ Analyse impossible : ${rawErr || 'Erreur réseau'}.`, {
+        label: '+ Ajouter',
+        onClick: () => openFoodCatalogModal(null)
+      });
     }
   } catch (err) {
     clearTimeout(watchdog);
     overlay.classList.add('hidden');
     console.error('Vision analysis error:', err);
-    showToast('Erreur réseau lors de l’analyse photo');
+    updateUI();
+    showToast('Erreur réseau lors de l’analyse photo', {
+      label: '+ Ajouter',
+      onClick: () => openFoodCatalogModal(null)
+    });
   }
 }
 
@@ -1322,6 +1337,25 @@ function bindEvents() {
     updateUI();
   });
 
+  // Clic direct sur la photo pour ajouter un aliment à cet endroit précis
+  const viewportBox = document.getElementById('viewportBox');
+  viewportBox?.addEventListener('click', (e) => {
+    // Ne pas déclencher si on clique sur un bouton de contrôle ou une étiquette existante
+    if (e.target.closest('button')) return;
+    if (e.target.closest('[data-pin-index]')) return;
+    const img = document.getElementById('plateImage');
+    if (!img || img.classList.contains('hidden')) return;
+
+    const rect = viewportBox.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const x = Math.min(85, Math.max(15, Math.round(((e.clientX - rect.left) / rect.width) * 100)));
+    const y = Math.min(85, Math.max(15, Math.round(((e.clientY - rect.top) / rect.height) * 100)));
+
+    openFoodCatalogModal(null, { x, y });
+    showToast(`📍 Touchez un aliment pour le placer à cet endroit (${x}%, ${y}%)`);
+  });
+
   // Scénarios de démonstration rapides
   document.querySelectorAll('.demo-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1630,8 +1664,13 @@ function bindEvents() {
     }
   }
 
-  function openFoodCatalogModal(replaceIdx = null) {
+  function openFoodCatalogModal(replaceIdx = null, coords = null) {
     state.replaceItemIndex = (typeof replaceIdx === 'number' && state.items[replaceIdx]) ? replaceIdx : null;
+    if (coords && typeof coords.x === 'number' && typeof coords.y === 'number') {
+      state.pendingPinCoords = coords;
+    } else if (state.replaceItemIndex === null) {
+      state.pendingPinCoords = null;
+    }
     syncCatalogModalHeader();
     UIRenderer.renderCatalogModal(state.catalogFilter, state.catalogCategory, state.replaceItemIndex);
     const modal = document.getElementById('modalFoodCatalog');
@@ -1642,6 +1681,7 @@ function bindEvents() {
 
   function closeFoodCatalogModal() {
     state.replaceItemIndex = null;
+    state.pendingPinCoords = null;
     const modal = document.getElementById('modalFoodCatalog');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
@@ -1655,11 +1695,17 @@ function bindEvents() {
         x: oldItem.x || newEntry.x,
         y: oldItem.y || newEntry.y
       };
+      state.replaceItemIndex = null;
       StorageService.save('glucoscan_items_v3', state.items);
       updateUI();
       closeFoodCatalogModal();
       showToast(`🔄 Corrigé par : ${shortName}`);
     } else {
+      if (state.pendingPinCoords) {
+        newEntry.x = state.pendingPinCoords.x;
+        newEntry.y = state.pendingPinCoords.y;
+        state.pendingPinCoords = null;
+      }
       state.items.push(newEntry);
       StorageService.save('glucoscan_items_v3', state.items);
       updateUI();
@@ -1673,6 +1719,21 @@ function bindEvents() {
   });
 
   document.getElementById('btnCloseCatalog').addEventListener('click', closeFoodCatalogModal);
+
+  // Fermeture du catalogue en cliquant sur le fond semi-transparent
+  document.getElementById('modalFoodCatalog')?.addEventListener('click', (e) => {
+    if (e.target.id === 'modalFoodCatalog') {
+      closeFoodCatalogModal();
+    }
+  });
+
+  // Fermeture du modal profil/auth en cliquant sur le fond semi-transparent
+  document.getElementById('modalSupabaseAuth')?.addEventListener('click', (e) => {
+    if (e.target.id === 'modalSupabaseAuth') {
+      document.getElementById('modalSupabaseAuth').classList.add('hidden');
+      document.getElementById('modalSupabaseAuth').classList.remove('flex');
+    }
+  });
 
   document.getElementById('btnCancelReplaceMode')?.addEventListener('click', () => {
     state.replaceItemIndex = null;
