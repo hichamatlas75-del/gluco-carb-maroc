@@ -223,17 +223,23 @@ input[type="number"]::-webkit-outer-spin-button {
 
   .mobile-app {
     max-width: 980px;
-    margin: 20px auto 40px auto;
+    margin: 16px auto 40px auto;
     border-radius: 28px;
     border: 1px solid var(--border-subtle);
     box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.12);
-    min-height: calc(100dvh - 60px);
+    min-height: calc(100dvh - 50px);
     padding-bottom: 90px;
   }
 
   nav.fixed {
     max-width: 980px;
-    border-radius: 0 0 28px 28px;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%);
+    border-radius: 24px 24px 0 0;
+    border: 1px solid var(--border-subtle);
+    border-bottom: none;
+    box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.08);
   }
 }
 
@@ -247,8 +253,18 @@ input[type="number"]::-webkit-outer-spin-button {
   }
 }
 
+/* Optimisation Viseur Photo : empèche le viseur d'écraser la page sur grand écran */
 #viewportBox {
   cursor: crosshair;
+  min-height: 240px;
+  max-height: 440px;
+}
+
+@media (min-width: 768px) {
+  #viewportBox {
+    max-height: 380px;
+    aspect-ratio: 16 / 9;
+  }
 }
 
 #viewportBox button,

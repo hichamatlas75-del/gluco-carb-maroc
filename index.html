@@ -36,10 +36,17 @@
   </script>
 
   <!-- Feuille de style personnalisée -->
-  <link rel="stylesheet" href="./css/styles.css?v=11" />
+  <link rel="stylesheet" href="./css/styles.css?v=12" />
 
-  <!-- Icônes Lucide CDN -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Icônes Lucide (Local en priorité & Fallback CDN pour 100% de fiabilité) -->
+  <script src="./js/lib/lucide.min.js"></script>
+  <script>
+    if (typeof lucide === 'undefined') {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js';
+      document.head.appendChild(s);
+    }
+  </script>
 </head>
 <body>
 
@@ -145,14 +152,27 @@
             </div>
 
             <!-- État initial : Aucun plat photographié -->
-            <div id="emptyCameraState" class="text-center px-6 py-6 space-y-2.5">
-              <div class="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mx-auto text-emerald-400">
+            <div id="emptyCameraState" class="text-center px-6 py-6 space-y-3 z-10">
+              <div class="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mx-auto text-emerald-400 shadow-inner">
                 <i data-lucide="scan-line" class="w-7 h-7"></i>
               </div>
-              <h2 class="text-white font-extrabold text-sm">Scannez votre plat avec l'appareil photo</h2>
-              <p class="text-slate-300 text-[11px] leading-relaxed">
-                Prenez une photo ou importez une image : reconnaissance automatique des aliments, calcul du grammage et verdict immédiat.
-              </p>
+              <div>
+                <h2 class="text-white font-extrabold text-sm sm:text-base">Scannez votre plat avec l'appareil photo</h2>
+                <p class="text-slate-300 text-[11px] sm:text-xs leading-relaxed max-w-sm mx-auto mt-1">
+                  Prenez une photo ou importez une image : reconnaissance automatique des aliments, calcul du grammage et verdict immédiat.
+                </p>
+              </div>
+              <!-- Boutons directs d'action au cœur du viseur -->
+              <div class="pt-1 flex flex-wrap items-center justify-center gap-2">
+                <button type="button" id="btnEmptyTakePhoto" class="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all cursor-pointer">
+                  <i data-lucide="camera" class="w-4 h-4"></i>
+                  <span>Prendre Photo</span>
+                </button>
+                <button type="button" id="btnEmptyUploadPhoto" class="px-4 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 active:scale-95 text-white font-extrabold text-xs border border-white/20 flex items-center gap-2 transition-all cursor-pointer">
+                  <i data-lucide="image" class="w-4 h-4 text-emerald-400"></i>
+                  <span>Galerie Photo</span>
+                </button>
+              </div>
             </div>
 
             <!-- Boutons en haut à gauche de la photo : Réorganiser et Masquer/Afficher les étiquettes -->
@@ -1702,7 +1722,14 @@
 
   </div>
 
+  <!-- Rendu initial synchrone des icônes Lucide -->
+  <script>
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
+  </script>
+
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=30"></script>
+  <script type="module" src="./js/app.js?v=31"></script>
 </body>
 </html>

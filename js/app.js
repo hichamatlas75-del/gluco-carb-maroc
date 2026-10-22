@@ -1247,11 +1247,17 @@ function bindEvents() {
     });
   });
 
-  // Boutons Appareil Photo & Galerie
+  // Boutons Appareil Photo & Galerie (Sous le viseur et au centre du viseur)
   document.getElementById('btnTakePhoto')?.addEventListener('click', () => {
     document.getElementById('fileCameraInput')?.click();
   });
   document.getElementById('btnUploadPhoto')?.addEventListener('click', () => {
+    document.getElementById('fileGalleryInput')?.click();
+  });
+  document.getElementById('btnEmptyTakePhoto')?.addEventListener('click', () => {
+    document.getElementById('fileCameraInput')?.click();
+  });
+  document.getElementById('btnEmptyUploadPhoto')?.addEventListener('click', () => {
     document.getElementById('fileGalleryInput')?.click();
   });
 
