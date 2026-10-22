@@ -49,8 +49,8 @@ export function showToast(message, actionOptions = null) {
       actionBtn.onclick = (e) => {
         e.stopPropagation();
         actionOptions.onClick();
-        banner.classList.add('opacity-0', 'translate-y-2');
-        banner.classList.remove('opacity-100', 'translate-y-0');
+        banner.classList.add('opacity-0', 'translate-y-2', 'pointer-events-none');
+        banner.classList.remove('opacity-100', 'translate-y-0', 'pointer-events-auto');
       };
     }
   } else if (actionBtn) {
@@ -58,13 +58,13 @@ export function showToast(message, actionOptions = null) {
     actionBtn.onclick = null;
   }
 
-  banner.classList.remove('opacity-0', 'translate-y-2');
-  banner.classList.add('opacity-100', 'translate-y-0');
+  banner.classList.remove('opacity-0', 'translate-y-2', 'pointer-events-none');
+  banner.classList.add('opacity-100', 'translate-y-0', 'pointer-events-auto');
   if (toastTimer) clearTimeout(toastTimer);
   const duration = actionOptions ? 5500 : 2800;
   toastTimer = setTimeout(() => {
-    banner.classList.add('opacity-0', 'translate-y-2');
-    banner.classList.remove('opacity-100', 'translate-y-0');
+    banner.classList.add('opacity-0', 'translate-y-2', 'pointer-events-none');
+    banner.classList.remove('opacity-100', 'translate-y-0', 'pointer-events-auto');
   }, duration);
 }
 

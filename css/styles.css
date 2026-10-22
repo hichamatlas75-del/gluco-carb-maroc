@@ -255,7 +255,7 @@ input[type="number"]::-webkit-outer-spin-button {
 
 /* Optimisation Viseur Photo : empèche le viseur d'écraser la page sur grand écran */
 #viewportBox {
-  cursor: crosshair;
+  cursor: default;
   min-height: 240px;
   max-height: 440px;
 }
@@ -268,6 +268,18 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 #viewportBox button,
+#viewportBox label,
 #viewportBox [data-pin-index] {
   cursor: pointer;
+}
+
+button,
+label[for],
+.nav-tab,
+.slot-btn,
+[role="button"] {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
 }

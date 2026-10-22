@@ -162,16 +162,16 @@
                   Prenez une photo ou importez une image : reconnaissance automatique des aliments, calcul du grammage et verdict immédiat.
                 </p>
               </div>
-              <!-- Boutons directs d'action au cœur du viseur -->
+              <!-- Boutons directs d'action au cœur du viseur (Labels natifs 100% fiables) -->
               <div class="pt-1 flex flex-wrap items-center justify-center gap-2">
-                <button type="button" id="btnEmptyTakePhoto" class="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all cursor-pointer">
+                <label for="fileCameraInput" id="btnEmptyTakePhoto" class="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all cursor-pointer select-none">
                   <i data-lucide="camera" class="w-4 h-4"></i>
                   <span>Prendre Photo</span>
-                </button>
-                <button type="button" id="btnEmptyUploadPhoto" class="px-4 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 active:scale-95 text-white font-extrabold text-xs border border-white/20 flex items-center gap-2 transition-all cursor-pointer">
+                </label>
+                <label for="fileGalleryInput" id="btnEmptyUploadPhoto" class="px-4 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 active:scale-95 text-white font-extrabold text-xs border border-white/20 flex items-center gap-2 transition-all cursor-pointer select-none">
                   <i data-lucide="image" class="w-4 h-4 text-emerald-400"></i>
                   <span>Galerie Photo</span>
-                </button>
+                </label>
               </div>
             </div>
 
@@ -255,19 +255,19 @@
 
           <!-- Commandes de l'Appareil Photo -->
           <div class="p-3.5 bg-white space-y-2.5">
-            <input id="fileCameraInput" type="file" accept="image/*" capture="environment" class="hidden" />
-            <input id="fileGalleryInput" type="file" accept="image/*" class="hidden" />
+            <input id="fileCameraInput" type="file" accept="image/*" capture="environment" class="sr-only" />
+            <input id="fileGalleryInput" type="file" accept="image/*" class="sr-only" />
 
-            <!-- Boutons Caméra Native & Galerie -->
+            <!-- Boutons Caméra Native & Galerie (Labels natifs 100% fiables) -->
             <div id="primaryCaptureActions" class="grid grid-cols-2 gap-2">
-              <button id="btnTakePhoto" type="button" class="py-3 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-extrabold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all">
+              <label for="fileCameraInput" id="btnTakePhoto" class="py-3 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-extrabold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none">
                 <i data-lucide="camera" class="w-4 h-4"></i>
-                Prendre Photo
-              </button>
-              <button id="btnUploadPhoto" type="button" class="py-3 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-800 font-extrabold text-xs border border-slate-200 flex items-center justify-center gap-1.5 transition-all">
+                <span>Prendre Photo</span>
+              </label>
+              <label for="fileGalleryInput" id="btnUploadPhoto" class="py-3 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-800 font-extrabold text-xs border border-slate-200 flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none">
                 <i data-lucide="image" class="w-4 h-4 text-emerald-600"></i>
-                Galerie Photo
-              </button>
+                <span>Galerie Photo</span>
+              </label>
             </div>
 
             <!-- Déclencheur Flux Vidéo Direct -->
@@ -1506,7 +1506,7 @@
     </div>
 
     <!-- TOAST INTERACTIF -->
-    <div id="toastBanner" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-auto opacity-0 translate-y-2 transition-all duration-300 max-w-[92vw]">
+    <div id="toastBanner" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 translate-y-2 transition-all duration-300 max-w-[92vw]">
       <div class="bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-xl text-xs font-bold flex items-center justify-between gap-2.5">
         <div class="flex items-center gap-2 min-w-0">
           <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
@@ -1521,7 +1521,7 @@
     <!-- ========================================== -->
     <!-- NAVIGATION BAS MOBILE (5 ONGLETS)          -->
     <!-- ========================================== -->
-    <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-1.5 py-2 flex items-center justify-around">
+    <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] md:max-w-[980px] lg:max-w-[1040px] z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-1.5 py-2 flex items-center justify-around">
       <button type="button" data-view="scanner" class="nav-tab flex flex-col items-center gap-0.5 py-1 px-2 rounded-2xl text-emerald-600">
         <i data-lucide="camera" class="w-5 h-5"></i>
         <span class="text-[10px] font-extrabold">Scanner</span>
