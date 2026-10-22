@@ -22,7 +22,8 @@ export const MetabolicEngine = {
       return {
         ...dbFood,
         name: entry.customName || dbFood.name,
-        protein100g: Math.max(0, finiteOr(entry.protein100g, dbFood.protein100g || 0))
+        protein100g: Math.max(0, finiteOr(entry.protein100g, dbFood.protein100g || 0)),
+        fat100g: Math.max(0, finiteOr(entry.fat100g, dbFood.fat100g || 0))
       };
     }
     if (Number.isFinite(Number(entry.carbs100g)) && entry.carbs100g !== null && entry.carbs100g !== '') {
@@ -31,6 +32,7 @@ export const MetabolicEngine = {
         name: entry.customName || 'Aliment détecté par IA',
         carbs100g: Math.max(0, finiteOr(entry.carbs100g, 0)),
         protein100g: Math.max(0, finiteOr(entry.protein100g, 0)),
+        fat100g: Math.max(0, finiteOr(entry.fat100g, 0)),
         fiber100g: Math.max(0, finiteOr(entry.fiber100g, 0)),
         gi: Math.min(100, Math.max(0, finiteOr(entry.gi, 55))),
         refPortion: entry.refPortion || 'Portion estimée sur photo'
@@ -44,13 +46,16 @@ export const MetabolicEngine = {
     const carbs100g = Math.max(0, finiteOr(food.carbs100g, 0));
     const fiber100g = Math.max(0, finiteOr(food.fiber100g, 0));
     const protein100g = Math.max(0, finiteOr(food.protein100g, 0));
+    const fat100g = Math.max(0, finiteOr(food.fat100g, 0));
     const gi = Math.min(100, Math.max(0, finiteOr(food.gi, 55)));
     const totalCarbs = carbs100g * factor;
     const fiber = fiber100g * factor;
     const netCarbs = Math.max(0, totalCarbs - fiber);
     const protein = protein100g * factor;
+    const fat = fat100g * factor;
+    const calories = Math.round(protein * 4 + netCarbs * 4 + fat * 9);
     const glycemicLoad = (netCarbs * gi) / 100;
-    return { totalCarbs, fiber, netCarbs, protein, glycemicLoad, gi };
+    return { totalCarbs, fiber, netCarbs, protein, fat, calories, glycemicLoad, gi };
   },
 
   evaluatePlate(items, settings = {}, activeSlot = 'noon') {
@@ -60,6 +65,8 @@ export const MetabolicEngine = {
     let totalFiber = 0;
     let netCarbs = 0;
     let totalProtein = 0;
+    let totalFat = 0;
+    let totalCalories = 0;
     let weightedGISum = 0;
     let totalGL = 0;
     let highestCarbContributor = null;
@@ -77,6 +84,8 @@ export const MetabolicEngine = {
       totalFiber += macros.fiber;
       netCarbs += macros.netCarbs;
       totalProtein += macros.protein;
+      totalFat += macros.fat;
+      totalCalories += macros.calories;
       weightedGISum += macros.netCarbs * macros.gi;
       totalGL += macros.glycemicLoad;
 
@@ -88,6 +97,8 @@ export const MetabolicEngine = {
     const roundedProtein = Math.round(totalProtein * 10) / 10;
     const roundedFiber = Math.round(totalFiber * 10) / 10;
     const roundedNetCarbs = Math.round(netCarbs * 10) / 10;
+    const roundedFat = Math.round(totalFat * 10) / 10;
+    const roundedCalories = Math.round(totalCalories);
     const ratioPG = roundedNetCarbs > 0
       ? (roundedProtein / roundedNetCarbs)
       : (roundedProtein > 0 ? 2.5 : 0);
@@ -275,6 +286,8 @@ export const MetabolicEngine = {
       totalFiber: roundedFiber,
       netCarbs: roundedNetCarbs,
       totalProtein: roundedProtein,
+      totalFat: roundedFat,
+      totalCalories: roundedCalories,
       ratioPG: Math.round(ratioPG * 100) / 100,
       amortiRatio: Math.round(amortiRatio * 100) / 100,
       amorti,

@@ -134,6 +134,10 @@ export const UIRenderer = {
     if (totCarbsEl) totCarbsEl.textContent = String(evaluation.totalCarbs);
     const totFibEl = document.getElementById('outTotalFiber');
     if (totFibEl) totFibEl.textContent = String(evaluation.totalFiber);
+    const totFatEl = document.getElementById('outTotalFat');
+    if (totFatEl) totFatEl.textContent = (evaluation.totalFat || 0).toFixed(1);
+    const totCalEl = document.getElementById('outTotalCalories');
+    if (totCalEl) totCalEl.textContent = String(evaluation.totalCalories || 0);
 
     const ring = document.getElementById('carbRingCircle');
     if (ring) {
@@ -202,17 +206,25 @@ export const UIRenderer = {
   },
 
   renderDailySynthesis(todayTotals, settings) {
-    const targetProt = Math.max(30, Number(settings.dailyTargetProtein) || 100);
-    const targetCarbs = Math.max(30, Number(settings.dailyTargetCarbs) || 120);
+    const targetProt = Math.max(30, Number(settings.dailyTargetProtein) || 150);
+    const targetCarbs = Math.max(30, Number(settings.dailyTargetCarbs) || 150);
+    const targetFat = Math.max(15, Number(settings.dailyTargetFat) || 80);
+    const targetCal = Math.max(800, Number(settings.dailyTargetCalories) || 1950);
 
     const protConsumed = Math.round(todayTotals.protein);
     const carbsConsumed = Math.round(todayTotals.carbs);
+    const fatConsumed = Math.round(todayTotals.fat || 0);
+    const calConsumed = Math.round(todayTotals.calories || (protConsumed * 4 + carbsConsumed * 4 + fatConsumed * 9));
 
     const protPct = Math.round((protConsumed / targetProt) * 100);
     const carbsPct = Math.round((carbsConsumed / targetCarbs) * 100);
+    const fatPct = Math.round((fatConsumed / targetFat) * 100);
+    const calPct = Math.round((calConsumed / targetCal) * 100);
 
     const protText = `${protConsumed}g / ${targetProt}g (${protPct}%)`;
     const carbsText = `${carbsConsumed}g / ${targetCarbs}g (${carbsPct}%)`;
+    const fatText = `${fatConsumed}g / ${targetFat}g (${fatPct}%)`;
+    const calText = `${calConsumed} / ${targetCal} kcal (${calPct}%)`;
 
     const elProtText = document.getElementById('dailyOutProteinText');
     if (elProtText) elProtText.textContent = protText;
@@ -220,11 +232,23 @@ export const UIRenderer = {
     const elCarbsText = document.getElementById('dailyOutCarbsText');
     if (elCarbsText) elCarbsText.textContent = carbsText;
 
+    const elFatText = document.getElementById('dailyOutFatText');
+    if (elFatText) elFatText.textContent = fatText;
+
+    const elCalText = document.getElementById('dailyOutCaloriesText');
+    if (elCalText) elCalText.textContent = calText;
+
     const qProt = document.getElementById('quickDailyProtText');
     if (qProt) qProt.textContent = protText;
 
     const qCarbs = document.getElementById('quickDailyCarbsText');
     if (qCarbs) qCarbs.textContent = carbsText;
+
+    const qFat = document.getElementById('quickDailyFatText');
+    if (qFat) qFat.textContent = fatText;
+
+    const qCal = document.getElementById('quickDailyCalText');
+    if (qCal) qCal.textContent = `${calConsumed}/${targetCal} kcal`;
 
     const barProt = document.getElementById('dailyBarProtein');
     if (barProt) {
@@ -242,6 +266,22 @@ export const UIRenderer = {
       }`;
     }
 
+    const barFat = document.getElementById('dailyBarFat');
+    if (barFat) {
+      barFat.style.width = `${Math.min(100, fatPct)}%`;
+      barFat.className = `h-full rounded-full transition-all duration-500 ${
+        fatPct > 100 ? 'bg-rose-500' : (fatPct >= 85 ? 'bg-amber-500' : 'bg-amber-600')
+      }`;
+    }
+
+    const barCal = document.getElementById('dailyBarCalories');
+    if (barCal) {
+      barCal.style.width = `${Math.min(100, calPct)}%`;
+      barCal.className = `h-full rounded-full transition-all duration-500 ${
+        calPct > 105 ? 'bg-rose-500' : (calPct >= 90 ? 'bg-emerald-600' : 'bg-emerald-500')
+      }`;
+    }
+
     const remProt = document.getElementById('dailyProteinRemaining');
     if (remProt) {
       const diff = targetProt - protConsumed;
@@ -252,6 +292,18 @@ export const UIRenderer = {
     if (remCarbs) {
       const diff = targetCarbs - carbsConsumed;
       remCarbs.textContent = diff >= 0 ? `Reste ${diff}g` : `Plafond dépassé (+${Math.abs(diff)}g)`;
+    }
+
+    const remFat = document.getElementById('dailyFatRemaining');
+    if (remFat) {
+      const diff = targetFat - fatConsumed;
+      remFat.textContent = diff >= 0 ? `Reste ${diff}g` : `Plafond dépassé (+${Math.abs(diff)}g)`;
+    }
+
+    const remCal = document.getElementById('dailyCaloriesRemaining');
+    if (remCal) {
+      const diff = targetCal - calConsumed;
+      remCal.textContent = diff >= 0 ? `Reste ${diff} kcal` : `Plafond dépassé (+${Math.abs(diff)} kcal)`;
     }
 
     const badgeCount = document.getElementById('lblDailyMealCountBadge');
@@ -389,7 +441,7 @@ export const UIRenderer = {
                   title="Touchez pour modifier le nom de l'aliment"
                   class="w-full bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-slate-300 focus:border-emerald-500 rounded-lg px-1.5 py-0.5 -ml-1.5 text-xs font-extrabold text-slate-900 focus:outline-none transition-all" />
               </div>
-              <p class="text-[11px] text-slate-500">${escapeHTML(food.refPortion)} • <span class="font-bold text-emerald-800">${macros.protein.toFixed(1)}g prot</span> • IG ${food.gi} • Fibres ${macros.fiber.toFixed(1)}g</p>
+              <p class="text-[11px] text-slate-500">${escapeHTML(food.refPortion)} • <span class="font-bold text-emerald-800">${macros.protein.toFixed(1)}g prot</span> • <span class="font-bold text-amber-700">${(macros.fat || 0).toFixed(1)}g lip</span> • <span class="font-mono font-bold text-slate-600">${macros.calories || 0} kcal</span> • IG ${food.gi}</p>
             </div>
             <div class="text-right flex-shrink-0">
               <span class="text-sm font-extrabold font-mono text-emerald-700">${macros.netCarbs.toFixed(1)}g</span>
@@ -559,6 +611,9 @@ export const UIRenderer = {
         ? `<img src="${validImg}" alt="Repas" class="w-12 h-12 object-cover rounded-xl border border-slate-200 shadow-2xs shrink-0">`
         : `<div class="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0 text-base font-bold">🍽️</div>`;
 
+      const fatVal = h.totalFat ? Math.round(Number(h.totalFat) * 10) / 10 : 0;
+      const calVal = h.totalCalories ? Math.round(Number(h.totalCalories)) : Math.round(proteinVal * 4 + netCarbsVal * 4 + fatVal * 9);
+
       return `
         <div class="surface-card rounded-2xl p-3 space-y-2 border border-slate-200/70 hover:border-slate-300 transition-all">
           <div class="flex items-start gap-2.5">
@@ -579,10 +634,12 @@ export const UIRenderer = {
               <p class="text-[11px] text-slate-600 leading-snug line-clamp-2">${names}</p>
             </div>
           </div>
-          <div class="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10.5px] font-mono font-bold text-slate-700">
+          <div class="flex flex-wrap items-center justify-between gap-1 pt-1.5 border-t border-slate-100 text-[10.5px] font-mono font-bold text-slate-700">
             <span class="text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">🥩 ${proteinVal}g prot</span>
-            <span>🌾 ${netCarbsVal}g glucides nets</span>
-            <span class="text-slate-400">⚖️ ${totalGramsVal}g</span>
+            <span class="text-cyan-800 bg-cyan-50 px-1.5 py-0.5 rounded-md border border-cyan-200">🌾 ${netCarbsVal}g gluc</span>
+            <span class="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">🥑 ${fatVal}g lip</span>
+            <span class="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md">🔥 ${calVal} kcal</span>
+            <span class="text-slate-400 ml-auto">⚖️ ${totalGramsVal}g</span>
           </div>
         </div>
       `;
@@ -648,9 +705,13 @@ export const UIRenderer = {
 
     const totalCarbs = history.reduce((sum, h) => sum + (Number(h.netCarbs) || 0), 0);
     const totalProt = history.reduce((sum, h) => sum + (Number(h.totalProtein) || 0), 0);
+    const totalFat = history.reduce((sum, h) => sum + (Number(h.totalFat) || 0), 0);
+    const totalCal = history.reduce((sum, h) => sum + (Number(h.totalCalories) || ((Number(h.totalProtein) || 0) * 4 + (Number(h.netCarbs) || 0) * 4 + (Number(h.totalFat) || 0) * 9)), 0);
     const totalGL = history.reduce((sum, h) => sum + (Number(h.totalGL) || 0), 0);
     const avgCarbs = Math.round(totalCarbs / history.length);
     const avgProt = Math.round(totalProt / history.length);
+    const avgFat = Math.round(totalFat / history.length);
+    const avgCal = Math.round(totalCal / history.length);
     const avgGL = Math.round((totalGL / history.length) * 10) / 10;
 
     const rows = history.slice(0, 40).map(h => {
@@ -660,14 +721,18 @@ export const UIRenderer = {
       const names = (h.items || []).map(i => `${escapeHTML(i.name)} (${Number(i.grams) || 0}g)`).join(', ');
       const totalG = Math.round(Number(h.totalGrams) || 0);
       const netC = Math.round(Number(h.netCarbs) * 10 || 0) / 10;
-      const protVal = h.totalProtein ? (Math.round(Number(h.totalProtein) * 10) / 10) : '--';
+      const protVal = h.totalProtein ? (Math.round(Number(h.totalProtein) * 10) / 10) : 0;
+      const fatVal = h.totalFat ? (Math.round(Number(h.totalFat) * 10) / 10) : 0;
+      const calVal = h.totalCalories ? Math.round(Number(h.totalCalories)) : Math.round(protVal * 4 + netC * 4 + fatVal * 9);
       return `
         <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
           <td style="padding: 8px 6px;"><strong>${escapeHTML(d)}</strong></td>
           <td style="padding: 8px 6px;">${names}</td>
           <td style="padding: 8px 6px; text-align: right;">${totalG}g</td>
+          <td style="padding: 8px 6px; text-align: right; color: #0f172a;"><strong>${calVal} kcal</strong></td>
           <td style="padding: 8px 6px; text-align: right; color: #059669;"><strong>${protVal}g</strong></td>
           <td style="padding: 8px 6px; text-align: right;"><strong>${netC}g</strong></td>
+          <td style="padding: 8px 6px; text-align: right; color: #d97706;"><strong>${fatVal}g</strong></td>
           <td style="padding: 8px 6px; text-align: right;">${h.totalGL || '--'}</td>
           <td style="padding: 8px 6px; text-align: center;">${escapeHTML(h.verdictTag || 'Normal')}</td>
         </tr>
@@ -684,10 +749,10 @@ export const UIRenderer = {
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; margin: 24px; line-height: 1.4; }
           .header { border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
           .badge { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 12px; }
-          .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
-          .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; text-align: center; }
-          .kpi-val { font-size: 20px; font-weight: 800; color: #0f172a; font-family: monospace; }
-          .kpi-lbl { font-size: 11px; color: #64748b; font-weight: bold; margin-top: 4px; }
+          .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 24px; }
+          .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; text-align: center; }
+          .kpi-val { font-size: 18px; font-weight: 800; color: #0f172a; font-family: monospace; }
+          .kpi-lbl { font-size: 10px; color: #64748b; font-weight: bold; margin-top: 4px; }
           table { width: 100%; border-collapse: collapse; margin-top: 10px; }
           th { background: #f1f5f9; padding: 8px 6px; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569; }
           .footer { margin-top: 40px; border-top: 1px dashed #cbd5e1; padding-top: 12px; font-size: 11px; color: #64748b; display: flex; justify-content: space-between; }
@@ -698,7 +763,7 @@ export const UIRenderer = {
         <div class="header">
           <div>
             <h1 style="margin: 0; font-size: 22px; color: #0f172a;">🏋️ Bilan Nutritionnel Sportif &amp; Jeûne 18/6</h1>
-            <p style="margin: 4px 0 0; font-size: 12px; color: #64748b;">Suivi Macros, Masse Musculaire &amp; Amorti Énergétique</p>
+            <p style="margin: 4px 0 0; font-size: 12px; color: #64748b;">Protocole 85 kg (18-6) : 1920-2000 kcal • 150g P • 150g G • 80g L</p>
           </div>
           <div style="text-align: right;">
             <span class="badge">Rapport Nutrition Sportive</span>
@@ -709,32 +774,38 @@ export const UIRenderer = {
         <div class="kpi-grid">
           <div class="kpi-card">
             <div class="kpi-val">${history.length}</div>
-            <div class="kpi-lbl">Repas Enregistrés</div>
+            <div class="kpi-lbl">Repas</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-val" style="color: #0f172a;">~${avgCal}</div>
+            <div class="kpi-lbl">Calories Moy.</div>
           </div>
           <div class="kpi-card">
             <div class="kpi-val" style="color: #059669;">${avgProt}g</div>
-            <div class="kpi-lbl">Protéines Moy. / Repas</div>
+            <div class="kpi-lbl">Protéines Moy.</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-val">${avgCarbs}g</div>
-            <div class="kpi-lbl">Glucides Moy. / Repas</div>
+            <div class="kpi-val" style="color: #0284c7;">${avgCarbs}g</div>
+            <div class="kpi-lbl">Glucides Moy.</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-val" style="color: #0284c7;">${avgGL}</div>
-            <div class="kpi-lbl">Charge Glycémique Moy.</div>
+            <div class="kpi-val" style="color: #d97706;">${avgFat}g</div>
+            <div class="kpi-lbl">Lipides Moy.</div>
           </div>
         </div>
 
-        <h3 style="font-size: 14px; margin-bottom: 8px;">Historique des repas &amp; apports en macros</h3>
+        <h3 style="font-size: 14px; margin-bottom: 8px;">Historique des repas &amp; apports en macronutriments</h3>
         <table>
           <thead>
             <tr>
               <th>Date &amp; Heure</th>
               <th>Composition du Plat</th>
               <th style="text-align: right;">Poids</th>
+              <th style="text-align: right;">Calories</th>
               <th style="text-align: right; color:#059669;">Protéines</th>
-              <th style="text-align: right;">Glucides Nets</th>
-              <th style="text-align: right;">Charge Glyc.</th>
+              <th style="text-align: right; color:#0284c7;">Glucides</th>
+              <th style="text-align: right; color:#d97706;">Lipides</th>
+              <th style="text-align: right;">CG</th>
               <th style="text-align: center;">Verdict</th>
             </tr>
           </thead>
@@ -779,19 +850,25 @@ export const UIRenderer = {
       return `"${s.replace(/"/g, '""')}"`;
     };
 
-    const headers = ['Date', 'Heure', 'Aliments', 'Poids_Total_g', 'Proteines_g', 'Glucides_Nets_g', 'Fibres_g', 'Index_Glycemique', 'Charge_Glycemique', 'Verdict'];
+    const headers = ['Date', 'Heure', 'Aliments', 'Poids_Total_g', 'Calories_kcal', 'Proteines_g', 'Glucides_Nets_g', 'Lipides_g', 'Fibres_g', 'Index_Glycemique', 'Charge_Glycemique', 'Verdict'];
     const rows = history.map(h => {
       const d = new Date(h.timestamp);
       const dateStr = getLocalDateString(d);
       const timeStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
       const names = (h.items || []).map(i => `${i.name || ''} (${Number(i.grams) || 0}g)`).join(' + ').replace(/;/g, ' ');
+      const p = Math.round(Number(h.totalProtein) * 10 || 0) / 10;
+      const c = Math.round(Number(h.netCarbs) * 10 || 0) / 10;
+      const f = Math.round(Number(h.totalFat) * 10 || 0) / 10;
+      const cal = Math.round(Number(h.totalCalories) || (p * 4 + c * 4 + f * 9));
       return [
         sanitizeCSV(dateStr),
         sanitizeCSV(timeStr),
         sanitizeCSV(names),
         Math.round(Number(h.totalGrams) || 0),
-        Math.round(Number(h.totalProtein) * 10 || 0) / 10,
-        Math.round(Number(h.netCarbs) * 10 || 0) / 10,
+        cal,
+        p,
+        c,
+        f,
         Math.round(Number(h.totalFiber) * 10 || 0) / 10,
         Math.round(Number(h.avgGI) || 0),
         Math.round(Number(h.totalGL) * 10 || 0) / 10,

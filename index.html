@@ -111,8 +111,8 @@
             <span class="text-base">📊</span>
             <div class="min-w-0">
               <span class="text-[9.5px] font-extrabold uppercase tracking-wider text-emerald-950 block">Synthèse Journalière</span>
-              <div class="text-[11px] font-mono font-bold text-slate-700 truncate">
-                🥩 <span id="quickDailyProtText">0g / 100g (0%)</span> • 🌾 <span id="quickDailyCarbsText">0g / 120g (0%)</span>
+              <div class="text-[10.5px] font-mono font-bold text-slate-700 truncate">
+                🥩 <span id="quickDailyProtText">0g / 150g (0%)</span> • 🌾 <span id="quickDailyCarbsText">0g / 150g (0%)</span> • 🥑 <span id="quickDailyFatText">0g / 80g (0%)</span> • 🔥 <span id="quickDailyCalText">0/1950 kcal</span>
               </div>
             </div>
           </div>
@@ -348,6 +348,14 @@
                   <span class="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 block">Fibres</span>
                   <span class="text-sm font-extrabold font-mono text-emerald-700 dark:text-emerald-400">-<span id="outTotalFiber">0</span>g</span>
                 </div>
+                <div class="bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 rounded-xl p-2">
+                  <span class="text-[10px] font-bold text-amber-700 dark:text-amber-400 block">🥑 Lipides</span>
+                  <span class="text-sm font-extrabold font-mono text-amber-800 dark:text-amber-300"><span id="outTotalFat">0</span>g</span>
+                </div>
+                <div class="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2">
+                  <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">🔥 Calories</span>
+                  <span class="text-sm font-extrabold font-mono text-slate-900 dark:text-white"><span id="outTotalCalories">0</span> kcal</span>
+                </div>
               </div>
 
               <!-- Bloc Performance & Énergie Récupération -->
@@ -536,41 +544,79 @@
             </span>
           </div>
 
-          <!-- Jauge 1 : Protéines consommées (ex: 65g / 100g (65%)) -->
+          <!-- Jauge 1 : Protéines consommées (ex: 60g / 150g (40%)) -->
           <div class="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 space-y-1.5">
             <div class="flex items-baseline justify-between">
               <span class="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
                 <span>🥩</span> Protéines consommées :
               </span>
               <span id="dailyOutProteinText" class="text-xs font-mono font-extrabold text-emerald-800">
-                0g / 100g (0%)
+                0g / 150g (0%)
               </span>
             </div>
             <div class="w-full h-3 rounded-full bg-slate-200 overflow-hidden">
               <div id="dailyBarProtein" class="h-full bg-emerald-500 rounded-full transition-all duration-500" style="width: 0%"></div>
             </div>
             <div class="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
-              <span>Maintien musculaire &amp; satiété</span>
-              <span id="dailyProteinRemaining" class="font-mono font-bold text-slate-600">Reste 100g</span>
+              <span>Maintien musculaire &amp; anabolisme</span>
+              <span id="dailyProteinRemaining" class="font-mono font-bold text-slate-600">Reste 150g</span>
             </div>
           </div>
 
-          <!-- Jauge 2 : Glucides consommés (ex: 75g / 120g (62%)) -->
+          <!-- Jauge 2 : Glucides consommés (ex: 60g / 150g (40%)) -->
           <div class="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 space-y-1.5">
             <div class="flex items-baseline justify-between">
               <span class="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
                 <span>🌾</span> Glucides consommés :
               </span>
               <span id="dailyOutCarbsText" class="text-xs font-mono font-extrabold text-cyan-800">
-                0g / 120g (0%)
+                0g / 150g (0%)
               </span>
             </div>
             <div class="w-full h-3 rounded-full bg-slate-200 overflow-hidden">
               <div id="dailyBarCarbs" class="h-full bg-cyan-600 rounded-full transition-all duration-500" style="width: 0%"></div>
             </div>
             <div class="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
-              <span>Plafond glycémique quotidien</span>
-              <span id="dailyCarbsRemaining" class="font-mono font-bold text-slate-600">Reste 120g</span>
+              <span>Plafond glycémique &amp; glycogène</span>
+              <span id="dailyCarbsRemaining" class="font-mono font-bold text-slate-600">Reste 150g</span>
+            </div>
+          </div>
+
+          <!-- Jauge 3 : Lipides consommés (ex: 32g / 80g (40%)) -->
+          <div class="bg-amber-50/70 rounded-2xl p-3 border border-amber-200/80 space-y-1.5">
+            <div class="flex items-baseline justify-between">
+              <span class="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
+                <span>🥑</span> Lipides consommés :
+              </span>
+              <span id="dailyOutFatText" class="text-xs font-mono font-extrabold text-amber-800">
+                0g / 80g (0%)
+              </span>
+            </div>
+            <div class="w-full h-3 rounded-full bg-amber-100 overflow-hidden">
+              <div id="dailyBarFat" class="h-full bg-amber-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] text-amber-800 pt-0.5">
+              <span>Hormones &amp; satiété longue durée</span>
+              <span id="dailyFatRemaining" class="font-mono font-bold text-amber-900">Reste 80g</span>
+            </div>
+          </div>
+
+          <!-- Jauge 4 : Calories consommées (ex: 770 / 1950 kcal (40%)) -->
+          <div class="bg-slate-100/90 rounded-2xl p-3 border border-slate-300/80 space-y-1.5">
+            <div class="flex items-baseline justify-between">
+              <span class="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                <span>🔥</span> Calories consommées :
+              </span>
+              <span id="dailyOutCaloriesText" class="text-xs font-mono font-extrabold text-slate-900">
+                0 / 1950 kcal (0%)
+              </span>
+            </div>
+            <div class="w-full h-3 rounded-full bg-slate-200 overflow-hidden">
+              <div id="dailyBarCalories" class="h-full bg-emerald-600 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] text-slate-600 pt-0.5">
+              <span>Total Quotidien (85 kg / 18-6)</span>
+              <span id="dailyCaloriesRemaining" class="font-mono font-bold text-slate-700">Reste 1950 kcal</span>
             </div>
           </div>
 
@@ -594,12 +640,15 @@
 
           <!-- OBJECTIFS NUTRITIONNELS JOURNALIERS -->
           <div class="space-y-2">
-            <label class="text-xs font-extrabold uppercase text-slate-500 block">Objectifs Journaliers (Jauges de Synthèse)</label>
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-extrabold uppercase text-slate-500 block">Objectifs Journaliers (85 kg / 18-6)</label>
+              <span class="text-[10px] font-mono font-extrabold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">~1950 kcal / jour</span>
+            </div>
             <div class="grid grid-cols-2 gap-2">
               <div class="bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-700">
                 <span class="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">🥩 Cible Protéines</span>
                 <div class="flex items-center gap-1">
-                  <input id="inpDailyTargetProtein" type="number" min="30" max="350" step="5" required
+                  <input id="inpDailyTargetProtein" type="number" min="30" max="350" step="5" value="150" required
                     class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900 dark:text-white" />
                   <span class="text-xs font-mono font-bold text-slate-400">g/j</span>
                 </div>
@@ -607,10 +656,34 @@
               <div class="bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-700">
                 <span class="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">🌾 Cible Glucides Nets</span>
                 <div class="flex items-center gap-1">
-                  <input id="inpDailyTargetCarbs" type="number" min="30" max="500" step="5" required
+                  <input id="inpDailyTargetCarbs" type="number" min="30" max="500" step="5" value="150" required
                     class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900 dark:text-white" />
                   <span class="text-xs font-mono font-bold text-slate-400">g/j</span>
                 </div>
+              </div>
+              <div class="bg-amber-50/70 dark:bg-amber-950/40 p-2.5 rounded-2xl border border-amber-200 dark:border-amber-800/60">
+                <span class="text-[11px] font-bold text-amber-900 dark:text-amber-300 block mb-1">🥑 Cible Lipides</span>
+                <div class="flex items-center gap-1">
+                  <input id="inpDailyTargetFat" type="number" min="15" max="250" step="5" value="80" required
+                    class="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900 dark:text-white" />
+                  <span class="text-xs font-mono font-bold text-amber-600">g/j</span>
+                </div>
+              </div>
+              <div class="bg-slate-100 dark:bg-slate-800 p-2.5 rounded-2xl border border-slate-300 dark:border-slate-700">
+                <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">🔥 Cible Calories</span>
+                <div class="flex items-center gap-1">
+                  <input id="inpDailyTargetCalories" type="number" min="800" max="5000" step="25" value="1950" required
+                    class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1.5 font-mono font-extrabold text-sm text-slate-900 dark:text-white" />
+                  <span class="text-xs font-mono font-bold text-slate-400">kcal</span>
+                </div>
+              </div>
+            </div>
+            <div class="bg-emerald-50/60 p-2.5 rounded-2xl border border-emerald-200 flex items-center justify-between text-xs">
+              <span class="font-bold text-emerald-950">⚖️ Poids de référence (Athlète) :</span>
+              <div class="flex items-center gap-1">
+                <input id="inpUserWeight" type="number" min="35" max="180" step="1" value="85"
+                  class="w-16 bg-white border border-emerald-300 rounded-xl px-2 py-1 text-center font-mono font-extrabold text-xs text-slate-900" />
+                <span class="font-mono font-extrabold text-emerald-800">kg</span>
               </div>
             </div>
           </div>
@@ -740,36 +813,36 @@
           <div class="p-3 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-2.5">
             <div class="flex items-center justify-between gap-2">
               <label for="guideInputWeight" class="text-xs font-extrabold text-slate-800">Votre poids (kg) :</label>
-              <input id="guideInputWeight" type="number" min="35" max="180" value="75"
+              <input id="guideInputWeight" type="number" min="35" max="180" value="85"
                 class="w-20 bg-white border border-emerald-300 rounded-xl px-2.5 py-1 text-center font-mono font-extrabold text-sm text-slate-900" />
             </div>
 
             <div>
-              <label for="guideSelectProfile" class="text-xs font-extrabold text-slate-800 block mb-1">Votre objectif sportif :</label>
+              <label for="guideSelectProfile" class="text-xs font-extrabold text-slate-800 block mb-1">Votre protocole sportif :</label>
               <select id="guideSelectProfile" class="w-full bg-white border border-emerald-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 focus:outline-none">
-                <option value="hypertrophy" selected>💪 Prise de Muscle Sec &amp; Force (1.8–2.2g/kg prot)</option>
-                <option value="maintenance">⚡ Performance &amp; Maintien 18/6 (1.5–1.8g/kg prot)</option>
-                <option value="cutting">🔥 Sèche &amp; Définition Musculaire (Contrôle glucidique)</option>
+                <option value="maintenance" selected>⚡ Jeûne Intermittent 18/6 (85 kg) • 150g P / 150g G / 80g L (~1950 kcal)</option>
+                <option value="hypertrophy">💪 Prise de Muscle Sec &amp; Force (170g P / 200g G / 85g L)</option>
+                <option value="cutting">🔥 Sèche &amp; Définition Musculaire (170g P / 120g G / 65g L)</option>
               </select>
             </div>
 
             <div class="bg-white rounded-2xl p-3 border border-emerald-200 space-y-2">
               <div class="flex items-baseline justify-between">
                 <span class="text-[11px] font-extrabold uppercase text-slate-500">Besoin Quotidien Estimé :</span>
-                <span id="guideOutDailyCarbs" class="text-lg font-extrabold font-mono text-emerald-700">165 g / jour</span>
+                <span id="guideOutDailyCarbs" class="text-sm font-extrabold font-mono text-emerald-700">~1950 kcal • 150g P • 150g G • 80g L</span>
               </div>
               <div class="grid grid-cols-3 gap-1.5 pt-1.5 border-t border-slate-100 text-center">
                 <div class="bg-slate-50 rounded-xl p-1.5">
-                  <span class="text-[10px] font-bold text-slate-500 block">🌅 Matin (10h)</span>
-                  <span id="guideOutMorning" class="text-xs font-mono font-extrabold text-slate-900">~55g</span>
+                  <span class="text-[10px] font-bold text-slate-500 block">🌅 Repas 1 (10h)</span>
+                  <span id="guideOutMorning" class="text-[10.5px] font-mono font-extrabold text-slate-900 block leading-tight">~770 kcal<br><span class="text-emerald-700">60g P</span> • <span class="text-cyan-700">60g G</span> • <span class="text-amber-700">32g L</span></span>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-1.5">
-                  <span class="text-[10px] font-bold text-slate-500 block">☀️ Midi (15h)</span>
-                  <span id="guideOutNoon" class="text-xs font-mono font-extrabold text-slate-900">~85g</span>
+                  <span class="text-[10px] font-bold text-slate-500 block">☀️ Repas 2 (15h)</span>
+                  <span id="guideOutNoon" class="text-[10.5px] font-mono font-extrabold text-slate-900 block leading-tight">~1150 kcal<br><span class="text-emerald-700">90g P</span> • <span class="text-cyan-700">90g G</span> • <span class="text-amber-700">48g L</span></span>
                 </div>
                 <div class="bg-slate-50 rounded-xl p-1.5">
-                  <span class="text-[10px] font-bold text-slate-500 block">🌙 Collation</span>
-                  <span id="guideOutEvening" class="text-xs font-mono font-extrabold text-slate-900">~25g</span>
+                  <span class="text-[10px] font-bold text-slate-500 block">🌙 Repos</span>
+                  <span id="guideOutEvening" class="text-xs font-mono font-extrabold text-slate-900 block pt-1">Jeûne 18h</span>
                 </div>
               </div>
             </div>
@@ -1095,21 +1168,32 @@
           </div>
 
           <!-- Bilan Quotidien Cumulé (Repas 10h + Repas 15h) -->
-          <div class="grid grid-cols-3 gap-2 text-center">
-            <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
-              <span class="text-[10px] font-bold text-slate-400 block">Total Jour (2 repas)</span>
-              <span id="fastingTotalDayCarbs" class="text-base font-extrabold font-mono text-emerald-700">53.5g</span>
-              <span class="text-[10px] text-slate-500 block">glucides nets</span>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Objectifs Quotidiens Totaux (85 kg / 18-6)</span>
+              <span class="text-[10px] font-mono font-extrabold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Protocole Calibré</span>
             </div>
-            <div class="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
-              <span class="text-[10px] font-bold text-slate-400 block">Protéines Jour</span>
-              <span id="fastingTotalDayProtein" class="text-base font-extrabold font-mono text-slate-900">~68g</span>
-              <span class="text-[10px] text-slate-500 block">haute satiété</span>
-            </div>
-            <div class="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200">
-              <span class="text-[10px] font-bold text-emerald-700 block">Verdict 24h</span>
-              <span class="text-xs font-extrabold text-emerald-800 block mt-0.5">🟢 Optimal</span>
-              <span class="text-[10px] text-emerald-700 block">Énergie stable</span>
+            <div class="grid grid-cols-4 gap-1.5 text-center">
+              <div class="p-2 rounded-2xl bg-slate-100 border border-slate-200">
+                <span class="text-[9.5px] font-bold text-slate-500 block">Calories</span>
+                <span id="fastingTotalDayCalories" class="text-xs font-black font-mono text-slate-900 block mt-0.5">~1950 kcal</span>
+                <span class="text-[9px] text-slate-500 block">1920-2000</span>
+              </div>
+              <div class="p-2 rounded-2xl bg-emerald-50 border border-emerald-200">
+                <span class="text-[9.5px] font-bold text-emerald-800 block">Protéines</span>
+                <span id="fastingTotalDayProtein" class="text-xs font-black font-mono text-emerald-900 block mt-0.5">150g</span>
+                <span class="text-[9px] text-emerald-700 block">maintien</span>
+              </div>
+              <div class="p-2 rounded-2xl bg-cyan-50 border border-cyan-200">
+                <span class="text-[9.5px] font-bold text-cyan-800 block">Glucides</span>
+                <span id="fastingTotalDayCarbs" class="text-xs font-black font-mono text-cyan-900 block mt-0.5">150g</span>
+                <span class="text-[9px] text-cyan-700 block">glycogène</span>
+              </div>
+              <div class="p-2 rounded-2xl bg-amber-50 border border-amber-200">
+                <span class="text-[9.5px] font-bold text-amber-800 block">Lipides</span>
+                <span id="fastingTotalDayFat" class="text-xs font-black font-mono text-amber-900 block mt-0.5">80g</span>
+                <span class="text-[9px] text-amber-700 block">hormones</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1242,75 +1326,75 @@
           </div>
         </div>
 
-        <!-- CARTE 2 : REPAS 1 À 10H00 (2 ŒUFS + PAIN CÉRÉALES + JBEN + HUILE D'OLIVE) -->
+        <!-- CARTE 2 : REPAS 1 À 10H00 (RUPTURE DU JEÛNE [40%]) -->
         <div class="surface-card rounded-3xl p-4 space-y-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="px-2.5 py-1 rounded-xl bg-amber-100 text-amber-900 font-mono font-extrabold text-xs">10h00</span>
               <div>
-                <h3 class="text-xs font-extrabold text-slate-900">1er Repas — Rupture du Jeûne</h3>
-                <p class="text-[10px] text-slate-500">Protéines + Lipides nobles + Glucides complexes</p>
+                <h3 class="text-xs font-extrabold text-slate-900">1er Repas — Rupture du Jeûne [40%]</h3>
+                <p class="text-[10px] text-slate-500">Objectif : ~770 kcal • 60g Prot • 60g Gluc • 32g Lip</p>
               </div>
             </div>
-            <span class="text-sm font-mono font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">24.9g nets</span>
+            <span id="fastingOut10hMacros" class="text-xs font-mono font-extrabold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-xl border border-emerald-200">~770 kcal • 60g P • 60g G • 32g L</span>
           </div>
 
           <div class="space-y-1.5 text-xs">
             <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
               <div>
-                <span class="font-bold text-slate-900">🥚 2 Œufs (au plat / omelette)</span>
-                <span class="block text-[10px] text-slate-500">~120g • 15g protéines • IG 0</span>
+                <span class="font-bold text-slate-900">🥚 3 Œufs (au plat / omelette)</span>
+                <span class="block text-[10px] text-slate-500">~180g • 23.4g prot • 18.9g lip • 2g gluc</span>
               </div>
-              <span class="font-mono font-bold text-slate-700">1.3g nets</span>
+              <span class="font-mono font-bold text-slate-700">2.0g nets</span>
             </div>
 
             <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
               <div>
                 <span class="font-bold text-slate-900">🌾 Pain aux Céréales &amp; Graines</span>
-                <span class="block text-[10px] text-slate-500">Morceau ~65g • 5.3g fibres • IG Bas (48)</span>
+                <span class="block text-[10px] text-slate-500">Morceau ~155g • 17.0g prot • 7.0g lip • IG 48</span>
               </div>
-              <span class="font-mono font-bold text-emerald-700">22.0g nets</span>
+              <span class="font-mono font-bold text-emerald-700">52.4g nets</span>
             </div>
 
             <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
               <div>
                 <span class="font-bold text-slate-900">🧀 Jben Beldi + Huile d'Olive Vierge</span>
-                <span class="block text-[10px] text-slate-500">~50g Jben + 15ml Huile d'olive • Freine le pic</span>
+                <span class="block text-[10px] text-slate-500">Portion ~140g • 19.6g prot • 14.5g lip nobles (Zit Zitoun)</span>
               </div>
-              <span class="font-mono font-bold text-slate-700">1.6g nets</span>
+              <span class="font-mono font-bold text-slate-700">3.5g nets</span>
             </div>
           </div>
 
           <div class="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-[11px] text-emerald-900 leading-relaxed">
-            <strong>Pourquoi ce repas à 10h est idéal :</strong> L'huile d'olive, le Jben et les 2 œufs ralentissent la vidange de l'estomac. Les 22g de glucides du pain aux céréales passent lentement dans le sang sans provoquer de pic glycémique ni de fringale à midi.
+            <strong>Pourquoi ce repas à 10h est idéal (40% des apports) :</strong> Il délivre exactement <strong>~770 kcal</strong> avec <strong>60g de protéines</strong> pour relancer l'anabolisme après le jeûne nocturne, <strong>60g de glucides</strong> pour reconstituer le glycogène sans pic, et <strong>32g de lipides nobles</strong> (acides gras mono-insaturés de l'huile d'olive).
           </div>
 
           <button type="button" id="btnLoadMeal10h" class="w-full py-2.5 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs">
             <i data-lucide="check-circle" class="w-4 h-4"></i>
-            Charger mon Repas de 10h dans le Calculateur
+            Charger le Repas 1 (10h00) dans le Calculateur
           </button>
         </div>
 
-        <!-- CARTE 3 : REPAS 2 VERS 15H00 (POULET / SARDINES / KEFTA + MORCEAU DE KHOBZ) -->
+        <!-- CARTE 3 : REPAS 2 VERS 15H00 (CLÔTURE DU JEÛNE [60%]) -->
         <div class="surface-card rounded-3xl p-4 space-y-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="px-2.5 py-1 rounded-xl bg-cyan-100 text-cyan-900 font-mono font-extrabold text-xs">15h00</span>
               <div>
-                <h3 class="text-xs font-extrabold text-slate-900">2e &amp; Dernier Repas avant Jeûne</h3>
-                <p class="text-[10px] text-slate-500">Protéine au choix + Légumes + Morceau de Khobz</p>
+                <h3 class="text-xs font-extrabold text-slate-900">2e Repas — Clôture du Jeûne [60%]</h3>
+                <p class="text-[10px] text-slate-500">Objectif : ~1150 kcal • 90g Prot • 90g Gluc • 48g Lip</p>
               </div>
             </div>
-            <span id="fastingOut15hCarbs" class="text-sm font-mono font-extrabold text-cyan-800 bg-cyan-50 px-2.5 py-1 rounded-xl border border-cyan-200">28.6g nets</span>
+            <span id="fastingOut15hMacros" class="text-xs font-mono font-extrabold text-cyan-800 bg-cyan-50 px-2 py-1 rounded-xl border border-cyan-200">~1150 kcal • 90g P • 90g G • 48g L</span>
           </div>
 
           <!-- Choix de la protéine de 15h -->
           <div class="space-y-2">
-            <label for="fastingSelectProtein15h" class="text-[11px] font-extrabold text-slate-700 block">1. Choisissez votre plat protidique de 15h :</label>
+            <label for="fastingSelectProtein15h" class="text-[11px] font-extrabold text-slate-700 block">1. Choisissez votre plat protidique de 15h (60% apports) :</label>
             <select id="fastingSelectProtein15h" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none">
-              <option value="poulet" selected>🍗 Poulet Grillé / Rôti / Tajine (~200g) + Salade</option>
-              <option value="sardine">🐟 Sardines Grillées / Au Four (~200g, Oméga-3) + Salade</option>
-              <option value="kefta">🥩 Viande Hachée Kefta (~180g) + Salade</option>
+              <option value="poulet" selected>🍗 Poulet Grillé / Rôti (~300g) + Salade + Huile d'Olive (Zit Zitoun)</option>
+              <option value="sardine">🐟 Sardines Grillées (~320g, Oméga-3) + Salade + Khobz</option>
+              <option value="kefta">🥩 Viande Hachée Kefta (~320g) + Salade + Khobz</option>
             </select>
           </div>
 
@@ -1326,18 +1410,18 @@
             </div>
             <div>
               <label for="fastingInputBreadGrams" class="text-[11px] font-extrabold text-slate-700 block mb-1">Poids du morceau (g) :</label>
-              <input id="fastingInputBreadGrams" type="number" min="20" max="200" step="5" value="70"
+              <input id="fastingInputBreadGrams" type="number" min="20" max="350" step="5" value="210"
                 class="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-center font-mono font-extrabold text-xs text-slate-900" />
             </div>
           </div>
 
           <div class="p-2.5 rounded-xl bg-cyan-50/70 border border-cyan-200 text-[11px] text-cyan-950 leading-relaxed">
-            <strong>Pourquoi finir à 15h00 est un atout majeur :</strong> En prenant votre dernier repas (poulet, sardines ou kefta + morceau de khobz) vers 15h, vos muscles assimilent les nutriments pendant l'après-midi. Vous passez toute la soirée et la nuit en repos digestif complet, favorisant le pic nocturne d'hormone de croissance et un sommeil profond réparateur.
+            <strong>Pourquoi ce repas à 15h00 est décisif (60% des apports) :</strong> Fournit <strong>~1150 kcal</strong> avec <strong>90g de protéines</strong> pour saturer la synthèse musculaire (mTOR), <strong>90g de glucides</strong> pour remplir le glycogène, et <strong>48g de lipides</strong> essentiels pour soutenir la testostérone et les hormones stéroïdiennes durant les 18 heures de jeûne qui suivent.
           </div>
 
           <button type="button" id="btnLoadMeal15h" class="w-full py-2.5 px-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs">
             <i data-lucide="utensils" class="w-4 h-4 text-emerald-400"></i>
-            Charger mon Repas de 15h dans le Calculateur
+            Charger le Repas 2 (15h00) dans le Calculateur
           </button>
         </div>
 
@@ -1826,6 +1910,6 @@
   </script>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=34"></script>
+  <script type="module" src="./js/app.js?v=35"></script>
 </body>
 </html>

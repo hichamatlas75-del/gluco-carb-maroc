@@ -58,7 +58,7 @@ Analyse la photo de ce repas :
 4. foodId recommandés : "oeufs-plat", "pain-cereales", "khobz-complet", "khobz-blanc", "jben-huile-olive", "huile-olive-pure", "olives-marocaines", "poulet-grille", "sardines-grillees", "kefta-grillee", "salade-marocaine".
 
 Réponds UNIQUEMENT en JSON strict avec ce format :
-{"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
+{"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fat100g":5,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
 
     const models = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash'];
     let items = null;

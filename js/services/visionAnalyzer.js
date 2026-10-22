@@ -126,6 +126,7 @@ export const VisionAnalyzer = {
           grams,
           carbs100g: dbFood.carbs100g,
           protein100g: safeNum(item.protein100g, dbFood.protein100g || 0, 0, 100),
+          fat100g: safeNum(item.fat100g, dbFood.fat100g || 0, 0, 100),
           fiber100g: dbFood.fiber100g,
           gi: dbFood.gi,
           refPortion: dbFood.refPortion,
@@ -141,6 +142,7 @@ export const VisionAnalyzer = {
         grams: Math.round(safeNum(item.grams, 100, 5, 1500)),
         carbs100g: safeNum(item.carbs100g, 22, 0, 100),
         protein100g: safeNum(item.protein100g, 0, 0, 100),
+        fat100g: safeNum(item.fat100g, 0, 0, 100),
         fiber100g: safeNum(item.fiber100g, 1, 0, 100),
         gi: Math.round(safeNum(item.gi, 55, 0, 100)),
         refPortion: 'Estimé par IA Vision',
@@ -248,7 +250,7 @@ Analyse la photo de ce repas :
 5. foodId recommandés : "oeufs-plat", "pain-cereales", "khobz-complet", "khobz-blanc", "jben-huile-olive", "huile-olive-pure", "olives-marocaines", "poulet-grille", "sardines-grillees", "kefta-grillee", "salade-marocaine".
 
 Réponds UNIQUEMENT en JSON strict avec ce format :
-{"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
+{"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fat100g":5,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
 
     const requestBody = JSON.stringify({
       contents: [

@@ -10,9 +10,12 @@ import { ImageCropper } from './ui/imageCropper.js?v=33';
  * Contrôleur principal MacroFit Maroc (Nutrition Sportive & Jeûne Intermittent 18/6)
  */
 const DEFAULT_SETTINGS = {
-  dailyTargetProtein: 130, // Cible journalière protéines (ex: 130g pour sportif)
-  dailyTargetCarbs: 160,   // Cible journalière glucides nets (ex: 160g énergie/glycogène)
-  theme: 'auto',           // 'light', 'dark', 'auto'
+  userWeight: 85,            // Poids de référence (85 kg)
+  dailyTargetCalories: 1950, // Cible journalière calories (~1920 - 2000 kcal)
+  dailyTargetProtein: 150,   // Cible journalière protéines (150g)
+  dailyTargetCarbs: 150,     // Cible journalière glucides nets (150g)
+  dailyTargetFat: 80,        // Cible journalière lipides (80g)
+  theme: 'auto',             // 'light', 'dark', 'auto'
   geminiKey: ''
 };
 
@@ -27,14 +30,22 @@ function getTodayTotals(history) {
   const todayKey = getLocalDateString();
   let consumedCarbs = 0;
   let consumedProtein = 0;
+  let consumedFat = 0;
+  let consumedCalories = 0;
   let mealCount = 0;
 
   for (const log of (history || [])) {
     if (!log || !log.timestamp) continue;
     const logDate = getLocalDateString(log.timestamp);
     if (logDate === todayKey) {
-      consumedCarbs += Number(log.netCarbs) || 0;
-      consumedProtein += Number(log.totalProtein || log.protein) || 0;
+      const p = Number(log.totalProtein || log.protein) || 0;
+      const c = Number(log.netCarbs) || 0;
+      const f = Number(log.totalFat || log.fat) || 0;
+      const cal = Number(log.totalCalories || log.calories) || Math.round(p * 4 + c * 4 + f * 9);
+      consumedCarbs += c;
+      consumedProtein += p;
+      consumedFat += f;
+      consumedCalories += cal;
       mealCount++;
     }
   }
@@ -42,6 +53,8 @@ function getTodayTotals(history) {
   return {
     carbs: Math.round(consumedCarbs * 10) / 10,
     protein: Math.round(consumedProtein * 10) / 10,
+    fat: Math.round(consumedFat * 10) / 10,
+    calories: Math.round(consumedCalories),
     mealCount
   };
 }
@@ -395,22 +408,49 @@ function updateDailyCarbCalculator() {
   const profileEl = document.getElementById('guideSelectProfile');
   if (!weightEl || !profileEl) return;
 
-  const weight = Math.min(180, Math.max(35, parseFloat(weightEl.value) || 75));
+  const weight = Math.min(180, Math.max(35, parseFloat(weightEl.value) || 85));
   const profile = profileEl.value;
 
-  let factorPerKg = 2.2; // Maintien & Jeûne 18/6 ('maintenance')
-  if (profile === 'hypertrophy') factorPerKg = 3.5; // Prise de muscle sec & force
-  if (profile === 'cutting') factorPerKg = 1.4;     // Sèche & Définition musculaire
+  // Protocole 85 kg (18-6) : ~1920-2000 kcal, 150g Prot, 150g Gluc, 80g Lip
+  let carbsPerKg = 1.76;
+  let protPerKg = 1.76;
+  let fatPerKg = 0.94;
+  if (profile === 'hypertrophy') {
+    carbsPerKg = 2.4;
+    protPerKg = 2.0;
+    fatPerKg = 1.0;
+  } else if (profile === 'cutting') {
+    carbsPerKg = 1.4;
+    protPerKg = 2.0;
+    fatPerKg = 0.8;
+  }
 
-  const dailyTotal = Math.round((weight * factorPerKg) / 5) * 5;
-  const morning = Math.round(dailyTotal * 0.35);
-  const noon = Math.round(dailyTotal * 0.50);
-  const evening = Math.max(10, dailyTotal - morning - noon);
+  const dailyCarbs = Math.round((weight * carbsPerKg) / 5) * 5;
+  const dailyProt = Math.round((weight * protPerKg) / 5) * 5;
+  const dailyFat = Math.round((weight * fatPerKg) / 5) * 5;
+  const dailyCal = Math.round(dailyProt * 4 + dailyCarbs * 4 + dailyFat * 9);
 
-  document.getElementById('guideOutDailyCarbs').textContent = `${dailyTotal} g / jour`;
-  document.getElementById('guideOutMorning').textContent = `~${morning}g`;
-  document.getElementById('guideOutNoon').textContent = `~${noon}g`;
-  document.getElementById('guideOutEvening').textContent = `~${evening}g`;
+  // Répartition 18/6 : 40% Repas 1 (10h), 60% Repas 2 (15h)
+  const morningCarbs = Math.round(dailyCarbs * 0.40);
+  const noonCarbs = Math.round(dailyCarbs * 0.60);
+  const morningProt = Math.round(dailyProt * 0.40);
+  const noonProt = Math.round(dailyProt * 0.60);
+  const morningFat = Math.round(dailyFat * 0.40);
+  const noonFat = Math.round(dailyFat * 0.60);
+  const morningCal = Math.round(dailyCal * 0.40);
+  const noonCal = Math.round(dailyCal * 0.60);
+
+  const outDaily = document.getElementById('guideOutDailyCarbs');
+  if (outDaily) outDaily.textContent = `~${dailyCal} kcal • ${dailyProt}g P • ${dailyCarbs}g G • ${dailyFat}g L`;
+
+  const outMorning = document.getElementById('guideOutMorning');
+  if (outMorning) outMorning.textContent = `~${morningCal} kcal (${morningProt}g P • ${morningCarbs}g G • ${morningFat}g L)`;
+
+  const outNoon = document.getElementById('guideOutNoon');
+  if (outNoon) outNoon.textContent = `~${noonCal} kcal (${noonProt}g P • ${noonCarbs}g G • ${noonFat}g L)`;
+
+  const outEvening = document.getElementById('guideOutEvening');
+  if (outEvening) outEvening.textContent = `Jeûne 18h`;
 }
 
 /**
@@ -594,7 +634,7 @@ function updateFasting186View() {
     }
   }
 
-  // Calcul dynamique du Repas n°2 (15h00) et du Bilan Total Journalier
+  // Calcul dynamique du Repas n°2 (15h00) et du Bilan Total Journalier (Objectif 85 kg / 18-6)
   const protSel = document.getElementById('fastingSelectProtein15h');
   const breadSel = document.getElementById('fastingSelectBread15h');
   const breadGramsInp = document.getElementById('fastingInputBreadGrams');
@@ -602,36 +642,55 @@ function updateFasting186View() {
 
   const protKey = protSel.value;
   const breadId = breadSel.value;
-  const breadGrams = Math.min(250, Math.max(0, parseFloat(breadGramsInp.value) || 70));
+  const breadGrams = Math.min(350, Math.max(0, parseFloat(breadGramsInp.value) || 210));
 
-  // Calcul via le moteur métabolique (mêmes valeurs que le scanner, sans double comptage)
+  // Calcul via le moteur métabolique (calibré pour l'objectif 85 kg / 18-6)
   const PROTEIN_SOURCES = {
-    poulet: { foodId: 'poulet-grille', grams: 200 },
-    sardine: { foodId: 'sardines-grillees', grams: 200 },
-    kefta: { foodId: 'kefta-grillee', grams: 180 }
+    poulet: { foodId: 'poulet-grille', grams: 300 },
+    sardine: { foodId: 'sardines-grillees', grams: 320 },
+    kefta: { foodId: 'kefta-grillee', grams: 320 }
   };
   const protSource = PROTEIN_SOURCES[protKey] || PROTEIN_SOURCES.poulet;
+  const oilGrams = protKey === 'sardine' ? 10 : (protKey === 'kefta' ? 5 : 25);
   const meal15hItems = [
     protSource,
-    { foodId: 'salade-marocaine', grams: 140 },
+    { foodId: 'salade-marocaine', grams: 180 },
+    { foodId: 'huile-olive-pure', grams: oilGrams },
     { foodId: FoodRepository.getFoodById(breadId) ? breadId : 'khobz-complet', grams: breadGrams }
   ];
   const meal15h = MetabolicEngine.evaluatePlate(meal15hItems);
   const meal10hPlate = FoodRepository.getPlateByKey('jeune_10h');
   const meal10h = MetabolicEngine.evaluatePlate(meal10hPlate ? meal10hPlate.items : []);
 
-  const meal15hCarbs = meal15h.netCarbs;
   const totalDayCarbs = Math.round((meal10h.netCarbs + meal15h.netCarbs) * 10) / 10;
   const totalDayProtein = Math.round(meal10h.totalProtein + meal15h.totalProtein);
+  const totalDayFat = Math.round((meal10h.totalFat + meal15h.totalFat) * 10) / 10;
+  const totalDayCalories = Math.round(meal10h.totalCalories + meal15h.totalCalories);
+
+  const out10hMacros = document.getElementById('fastingOut10hMacros');
+  if (out10hMacros) {
+    out10hMacros.textContent = `~${meal10h.totalCalories} kcal • ${Math.round(meal10h.totalProtein)}g P • ${Math.round(meal10h.netCarbs)}g G • ${Math.round(meal10h.totalFat)}g L`;
+  }
+
+  const out15hMacros = document.getElementById('fastingOut15hMacros');
+  if (out15hMacros) {
+    out15hMacros.textContent = `~${meal15h.totalCalories} kcal • ${Math.round(meal15h.totalProtein)}g P • ${Math.round(meal15h.netCarbs)}g G • ${Math.round(meal15h.totalFat)}g L`;
+  }
 
   const out15h = document.getElementById('fastingOut15hCarbs');
-  if (out15h) out15h.textContent = `${meal15hCarbs.toFixed(1)} g nets`;
+  if (out15h) out15h.textContent = `${meal15h.netCarbs.toFixed(1)}g nets (${meal15h.totalFat}g lip)`;
+
+  const outTotalCal = document.getElementById('fastingTotalDayCalories');
+  if (outTotalCal) outTotalCal.textContent = `~${totalDayCalories} kcal`;
 
   const outTotalCarbs = document.getElementById('fastingTotalDayCarbs');
-  if (outTotalCarbs) outTotalCarbs.textContent = `${totalDayCarbs.toFixed(1)} g nets`;
+  if (outTotalCarbs) outTotalCarbs.textContent = `${totalDayCarbs.toFixed(1)}g nets`;
 
   const outTotalProt = document.getElementById('fastingTotalDayProtein');
-  if (outTotalProt) outTotalProt.textContent = `~${totalDayProtein} g`;
+  if (outTotalProt) outTotalProt.textContent = `~${totalDayProtein}g`;
+
+  const outTotalFat = document.getElementById('fastingTotalDayFat');
+  if (outTotalFat) outTotalFat.textContent = `~${totalDayFat}g lipides`;
 }
 
 // Ouverture / Fermeture du Catalogue d'Ajout ou de Correction (Remplacement)
@@ -713,9 +772,16 @@ function switchToTab(target) {
   }
   if (target === 'settings') {
     const pInp = document.getElementById('inpDailyTargetProtein');
-    if (pInp) pInp.value = state.settings.dailyTargetProtein || 130;
+    if (pInp) pInp.value = state.settings.dailyTargetProtein || 150;
     const cInp = document.getElementById('inpDailyTargetCarbs');
-    if (cInp) cInp.value = state.settings.dailyTargetCarbs || 160;
+    if (cInp) cInp.value = state.settings.dailyTargetCarbs || 150;
+    const fInp = document.getElementById('inpDailyTargetFat');
+    if (fInp) fInp.value = state.settings.dailyTargetFat || 80;
+    const calInp = document.getElementById('inpDailyTargetCalories');
+    if (calInp) calInp.value = state.settings.dailyTargetCalories || 1950;
+    const wInp = document.getElementById('inpUserWeight');
+    if (wInp) wInp.value = state.settings.userWeight || 85;
+
     const todayTotals = getTodayTotals(state.history);
     UIRenderer.renderDailySynthesis(todayTotals, state.settings);
 
@@ -927,6 +993,9 @@ function bindEvents() {
         ? `<img src="${validImg}" alt="Repas" class="w-13 h-13 object-cover rounded-xl border border-slate-200 shadow-2xs shrink-0">`
         : `<div class="w-13 h-13 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0 text-lg font-bold">🍽️</div>`;
 
+      const fatVal = h.totalFat ? Math.round(Number(h.totalFat) * 10) / 10 : 0;
+      const calVal = h.totalCalories ? Math.round(Number(h.totalCalories)) : Math.round(proteinVal * 4 + Number(h.netCarbs || 0) * 4 + fatVal * 9);
+
       return `
         <div class="surface-card rounded-2xl p-3 border border-slate-200/80 shadow-2xs space-y-2 hover:border-emerald-300 transition-all">
           <div class="flex items-start gap-2.5">
@@ -945,10 +1014,12 @@ function bindEvents() {
               <p class="text-[11px] text-slate-600 leading-snug line-clamp-2">${names}</p>
             </div>
           </div>
-          <div class="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px] font-mono font-bold text-slate-700">
-            <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center justify-between gap-1 pt-1.5 border-t border-slate-100 text-[10px] font-mono font-bold text-slate-700">
+            <div class="flex items-center gap-1.5">
               <span class="text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 font-extrabold">🥩 ${proteinVal}g prot</span>
-              <span>🌾 ${h.netCarbs}g nets</span>
+              <span class="text-cyan-800 bg-cyan-50 px-1.5 py-0.5 rounded-md border border-cyan-200">🌾 ${h.netCarbs}g nets</span>
+              <span class="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">🥑 ${fatVal}g lip</span>
+              <span class="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md">🔥 ${calVal} kcal</span>
             </div>
             <span class="text-slate-400">⚖️ ${Number(h.totalGrams) || 0}g</span>
           </div>
@@ -1259,26 +1330,29 @@ function bindEvents() {
     state.activeSlot = 'morning';
     loadPresetPlate('jeune_10h', true);
     switchToTab('scanner');
-    showToast('Repas 10h00 (2 œufs, pain céréales, jben & huile d’olive) chargé !');
+    showToast('Repas 1 (10h00) Rupture [40%] (~770 kcal • 60g P • 60g G • 32g L) chargé !');
   });
 
   document.getElementById('btnLoadMeal15h')?.addEventListener('click', () => {
     state.activeSlot = 'noon';
     const protKey = document.getElementById('fastingSelectProtein15h')?.value || 'poulet';
     const breadId = document.getElementById('fastingSelectBread15h')?.value || 'khobz-complet';
-    const breadGrams = Math.min(250, Math.max(5, parseInt(document.getElementById('fastingInputBreadGrams')?.value, 10) || 70));
+    const breadGrams = Math.min(350, Math.max(5, parseInt(document.getElementById('fastingInputBreadGrams')?.value, 10) || 210));
 
     let protFoodId = 'poulet-grille';
-    let protGrams = 200;
-    let titleLabel = 'Repas 15h00 (Poulet + Khobz)';
+    let protGrams = 300;
+    let oilGrams = 25;
+    let titleLabel = 'Repas 2 (15h00) Clôture [60%] : Poulet + Khobz + Huile d’Olive';
     if (protKey === 'sardine') {
       protFoodId = 'sardines-grillees';
-      protGrams = 200;
-      titleLabel = 'Repas 15h00 (Sardines + Khobz)';
+      protGrams = 320;
+      oilGrams = 10;
+      titleLabel = 'Repas 2 (15h00) Clôture [60%] : Sardines Grillées + Khobz';
     } else if (protKey === 'kefta') {
       protFoodId = 'kefta-grillee';
-      protGrams = 180;
-      titleLabel = 'Repas 15h00 (Viande Hachée + Khobz)';
+      protGrams = 320;
+      oilGrams = 5;
+      titleLabel = 'Repas 2 (15h00) Clôture [60%] : Kefta Grillée + Khobz';
     }
 
     const illu = VisionAnalyzer.createDemoPlateIllustration(titleLabel);
@@ -1291,13 +1365,14 @@ function bindEvents() {
 
     state.items = [
       { foodId: protFoodId, grams: protGrams, x: 42, y: 46 },
-      { foodId: 'salade-marocaine', grams: 140, x: 72, y: 40 },
+      { foodId: 'salade-marocaine', grams: 180, x: 72, y: 40 },
+      { foodId: 'huile-olive-pure', grams: oilGrams, x: 50, y: 80 },
       { foodId: breadId, grams: breadGrams, x: 25, y: 74 }
     ];
     StorageService.save('glucoscan_items_v3', state.items);
     updateUI();
     switchToTab('scanner');
-    showToast(`${titleLabel} chargé dans le calculateur !`);
+    showToast(`${titleLabel} chargé (~1150 kcal • 90g P • 90g G • 48g L) !`);
   });
 
   // Simulateur de besoin journalier en glucides dans l'onglet Guide
@@ -1874,15 +1949,18 @@ function bindEvents() {
   // Sauvegarde des paramètres
   document.getElementById('formSettings')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    state.settings.dailyTargetProtein = Math.max(30, parseFloat(document.getElementById('inpDailyTargetProtein').value) || 130);
-    state.settings.dailyTargetCarbs = Math.max(30, parseFloat(document.getElementById('inpDailyTargetCarbs').value) || 160);
+    state.settings.userWeight = Math.max(35, parseFloat(document.getElementById('inpUserWeight')?.value) || 85);
+    state.settings.dailyTargetCalories = Math.max(800, parseFloat(document.getElementById('inpDailyTargetCalories')?.value) || 1950);
+    state.settings.dailyTargetProtein = Math.max(30, parseFloat(document.getElementById('inpDailyTargetProtein').value) || 150);
+    state.settings.dailyTargetCarbs = Math.max(30, parseFloat(document.getElementById('inpDailyTargetCarbs').value) || 150);
+    state.settings.dailyTargetFat = Math.max(15, parseFloat(document.getElementById('inpDailyTargetFat')?.value) || 80);
 
     const enteredKey = document.getElementById('inpGeminiKey').value.trim();
     state.settings.geminiKey = enteredKey.length >= 15 ? enteredKey : '';
     StorageService.save('glucoscan_settings_v3', state.settings);
     ProfileService.saveProfileData(state.settings, state.history);
     updateUI();
-    showToast('Paramètres & Objectifs enregistrés');
+    showToast('Paramètres & Objectifs (18/6 - 85 kg) enregistrés !');
   });
 
   // Bouton Tester l'API IA
@@ -1933,8 +2011,11 @@ function bindEvents() {
           state.settings = {
             ...DEFAULT_SETTINGS,
             ...state.settings,
+            userWeight: Math.max(35, Number(data.settings.userWeight) || DEFAULT_SETTINGS.userWeight),
+            dailyTargetCalories: Math.max(800, Number(data.settings.dailyTargetCalories) || DEFAULT_SETTINGS.dailyTargetCalories),
             dailyTargetProtein: Math.max(30, Number(data.settings.dailyTargetProtein) || DEFAULT_SETTINGS.dailyTargetProtein),
             dailyTargetCarbs: Math.max(30, Number(data.settings.dailyTargetCarbs) || DEFAULT_SETTINGS.dailyTargetCarbs),
+            dailyTargetFat: Math.max(15, Number(data.settings.dailyTargetFat) || DEFAULT_SETTINGS.dailyTargetFat),
             theme: data.settings.theme || 'auto'
           };
         }
@@ -1947,6 +2028,8 @@ function bindEvents() {
             totalGrams: Math.round(Number(h.totalGrams) || 0),
             netCarbs: Math.round(Number(h.netCarbs) * 10 || 0) / 10,
             totalProtein: Math.round(Number(h.totalProtein || h.protein) * 10 || 0) / 10,
+            totalFat: Math.round(Number(h.totalFat || h.fat) * 10 || 0) / 10,
+            totalCalories: Math.round(Number(h.totalCalories || h.calories) || 0),
             totalFiber: Math.round(Number(h.totalFiber || h.fiber) * 10 || 0) / 10,
             proteinIndexLabel: String(h.proteinIndexLabel || 'Modéré'),
             avgGI: Math.round(Number(h.avgGI) || 50),
