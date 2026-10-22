@@ -235,11 +235,17 @@ export const VisionAnalyzer = {
    * Appel direct au service Google Generative Language API
    */
   async callSingleVisionModel(modelName, base64Data, apiKey, signal) {
-    const prompt = `Tu es un expert en nutrition sportive, macronutriments et cuisine marocaine et internationale. Analyse cette photo de repas :
+    const prompt = `Tu es un médecin nutritionniste expert en diabétologie, nutrition sportive et gastronomie marocaine et méditerranéenne.
+Analyse la photo de ce repas :
 1. Identifie uniquement les aliments et boissons caloriques consommés par UNE SEULE personne.
-2. EXCLUSION OBLIGATOIRE : NE PAS inclure l'eau pure (bouteille d'eau, verre d'eau minérale, carafe), ni les théières vides, couverts, serviettes ou objets sans calories.
-3. PORTION INDIVIDUELLE : Estime la portion réelle consommée par une personne pour son repas. Ne compte JAMAIS une corbeille entière de pain : pour le pain (Khobz, pain céréales, baguette), compte la portion d'une personne soit 1 morceau (~60g à 80g max). Pour les œufs (omelette, khlii), compte la portion d'une personne (~120g à 180g max).
-4. Pour le pain aux céréales ou complet, les glucides nets sont de ~35g/100g (car riche en fibres).
+2. EXCLUSION OBLIGATOIRE : NE PAS inclure l'eau pure (bouteille d'eau, verre d'eau minérale, carafe), ni les théières sans sucre, couverts, serviettes ou objets sans calories.
+3. PORTION INDIVIDUELLE : Estime la portion réelle consommée par une personne pour son repas. Ne compte JAMAIS une corbeille entière de pain : pour le pain (Khobz, pain céréales, baguette), compte la portion d'une personne soit 1 morceau (~60g à 80g max). Pour les œufs (omelette, au plat), compte la portion d'une personne (~120g à 180g max).
+4. PETIT-DÉJEUNER MAROCAIN & CONDIMENTS (ATTENTION CONFUSIONS FRÉQUENTES) :
+   - HUILE D'OLIVE (Zit Zitoun) vs MIEL : Dans un repas avec des œufs (omelette, au plat), du pain ou du salé, toute coupelle, ramequin ou saucière contenant un liquide huileux (doré, ambré, vert) est de l'HUILE D'OLIVE ("huile-olive-pure", 0g glucides, 100g lipides), JAMAIS du miel ni de la confiture ! Ne compte du miel que si le plat est explicitement une crêpe sucrée (baghrir au miel, msemen sucré, chebakia).
+   - JBEN BELDI (Fromage frais) vs BEURRE : La pâte blanche ou fromage servi avec le pain ou dans l'huile est du "Jben beldi" ou "Jben & Huile d'olive" ("jben-huile-olive" : ~14g protéines/100g, 2.5g glucides), JAMAIS du beurre de table.
+   - OMELETTE / ŒUFS : ~13g protéines/100g, ~1.1g glucides (portion 2 œufs = ~120g).
+   - PAIN AUX CÉRÉALES / COMPLET : ~35g glucides nets/100g, 10g protéines, 7g fibres.
+5. foodId recommandés : "oeufs-plat", "pain-cereales", "khobz-complet", "khobz-blanc", "jben-huile-olive", "huile-olive-pure", "olives-marocaines", "poulet-grille", "sardines-grillees", "kefta-grillee", "salade-marocaine".
 
 Réponds UNIQUEMENT en JSON strict avec ce format :
 {"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
@@ -452,6 +458,9 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
     if (q.includes('jben') || q.includes('fromage frais') || q.includes('fromage blanc')) {
       return FoodRepository.getFoodById('jben-huile-olive');
     }
+    if ((q.includes('beurre') || q.includes('butter') || q.includes('zebda')) && !q.includes('miel') && !q.includes('honey')) {
+      return FoodRepository.getFoodById('beurre-doux');
+    }
     if (q.includes('oeuf') || q.includes('œuf') || q.includes('egg') || q.includes('baid') || q.includes('khlii') || q.includes('khlea') || q.includes('omelette')) {
       return FoodRepository.getFoodById('oeufs-plat');
     }
@@ -478,8 +487,8 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
     if (q.includes('zaalouk')) return FoodRepository.getFoodById('zaalouk');
     if (q.includes('taktouka')) return FoodRepository.getFoodById('taktouka');
     if (q.includes('avocat') || q.includes('avocado')) return FoodRepository.getFoodById('avocat-nature');
-    if (q.includes('olive')) return FoodRepository.getFoodById('olives-marocaines');
-    if (q.includes('huile d\'olive') || q.includes('huile olive') || q.includes('zit zitoun')) {
+    if (q.includes('olive') && !q.includes('huile')) return FoodRepository.getFoodById('olives-marocaines');
+    if (q.includes('huile') || q.includes('zit') || q.includes('olive oil')) {
       return FoodRepository.getFoodById('huile-olive-pure');
     }
 

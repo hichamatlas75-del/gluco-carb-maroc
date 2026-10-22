@@ -56,17 +56,19 @@ export async function onRequest(context) {
       });
     }
 
-    const systemPrompt = `Tu es un médecin nutritionniste expert en diabétologie et spécialiste de la gastronomie marocaine.
+    const systemPrompt = `Tu es un médecin nutritionniste expert en diabétologie, nutrition sportive et gastronomie marocaine et méditerranéenne.
 Analyse la photo de ce repas :
 1. EXCLUSION STRICTE : N'inclus JAMAIS l'eau pure (bouteille, carafe, verre d'eau plate/gazeuse), ni les théières sans sucre, couverts, serviettes ou objets sans calories.
-2. PORTION INDIVIDUELLE : Estime uniquement ce qu'UNE SEULE personne va consommer pour son repas. Ne compte JAMAIS une corbeille entière de pain (1 part de Khobz ou Batbout = 60g à 80g max). Pour un Tagine partagé, compte la part individuelle (ex: ~120g viande + ~100g légumes).
-3. CUISINE MAROCAINE :
-   - Khobz dar (farine/semoule) : ~45g glucides/100g, 8.5g protéines.
-   - Pain complet ou céréales : ~35g glucides nets/100g (riche en fibres).
-   - Huile d'olive : 0g glucides, 0g protéines, 100g lipides.
-   - Kefta marocaine : ~14g protéines/100g, ~2g glucides.
-   - Sardines grillées : ~20g protéines/100g, 0g glucides.
-4. Position x, y : Indique le centre de chaque aliment en pourcentage (0 à 100) par rapport à l'image.
+2. PORTION INDIVIDUELLE : Estime uniquement ce qu'UNE SEULE personne consomme pour son repas. Pour le pain (Khobz, pain céréales, baguette), compte 1 part (~60g à 80g max). Pour les œufs (omelette, au plat), compte la portion normale (~120g à 180g max).
+3. PETIT-DÉJEUNER MAROCAIN & CONDIMENTS (ATTENTION CONFUSIONS FRÉQUENTES) :
+   - HUILE D'OLIVE (Zit Zitoun) vs MIEL : Dans un repas avec des œufs (omelette, au plat), du pain ou du salé, toute coupelle, ramequin ou saucière contenant un liquide huileux (vert, doré, ambré) est de l'HUILE D'OLIVE ("huile-olive-pure", 0g glucides, 100g lipides), JAMAIS du miel ni de la confiture ! Ne compte du miel que si le plat est explicitement une crêpe sucrée (baghrir au miel, msemen sucré, chebakia).
+   - JBEN BELDI (Fromage frais) vs BEURRE : La pâte blanche ou fromage servi avec le pain ou dans l'huile est du "Jben beldi" ou "Jben & Huile d'olive" ("jben-huile-olive" : ~14g protéines/100g, 2.5g glucides), JAMAIS du beurre de table.
+   - OMELETTE / ŒUFS : ~13g protéines/100g, ~1.1g glucides (ex: portion 2 œufs = ~120g).
+   - PAIN AUX CÉRÉALES / COMPLET : ~35g glucides nets/100g, 10g protéines, 7g fibres.
+   - KHOBZ BLANC : ~48g glucides/100g, 8g protéines.
+4. foodId recommandés quand ils correspondent :
+   "oeufs-plat", "pain-cereales", "khobz-complet", "khobz-blanc", "jben-huile-olive", "huile-olive-pure", "olives-marocaines", "poulet-grille", "sardines-grillees", "kefta-grillee", "salade-marocaine".
+5. Position x, y : Indique le centre de chaque aliment en pourcentage (0 à 100) par rapport à l'image.
 
 Réponds UNIQUEMENT en JSON strict sous cette forme :
 {"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;

@@ -46,11 +46,16 @@ export async function onRequest(context) {
       });
     }
 
-    const prompt = `Tu es un expert en nutrition clinique et diabétologie. Analyse cette photo de repas :
-1. Identifie uniquement les aliments et boissons caloriques consommés par UNE SEULE personne.
-2. EXCLUSION OBLIGATOIRE : NE PAS inclure l'eau pure (bouteille d'eau, verre d'eau minérale, carafe), ni les théières vides, couverts, serviettes ou objets sans calories.
-3. PORTION INDIVIDUELLE : Estime la portion réelle consommée par une personne pour son repas. Pour le pain (Khobz, pain céréales, baguette), compte la portion d'une personne soit 1 morceau (~60g à 80g max). Pour les œufs (omelette, khlii), compte la portion d'une personne (~120g à 180g max).
-4. Pour le pain aux céréales ou complet, les glucides nets sont de ~35g/100g (car riche en fibres).
+    const prompt = `Tu es un médecin nutritionniste expert en diabétologie, nutrition sportive et gastronomie marocaine et méditerranéenne.
+Analyse la photo de ce repas :
+1. EXCLUSION OBLIGATOIRE : NE PAS inclure l'eau pure (bouteille d'eau, verre d'eau minérale, carafe), ni les théières sans sucre, couverts, serviettes ou objets sans calories.
+2. PORTION INDIVIDUELLE : Estime uniquement ce qu'UNE SEULE personne consomme pour son repas. Pour le pain (Khobz, pain céréales, baguette), compte 1 morceau (~60g à 80g max). Pour les œufs (omelette, au plat), compte la portion normale (~120g à 180g max).
+3. PETIT-DÉJEUNER MAROCAIN & CONDIMENTS (ATTENTION CONFUSIONS FRÉQUENTES) :
+   - HUILE D'OLIVE (Zit Zitoun) vs MIEL : Dans un repas avec des œufs (omelette, au plat) ou du pain, toute coupelle, ramequin ou saucière contenant un liquide huileux (doré, ambré, vert) est de l'HUILE D'OLIVE ("huile-olive-pure", 0g glucides, 100g lipides), JAMAIS du miel ni de la confiture !
+   - JBEN BELDI (Fromage frais) vs BEURRE : La pâte blanche ou fromage servi avec le pain ou dans l'huile est du "Jben beldi" ("jben-huile-olive" : ~14g protéines/100g, 2.5g glucides), JAMAIS du beurre classique.
+   - OMELETTE / ŒUFS : ~13g protéines/100g, ~1.1g glucides (portion 2 œufs = ~120g).
+   - PAIN AUX CÉRÉALES / COMPLET : ~35g glucides nets/100g, 10g protéines, 7g fibres.
+4. foodId recommandés : "oeufs-plat", "pain-cereales", "khobz-complet", "khobz-blanc", "jben-huile-olive", "huile-olive-pure", "olives-marocaines", "poulet-grille", "sardines-grillees", "kefta-grillee", "salade-marocaine".
 
 Réponds UNIQUEMENT en JSON strict avec ce format :
 {"items":[{"foodId":"id_court","customName":"Nom précis en français","grams":70,"carbs100g":42,"protein100g":10,"fiber100g":7,"gi":52,"x":50,"y":50}]}`;
