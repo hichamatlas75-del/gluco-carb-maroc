@@ -1,5 +1,5 @@
-import { FoodRepository } from '../data/foods.js?v=16';
-import { SupabaseService } from './supabaseClient.js?v=17';
+import { FoodRepository } from '../data/foods.js?v=31';
+import { SupabaseService } from './supabaseClient.js?v=31';
 
 /**
  * Service de Reconnaissance Alimentaire Haute Définition (v11) :
@@ -7,11 +7,21 @@ import { SupabaseService } from './supabaseClient.js?v=17';
  * - Image d'analyse IA en 720px (qualité 0.82) : conserve tous les détails
  * - Modèles Gemini 3 : gemini-3.5-flash-lite, gemini-3.8-flash, gemini-3.5-flash
  * - Fallback résilient : Cloudflare Pages /api/scan -> Direct Client Google Generative API
- * - Clé par défaut intégrée + Support des clés personnalisées
+ * - Sécurité : aucune clé API n'est embarquée dans le code client. Le proxy utilise la variable
+ *   d'environnement GEMINI_API_KEY ; l'appel direct n'est possible qu'avec une clé personnelle.
  */
 
-const DEFAULT_GEMINI_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
 const VISION_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash'];
+
+/** Détecte l'eau pure par mot entier (évite de filtrer veau, agneau, poireau, gâteau...) */
+const WATER_WORD_RE = /(^|[^a-zà-öø-ÿ])(eau|eaux|water)([^a-zà-öø-ÿ]|$)/i;
+function isPlainWaterName(name) {
+  return WATER_WORD_RE.test(String(name || '').toLowerCase());
+}
+
+function hasValidKey(key) {
+  return Boolean(key && typeof key === 'string' && key.trim().length >= 15);
+}
 
 function normalizeCoord(val, fallback) {
   const n = Number(val);
@@ -89,8 +99,7 @@ export const VisionAnalyzer = {
 
     // Filtrer l'eau pure ou objets non caloriques s'ils ont été retournés par inadvertance
     const validItems = rawItems.filter(it => {
-      const name = String(it.customName || it.foodId || '').toLowerCase();
-      const isWater = (name.includes('eau') || name.includes('water')) && !name.includes('gateau') && !name.includes('chapeau');
+      const isWater = isPlainWaterName(it.customName || it.foodId);
       const isZeroCal = Number(it.carbs100g || 0) === 0 && Number(it.fiber100g || 0) === 0 && isWater;
       return !isZeroCal;
     });
@@ -215,6 +224,8 @@ export const VisionAnalyzer = {
         err.code = 'TIMEOUT';
         throw err;
       }
+      // Conserver les erreurs qualifiées (PROXY_404, UNAUTHORIZED) levées ci-dessus
+      if (e2 && e2.code) throw e2;
     }
 
     throw new Error('Le serveur proxy n\'a pas pu analyser l\'image');
@@ -279,9 +290,7 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
    */
   async detectWithGemini(compressedDataUrl, userApiKey) {
     const base64Data = compressedDataUrl.includes(',') ? compressedDataUrl.split(',')[1] : compressedDataUrl;
-    const effectiveKey = (userApiKey && typeof userApiKey === 'string' && userApiKey.trim().length >= 15)
-      ? userApiKey.trim()
-      : DEFAULT_GEMINI_KEY;
+    const userKey = hasValidKey(userApiKey) ? userApiKey.trim() : '';
 
     // 1. Essayer le proxy Cloudflare en premier lieu avec un délai robuste de 28 secondes
     const edgeCtrl = new AbortController();
@@ -289,15 +298,17 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
       try { edgeCtrl.abort('TIMEOUT'); } catch (_) {}
     }, 28000);
 
+    let proxyError = null;
     try {
-      const items = await this.callEdgeProxy(base64Data, userApiKey || '', edgeCtrl.signal);
+      const items = await this.callEdgeProxy(base64Data, userKey, edgeCtrl.signal);
       clearTimeout(edgeTimer);
       return { success: true, items, source: 'edge' };
     } catch (proxyErr) {
       clearTimeout(edgeTimer);
-      console.warn('Proxy Edge non disponible ou timeout, tentative direct client :', proxyErr.message);
+      proxyError = proxyErr;
+      console.warn('Proxy Edge non disponible ou timeout, tentative direct client :', proxyErr?.message);
 
-      if (proxyErr.code === 'TIMEOUT' || proxyErr.name === 'AbortError') {
+      if (proxyErr?.code === 'TIMEOUT' || proxyErr?.name === 'AbortError' || proxyErr === 'TIMEOUT') {
         return {
           success: false,
           items: [],
@@ -307,7 +318,18 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
       }
     }
 
-    // 2. Basculement direct client avec la clé effective
+    // 2. Basculement direct client : uniquement avec une clé personnelle (aucune clé embarquée)
+    if (!userKey) {
+      return {
+        success: false,
+        items: [],
+        error: proxyError?.code === 'UNAUTHORIZED'
+          ? (proxyError.message || 'Clé API Gemini requise ou invalide')
+          : 'Serveur d\'analyse indisponible. Ajoutez votre clé Gemini dans Synthèse > Paramètres IA pour l\'analyse directe.',
+        code: proxyError?.code || 'FAILED'
+      };
+    }
+
     let lastError = null;
     for (const model of VISION_MODELS) {
       const clientCtrl = new AbortController();
@@ -315,15 +337,15 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
         try { clientCtrl.abort('TIMEOUT'); } catch (_) {}
       }, 25000);
       try {
-        const items = await this.callSingleVisionModel(model, base64Data, effectiveKey, clientCtrl.signal);
+        const items = await this.callSingleVisionModel(model, base64Data, userKey, clientCtrl.signal);
         clearTimeout(clientTimer);
         return { success: true, items, source: `client-${model}` };
       } catch (err) {
         clearTimeout(clientTimer);
         lastError = err;
-        console.warn(`Modèle direct ${model} échoué :`, err.message);
-        if (err.code === 'UNAUTHORIZED') break;
-        if (err.name === 'AbortError' || err === 'TIMEOUT' || err.code === 'TIMEOUT') {
+        console.warn(`Modèle direct ${model} échoué :`, err?.message || err);
+        if (err?.code === 'UNAUTHORIZED') break;
+        if (err?.name === 'AbortError' || err === 'TIMEOUT' || err?.code === 'TIMEOUT') {
           lastError = new Error('Délai d\'analyse dépassé');
           lastError.code = 'TIMEOUT';
           break;
@@ -347,9 +369,10 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
    * Test de connectivité en direct pour les paramètres utilisateur
    */
   async testConnection(customKey) {
-    const key = (customKey && typeof customKey === 'string' && customKey.trim().length >= 15)
-      ? customKey.trim()
-      : DEFAULT_GEMINI_KEY;
+    if (!hasValidKey(customKey)) {
+      return { success: false, message: 'Saisissez une clé Gemini personnelle (≥ 15 caractères) pour tester l\'appel direct.' };
+    }
+    const key = customKey.trim();
 
     for (const model of VISION_MODELS) {
       try {
@@ -378,7 +401,17 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
   findLocalByName(name) {
     if (!name) return null;
     const q = String(name).toLowerCase().trim();
-    if (q.includes('san sebastian') || q.includes('cheesecake') || q.includes('basque') || q.includes('fromage blanc')) {
+
+    // 1. Tajines composés (à tester avant les ingrédients isolés comme oeuf, kefta, poulet)
+    if (q.includes('tajine') || q.includes('tagine')) {
+      if (q.includes('kefta') || q.includes('viande hachée')) return FoodRepository.getFoodById('tajine-kefta');
+      if (q.includes('pruneau') || q.includes('barqouq')) return FoodRepository.getFoodById('tajine-pruneaux');
+      if (q.includes('poulet') || q.includes('djaj')) return FoodRepository.getFoodById('tajine-poulet-olives');
+      return FoodRepository.getFoodById('tajine-poulet-olives');
+    }
+
+    // 2. Desserts & viennoiseries
+    if (q.includes('san sebastian') || q.includes('cheesecake') || q.includes('basque')) {
       return FoodRepository.getFoodById('cheesecake-san-sebastian');
     }
     if (q.includes('mille-feuille') || q.includes('millefeuille') || q.includes('mille feuille')) {
@@ -388,20 +421,39 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
     if (q.includes('croissant') || q.includes('petit pain') || q.includes('pain au chocolat')) {
       return FoodRepository.getFoodById('croissant-petit-pain');
     }
+
+    // 3. Pains et féculents (attention aux collisions ex: "riz complet" != "pain complet")
+    if (q.includes('riz') || q.includes('rouz') || q.includes('rice')) {
+      return FoodRepository.getFoodById('riz-cuit');
+    }
+    if (q.includes('frite') || q.includes('fries') || q.includes('pomme de terre fritte')) {
+      return FoodRepository.getFoodById('frites-maison');
+    }
+
     if (q.includes('céréale') || q.includes('cereale') || q.includes('graine') || (q.includes('pain') && q.includes('noir'))) {
       return FoodRepository.getFoodById('pain-cereales');
     }
-    if (q.includes('complet') || q.includes('zraa') || q.includes('intégral') || q.includes('integral')) {
+    if ((q.includes('pain') || q.includes('khobz')) && (q.includes('complet') || q.includes('zraa') || q.includes('intégral') || q.includes('integral'))) {
       return FoodRepository.getFoodById('khobz-complet');
     }
     if (q.includes('orge') || q.includes('ch3ir') || q.includes('chayir')) {
       return FoodRepository.getFoodById('khobz-ch3ir');
     }
-    if (q.includes('oeuf') || q.includes('œuf') || q.includes('egg') || q.includes('baid') || q.includes('khlii') || q.includes('khlea') || q.includes('omelette')) {
-      return FoodRepository.getFoodById('oeufs-plat');
+    if (q.includes('batbout')) return FoodRepository.getFoodById('batbout');
+    if (q.includes('msemen') || q.includes('msmen') || q.includes('rghaif')) return FoodRepository.getFoodById('msemen');
+    if (q.includes('meloui') || q.includes('mloui')) return FoodRepository.getFoodById('meloui');
+    if (q.includes('baghrir') || q.includes('mille trous')) return FoodRepository.getFoodById('baghrir');
+    if (q.includes('harcha')) return FoodRepository.getFoodById('harcha');
+    if (q.includes('khobz') || q.includes('pain blanc') || q.includes('pain marocain') || q.includes('pain')) {
+      return FoodRepository.getFoodById('khobz-blanc');
     }
+
+    // 4. Protéines & Fromages
     if (q.includes('jben') || q.includes('fromage frais') || q.includes('fromage blanc')) {
       return FoodRepository.getFoodById('jben-huile-olive');
+    }
+    if (q.includes('oeuf') || q.includes('œuf') || q.includes('egg') || q.includes('baid') || q.includes('khlii') || q.includes('khlea') || q.includes('omelette')) {
+      return FoodRepository.getFoodById('oeufs-plat');
     }
     if (q.includes('sardine')) {
       return FoodRepository.getFoodById('sardines-grillees');
@@ -412,25 +464,45 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
     if (q.includes('kefta') || q.includes('viande hachée')) {
       return FoodRepository.getFoodById('kefta-grillee');
     }
+    if (q.includes('brochette') || q.includes('qotban') || q.includes('kotban')) {
+      return FoodRepository.getFoodById('brochettes-viande');
+    }
+    if (q.includes('poisson') || q.includes('hout') || q.includes('merlan') || q.includes('sole') || q.includes('dorade') || q.includes('thon')) {
+      return FoodRepository.getFoodById('poisson-blanc');
+    }
+
+    // 5. Salades et légumes
     if (q.includes('salade') && (q.includes('marocaine') || q.includes('tomate') || q.includes('concombre'))) {
       return FoodRepository.getFoodById('salade-marocaine');
     }
-    if (q.includes('khobz') || q.includes('pain blanc') || q.includes('pain marocain') || q.includes('pain')) {
-      return FoodRepository.getFoodById('khobz-blanc');
+    if (q.includes('zaalouk')) return FoodRepository.getFoodById('zaalouk');
+    if (q.includes('taktouka')) return FoodRepository.getFoodById('taktouka');
+    if (q.includes('avocat') || q.includes('avocado')) return FoodRepository.getFoodById('avocat-nature');
+    if (q.includes('olive')) return FoodRepository.getFoodById('olives-marocaines');
+    if (q.includes('huile d\'olive') || q.includes('huile olive') || q.includes('zit zitoun')) {
+      return FoodRepository.getFoodById('huile-olive-pure');
     }
-    if (q.includes('msemen') || q.includes('msmen') || q.includes('rghaif')) return FoodRepository.getFoodById('msemen');
-    if (q.includes('meloui') || q.includes('mloui')) return FoodRepository.getFoodById('meloui');
-    if (q.includes('baghrir') || q.includes('mille trous')) return FoodRepository.getFoodById('baghrir');
-    if (q.includes('harcha')) return FoodRepository.getFoodById('harcha');
+
+    // 6. Plats traditionnels & Soupes
     if (q.includes('harira')) return FoodRepository.getFoodById('harira');
     if (q.includes('couscous')) return FoodRepository.getFoodById('couscous-semoule');
     if (q.includes('loubia')) return FoodRepository.getFoodById('loubia');
     if (q.includes('lentille') || q.includes('adass')) return FoodRepository.getFoodById('adass');
     if (q.includes('bissara')) return FoodRepository.getFoodById('bissara');
+    if (q.includes('rfissa')) return FoodRepository.getFoodById('rfissa');
+    if (q.includes('pastilla') || q.includes('bastila')) {
+      return q.includes('poisson') || q.includes('hout') ? FoodRepository.getFoodById('pastilla-poisson') : FoodRepository.getFoodById('pastilla-poulet');
+    }
+    if (q.includes('seffa')) return FoodRepository.getFoodById('seffa');
+
+    // 7. Douceurs & Boissons
     if (q.includes('chebakia')) return FoodRepository.getFoodById('chebakia');
+    if (q.includes('datte') || q.includes('tmar')) return FoodRepository.getFoodById('datte-majhoul');
     if (q.includes('miel') || q.includes('honey') || q.includes('amlou')) return FoodRepository.getFoodById('miel-beurre');
     if (q.includes('jus d\'orange') || q.includes('orange_juice') || q.includes('orange juice') || q.includes('jus orange')) return FoodRepository.getFoodById('jus-orange');
+    if (q.includes('jus d\'avocat') || q.includes('jus avocat')) return FoodRepository.getFoodById('jus-avocat');
     if (q.includes('atay') || q.includes('thé à la menthe') || q.includes('the a la menthe') || q.includes('mint tea')) return FoodRepository.getFoodById('atay-sucre');
+    if (q.includes('lben') || q.includes('babeurre')) return FoodRepository.getFoodById('lben');
     if (q.includes('tacos')) return FoodRepository.getFoodById('tacos-marocain');
     if (q.includes('pizza')) return FoodRepository.getFoodById('pizza-part');
     return null;

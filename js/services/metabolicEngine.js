@@ -1,4 +1,4 @@
-import { FoodRepository } from '../data/foods.js?v=16';
+import { FoodRepository } from '../data/foods.js?v=31';
 
 /**
  * Convertit une valeur en nombre fini, sinon retourne la valeur par défaut.
@@ -16,6 +16,7 @@ function finiteOr(value, fallback) {
  */
 export const MetabolicEngine = {
   resolveFoodEntry(entry) {
+    if (!entry) return null;
     const dbFood = FoodRepository.getFoodById(entry.foodId);
     if (dbFood) {
       return {
@@ -24,7 +25,7 @@ export const MetabolicEngine = {
         protein100g: Math.max(0, finiteOr(entry.protein100g, dbFood.protein100g || 0))
       };
     }
-    if (entry && Number.isFinite(Number(entry.carbs100g)) && entry.carbs100g !== null && entry.carbs100g !== '') {
+    if (Number.isFinite(Number(entry.carbs100g)) && entry.carbs100g !== null && entry.carbs100g !== '') {
       return {
         id: entry.foodId || 'custom',
         name: entry.customName || 'Aliment détecté par IA',
@@ -53,6 +54,7 @@ export const MetabolicEngine = {
   },
 
   evaluatePlate(items, settings = {}, activeSlot = 'noon') {
+    items = Array.isArray(items) ? items : [];
     let totalGrams = 0;
     let totalCarbs = 0;
     let totalFiber = 0;
@@ -61,10 +63,12 @@ export const MetabolicEngine = {
     let weightedGISum = 0;
     let totalGL = 0;
     let highestCarbContributor = null;
+    let resolvedCount = 0;
 
     for (const entry of items) {
       const food = this.resolveFoodEntry(entry);
       if (!food) continue;
+      resolvedCount++;
       const grams = Math.max(0, finiteOr(entry.grams, 0));
       const macros = this.computeFoodPortion(food, grams);
 
@@ -227,7 +231,7 @@ export const MetabolicEngine = {
       const topName = highestCarbContributor
         ? highestCarbContributor.food.name.split('(')[0].trim()
         : 'féculents';
-      const countLabel = items.length > 1 ? `Total repas (${items.length} aliments)` : `Total aliment`;
+      const countLabel = resolvedCount > 1 ? `Total repas (${resolvedCount} aliments)` : `Total aliment`;
       const topDetail = highestCarbContributor
         ? ` (dont ~${Math.round(highestCarbContributor.netCarbs)}g de : ${topName}, ${highestCarbContributor.grams}g)`
         : '';

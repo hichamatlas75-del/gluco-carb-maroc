@@ -2,8 +2,8 @@
  * Types TypeScript pour GlucoScan Maroc (Production)
  */
 
-export type UserMode = 'insulin' | 'wellness';
-export type MealSlot = 'matin' | 'midi' | 'soir' | 'collation';
+export type UserMode = 'sport' | 'insulin' | 'wellness';
+export type MealSlot = 'morning' | 'noon' | 'evening' | 'matin' | 'midi' | 'soir' | 'collation';
 
 export interface UserProfile {
   id: string;
@@ -63,7 +63,7 @@ export interface MoroccanFoodRef {
   id: string;
   nameFr: string;
   nameAr?: string;
-  category: 'pains' | 'plats' | 'feculents' | 'sucres' | 'proteines' | 'boissons' | 'legumes';
+  category: 'pains' | 'plats' | 'feculents' | 'sucres' | 'proteines' | 'boissons' | 'legumes' | 'patisseries' | 'legumineuses' | 'fruits';
   carbs100g: number;
   protein100g: number;
   fiber100g: number;

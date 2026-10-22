@@ -10,6 +10,17 @@ const DEFAULT_SUPABASE_URL = 'https://plrqzuwbnuryxtsmimyt.supabase.co';
 const DEFAULT_SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBscnF6dXdibnVyeXh0c21pbXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0Mzk2OTcsImV4cCI6MjEwODAxNTY5N30.Wzx1Lsh1GGETK_RidTTND1t4Ix3EjhS3qQvlGn-Xglc';
 
 let supabaseInstance = null;
+let supabasePromise = null;
+
+const MEAL_SLOT_TO_ENUM = {
+  morning: 'matin',
+  matin: 'matin',
+  noon: 'midi',
+  midi: 'midi',
+  evening: 'soir',
+  soir: 'soir',
+  collation: 'collation'
+};
 
 export const SupabaseService = {
   config: {
@@ -42,50 +53,58 @@ export const SupabaseService = {
   async createClientIfNeeded() {
     if (!this.config.url || !this.config.anonKey) return null;
     if (supabaseInstance) return supabaseInstance;
+    if (supabasePromise) return supabasePromise;
 
-    try {
-      const clientOptions = {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,
-          storage: window.localStorage
+    supabasePromise = (async () => {
+      try {
+        const clientOptions = {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            storage: window.localStorage
+          }
+        };
+
+        if (window.supabase && window.supabase.createClient) {
+          supabaseInstance = window.supabase.createClient(this.config.url, this.config.anonKey, clientOptions);
+        } else {
+          const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+          supabaseInstance = createClient(this.config.url, this.config.anonKey, clientOptions);
         }
-      };
 
-      if (window.supabase && window.supabase.createClient) {
-        supabaseInstance = window.supabase.createClient(this.config.url, this.config.anonKey, clientOptions);
-      } else {
-        const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
-        supabaseInstance = createClient(this.config.url, this.config.anonKey, clientOptions);
-      }
+        // Écouter les changements d'authentification
+        supabaseInstance.auth.onAuthStateChange((event, session) => {
+          if (session && session.user) {
+            this.currentUser = session.user;
+            this.session = session;
+            localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify({ user: session.user, session }));
+          } else if (event === 'SIGNED_OUT') {
+            this.currentUser = null;
+            this.session = null;
+            localStorage.removeItem(STORAGE_KEY_AUTH);
+          }
+        });
 
-      // Écouter les changements d'authentification
-      supabaseInstance.auth.onAuthStateChange((event, session) => {
-        if (session && session.user) {
-          this.currentUser = session.user;
-          this.session = session;
-          localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify({ user: session.user, session }));
-        } else if (event === 'SIGNED_OUT') {
-          this.currentUser = null;
-          this.session = null;
-          localStorage.removeItem(STORAGE_KEY_AUTH);
+        // Synchroniser la session existante
+        const { data } = await supabaseInstance.auth.getSession();
+        if (data?.session) {
+          this.currentUser = data.session.user;
+          this.session = data.session;
+          localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify({ user: data.session.user, session: data.session }));
         }
-      });
 
-      // Synchroniser la session existante
-      const { data } = await supabaseInstance.auth.getSession();
-      if (data?.session) {
-        this.currentUser = data.session.user;
-        this.session = data.session;
-        localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify({ user: data.session.user, session: data.session }));
+        return supabaseInstance;
+      } catch (e) {
+        console.warn('Supabase SDK non chargé:', e);
+        supabaseInstance = null;
+        return null;
+      } finally {
+        supabasePromise = null;
       }
+    })();
 
-      return supabaseInstance;
-    } catch (e) {
-      console.warn('Supabase SDK non chargé:', e);
-      return null;
-    }
+    return supabasePromise;
   },
 
   isConfigured() {
@@ -212,7 +231,7 @@ export const SupabaseService = {
       if (!item) continue;
       const mealRecord = {
         user_id: this.currentUser.id,
-        meal_time: item.mealSlot || 'midi',
+        meal_time: MEAL_SLOT_TO_ENUM[item.mealSlot] || 'midi',
         title: item.verdictTag || 'Repas scanné',
         portion_total_weight_g: item.totalGrams || 100,
         net_carbs_g: item.netCarbs || 0,

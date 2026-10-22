@@ -333,11 +333,14 @@ export const ProfileService = {
     if (profiles[key] || cloudRes.account) {
       throw new Error(`Le profil "${cleanUser}" existe déjà. Veuillez vous connecter pour synchroniser vos données.`);
     }
+    if (!cloudRes.ok && typeof navigator !== 'undefined' && navigator.onLine) {
+      throw new Error(`Impossible de vérifier l'unicité du profil (${cloudRes.error || 'erreur réseau'}). Vérifiez votre connexion.`);
+    }
 
     const passwordHash = await this.hashPassword(cleanUser, password);
     const safeMode = 'sport';
     const newProfile = {
-      id: 'usr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      id: 'usr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       username: cleanUser,
       passwordHash,
       mode: safeMode,
@@ -514,6 +517,16 @@ export const ProfileService = {
     const profiles = this.getAllProfiles();
     const profile = profiles[key];
     if (!profile) return { success: false, error: 'Profil introuvable' };
+
+    // Garde-fou sécurité : ne pas synchroniser si le mot de passe distant ne correspond pas
+    if (cloudRes.account && cloudRes.account.password_hash) {
+      if (cloudRes.account.password_hash !== profile.passwordHash) {
+        return {
+          success: false,
+          error: 'Conflit de compte Cloud : le mot de passe ne correspond pas au compte distant.'
+        };
+      }
+    }
 
     const merged = this.mergeWithCloud(profile, cloudRes.account);
     profile.history = merged.history;

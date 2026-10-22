@@ -1,9 +1,9 @@
-import { FoodRepository } from './data/foods.js?v=30';
-import { StorageService } from './services/storage.js?v=30';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=30';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=30';
-import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=30';
-import { ProfileService } from './services/profileService.js?v=30';
+import { FoodRepository } from './data/foods.js?v=31';
+import { StorageService } from './services/storage.js?v=31';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=31';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=31';
+import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=31';
+import { ProfileService } from './services/profileService.js?v=31';
 
 /**
  * Contrôleur principal MacroFit Maroc (Nutrition Sportive & Jeûne Intermittent 18/6)
@@ -251,11 +251,12 @@ async function handleImageSource(source) {
     img.classList.remove('hidden');
   }
 
+  // Filet de sécurité : proxy (28s) + jusqu'à 3 modèles directs (3 × 25s) ≈ 103s
   const watchdog = setTimeout(() => {
     if (currentScanSeq === state.scanSeq) {
       overlay.classList.add('hidden');
     }
-  }, 35000);
+  }, 110000);
 
   try {
     // Image nette calibrée (700px, qualité 0.78) : upload 10x plus rapide et résolution optimale
@@ -396,10 +397,9 @@ function updateDailyCarbCalculator() {
   const weight = Math.min(180, Math.max(35, parseFloat(weightEl.value) || 75));
   const profile = profileEl.value;
 
-  let factorPerKg = 2.2; // Maintien & Jeûne 18/6
+  let factorPerKg = 2.2; // Maintien & Jeûne 18/6 ('maintenance')
   if (profile === 'hypertrophy') factorPerKg = 3.5; // Prise de muscle sec & force
   if (profile === 'cutting') factorPerKg = 1.4;     // Sèche & Définition musculaire
-  if (profile === 'standard') factorPerKg = 2.8;
 
   const dailyTotal = Math.round((weight * factorPerKg) / 5) * 5;
   const morning = Math.round(dailyTotal * 0.35);
@@ -603,22 +603,25 @@ function updateFasting186View() {
   const breadId = breadSel.value;
   const breadGrams = Math.min(250, Math.max(0, parseFloat(breadGramsInp.value) || 70));
 
-  const breadFood = FoodRepository.getFoodById(breadId);
-  const breadNetPer100 = breadFood ? Math.max(0, breadFood.carbs100g - breadFood.fiber100g) : 35.5;
-  const breadCarbs = (breadNetPer100 * breadGrams) / 100;
-  const saladCarbs = 3.1; // 140g salade marocaine
-  const keftaCarbs = protKey === 'kefta' ? 1.4 : 0;
-  const meal15hCarbs = Math.round((breadCarbs + saladCarbs + keftaCarbs) * 10) / 10;
+  // Calcul via le moteur métabolique (mêmes valeurs que le scanner, sans double comptage)
+  const PROTEIN_SOURCES = {
+    poulet: { foodId: 'poulet-grille', grams: 200 },
+    sardine: { foodId: 'sardines-grillees', grams: 200 },
+    kefta: { foodId: 'kefta-grillee', grams: 180 }
+  };
+  const protSource = PROTEIN_SOURCES[protKey] || PROTEIN_SOURCES.poulet;
+  const meal15hItems = [
+    protSource,
+    { foodId: 'salade-marocaine', grams: 140 },
+    { foodId: FoodRepository.getFoodById(breadId) ? breadId : 'khobz-complet', grams: breadGrams }
+  ];
+  const meal15h = MetabolicEngine.evaluatePlate(meal15hItems);
+  const meal10hPlate = FoodRepository.getPlateByKey('jeune_10h');
+  const meal10h = MetabolicEngine.evaluatePlate(meal10hPlate ? meal10hPlate.items : []);
 
-  let meal15hProtein = 52; // Poulet 200g (~54g) + pain (~6g)
-  if (protKey === 'sardine') meal15hProtein = 48;
-  if (protKey === 'kefta') meal15hProtein = 44;
-
-  const meal10hCarbs = 24.9; // 65g pain céréales (22g) + 2 oeufs (0.8g) + jben/huile (2.1g)
-  const meal10hProtein = 30; // 2 oeufs (15g) + pain céréales (6g) + jben (9g)
-
-  const totalDayCarbs = Math.round((meal10hCarbs + meal15hCarbs) * 10) / 10;
-  const totalDayProtein = meal10hProtein + meal15hProtein + Math.round(breadGrams * 0.085);
+  const meal15hCarbs = meal15h.netCarbs;
+  const totalDayCarbs = Math.round((meal10h.netCarbs + meal15h.netCarbs) * 10) / 10;
+  const totalDayProtein = Math.round(meal10h.totalProtein + meal15h.totalProtein);
 
   const out15h = document.getElementById('fastingOut15hCarbs');
   if (out15h) out15h.textContent = `${meal15hCarbs.toFixed(1)} g nets`;
@@ -628,6 +631,62 @@ function updateFasting186View() {
 
   const outTotalProt = document.getElementById('fastingTotalDayProtein');
   if (outTotalProt) outTotalProt.textContent = `~${totalDayProtein} g`;
+}
+
+// Ouverture / Fermeture du Catalogue d'Ajout ou de Correction (Remplacement)
+// Déclarées au niveau du module : elles sont aussi appelées depuis handleImageSource (toasts d'erreur).
+function syncCatalogModalHeader() {
+  const banner = document.getElementById('catalogReplaceBanner');
+  const lblName = document.getElementById('lblReplacingFoodName');
+  const titleEl = document.getElementById('modalCatalogTitle');
+  const submitCustomBtn = document.getElementById('btnSubmitCustomFood');
+
+  const isReplacing = state.replaceItemIndex !== null && state.items[state.replaceItemIndex];
+  if (isReplacing) {
+    const targetFood = MetabolicEngine.resolveFoodEntry(state.items[state.replaceItemIndex]);
+    const targetName = targetFood ? targetFood.name.split('(')[0].trim() : 'cet aliment';
+    if (banner) {
+      banner.classList.remove('hidden');
+      banner.classList.add('flex');
+    }
+    if (lblName) lblName.textContent = targetName;
+    if (titleEl) titleEl.textContent = `🔄 Remplacer « ${targetName} »`;
+    if (submitCustomBtn) submitCustomBtn.textContent = 'Valider & Remplacer';
+    const customGramsInp = document.getElementById('inpCustomFoodGrams');
+    if (customGramsInp) customGramsInp.value = String(state.items[state.replaceItemIndex].grams || 100);
+  } else {
+    if (banner) {
+      banner.classList.add('hidden');
+      banner.classList.remove('flex');
+    }
+    if (titleEl) titleEl.textContent = 'Ajouter un aliment à l’assiette';
+    if (submitCustomBtn) submitCustomBtn.textContent = 'Valider & Ajouter';
+  }
+}
+
+function openFoodCatalogModal(replaceIdx = null, coords = null) {
+  state.replaceItemIndex = (typeof replaceIdx === 'number' && state.items[replaceIdx]) ? replaceIdx : null;
+  if (coords && typeof coords.x === 'number' && typeof coords.y === 'number') {
+    state.pendingPinCoords = coords;
+  } else if (state.replaceItemIndex === null) {
+    state.pendingPinCoords = null;
+  }
+  syncCatalogModalHeader();
+  UIRenderer.renderCatalogModal(state.catalogFilter, state.catalogCategory, state.replaceItemIndex);
+  const modal = document.getElementById('modalFoodCatalog');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function closeFoodCatalogModal() {
+  state.replaceItemIndex = null;
+  state.pendingPinCoords = null;
+  const modal = document.getElementById('modalFoodCatalog');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
 }
 
 function switchToTab(target) {
@@ -1069,12 +1128,17 @@ function bindEvents() {
 
     try {
       const profile = await ProfileService.login(username, password);
-      // Charger réglages et historique fusionnés du cloud
+      // Charger réglages et historique fusionnés du cloud (en conservant les repas saisis en mode invité)
       if (profile.settings) {
         state.settings = { ...state.settings, ...profile.settings };
       }
-      if (Array.isArray(profile.history)) {
-        state.history = profile.history;
+      const guestHistory = Array.isArray(state.history) ? state.history : [];
+      state.history = ProfileService.mergeHistories(
+        Array.isArray(profile.history) ? profile.history : [],
+        guestHistory
+      );
+      if (guestHistory.length > 0) {
+        ProfileService.saveProfileData(state.settings, state.history);
       }
       StorageService.save('glucoscan_settings_v3', state.settings);
       StorageService.save('glucoscan_history_v3', state.history);
@@ -1537,7 +1601,7 @@ function bindEvents() {
       const idx = parseInt(deltaBtn.getAttribute('data-index'), 10);
       const delta = parseInt(deltaBtn.getAttribute('data-delta'), 10);
       if (state.items[idx]) {
-        state.items[idx].grams = Math.max(5, state.items[idx].grams + delta);
+        state.items[idx].grams = Math.min(1500, Math.max(5, (Number(state.items[idx].grams) || 0) + delta));
         StorageService.save('glucoscan_items_v3', state.items);
         updateUI();
       }
@@ -1584,59 +1648,6 @@ function bindEvents() {
       updateUI();
     }
   });
-
-  // Ouverture / Fermeture du Catalogue d'Ajout ou de Correction (Remplacement)
-  function syncCatalogModalHeader() {
-    const banner = document.getElementById('catalogReplaceBanner');
-    const lblName = document.getElementById('lblReplacingFoodName');
-    const titleEl = document.getElementById('modalCatalogTitle');
-    const submitCustomBtn = document.getElementById('btnSubmitCustomFood');
-
-    const isReplacing = state.replaceItemIndex !== null && state.items[state.replaceItemIndex];
-    if (isReplacing) {
-      const targetFood = MetabolicEngine.resolveFoodEntry(state.items[state.replaceItemIndex]);
-      const targetName = targetFood ? targetFood.name.split('(')[0].trim() : 'cet aliment';
-      if (banner) {
-        banner.classList.remove('hidden');
-        banner.classList.add('flex');
-      }
-      if (lblName) lblName.textContent = targetName;
-      if (titleEl) titleEl.textContent = `🔄 Remplacer « ${targetName} »`;
-      if (submitCustomBtn) submitCustomBtn.textContent = 'Valider & Remplacer';
-      const customGramsInp = document.getElementById('inpCustomFoodGrams');
-      if (customGramsInp) customGramsInp.value = String(state.items[state.replaceItemIndex].grams || 100);
-    } else {
-      if (banner) {
-        banner.classList.add('hidden');
-        banner.classList.remove('flex');
-      }
-      if (titleEl) titleEl.textContent = 'Ajouter un aliment à l’assiette';
-      if (submitCustomBtn) submitCustomBtn.textContent = 'Valider & Ajouter';
-    }
-  }
-
-  function openFoodCatalogModal(replaceIdx = null, coords = null) {
-    state.replaceItemIndex = (typeof replaceIdx === 'number' && state.items[replaceIdx]) ? replaceIdx : null;
-    if (coords && typeof coords.x === 'number' && typeof coords.y === 'number') {
-      state.pendingPinCoords = coords;
-    } else if (state.replaceItemIndex === null) {
-      state.pendingPinCoords = null;
-    }
-    syncCatalogModalHeader();
-    UIRenderer.renderCatalogModal(state.catalogFilter, state.catalogCategory, state.replaceItemIndex);
-    const modal = document.getElementById('modalFoodCatalog');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    if (window.lucide) window.lucide.createIcons();
-  }
-
-  function closeFoodCatalogModal() {
-    state.replaceItemIndex = null;
-    state.pendingPinCoords = null;
-    const modal = document.getElementById('modalFoodCatalog');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-  }
 
   function applyFoodChoice(newEntry, shortName) {
     if (state.replaceItemIndex !== null && state.items[state.replaceItemIndex]) {
@@ -1783,7 +1794,7 @@ function bindEvents() {
       state.activeSlot
     );
     const newLog = {
-      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       timestamp: new Date().toISOString(),
       mealSlot: state.activeSlot || 'noon',
       verdictTag: ev.verdict.tag,

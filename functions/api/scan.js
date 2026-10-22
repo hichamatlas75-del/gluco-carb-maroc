@@ -3,7 +3,7 @@
  * Proxy IA Vision sécurisé avec validation et garde-fous nutritionnels marocains.
  */
 
-const FALLBACK_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
+const WATER_WORD_RE = /(^|[^a-zà-öø-ÿ])(eau|eaux|water)([^a-zà-öø-ÿ]|$)/i;
 
 const MOROCCAN_PORTION_SAFEGUARDS = {
   pains: { maxSafeGrams: 200, normalPortion: 70, label: '1/4 de pain individuel' },
@@ -45,7 +45,7 @@ export async function onRequest(context) {
     }
 
     const cleanBase64 = base64Input.includes(',') ? base64Input.split(',')[1] : base64Input;
-    const apiKey = env?.GEMINI_API_KEY || body?.apiKey || FALLBACK_KEY;
+    const apiKey = env?.GEMINI_API_KEY || body?.apiKey;
 
     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 15) {
       return new Response(JSON.stringify({
@@ -128,9 +128,9 @@ Réponds UNIQUEMENT en JSON strict sous cette forme :
     }
 
     const items = (parsedData.items || []).filter(it => {
-      const n = String(it.customName || it.foodId || '').toLowerCase();
-      const isWater = (n.includes('eau') || n.includes('water')) && !n.includes('gateau');
-      return !isWater;
+      const isWater = WATER_WORD_RE.test(String(it.customName || it.foodId || ''));
+      const isZeroCal = (Number(it.carbs100g) || 0) === 0 && (Number(it.protein100g) || 0) === 0 && isWater;
+      return !isZeroCal;
     }).map(it => {
       let grams = Math.max(5, Math.round(Number(it.grams) || 100));
       let warning = null;
@@ -152,7 +152,7 @@ Réponds UNIQUEMENT en JSON strict sous cette forme :
       };
 
       return {
-        foodId: it.foodId || `food_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        foodId: it.foodId || `food_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         customName: it.customName || 'Aliment détecté',
         grams,
         carbs100g: Math.max(0, Math.round(safeNum(it.carbs100g, 0) * 10) / 10),

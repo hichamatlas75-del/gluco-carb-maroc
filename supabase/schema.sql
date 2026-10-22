@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS public.moroccan_foods_ref (
     id TEXT PRIMARY KEY,
     name_fr TEXT NOT NULL,
     name_ar TEXT,
-    category TEXT NOT NULL CHECK (category IN ('pains', 'plats', 'feculents', 'sucres', 'proteines', 'boissons', 'legumes')),
+    category TEXT NOT NULL CHECK (category IN ('pains', 'plats', 'feculents', 'sucres', 'proteines', 'boissons', 'legumes', 'patisseries', 'legumineuses', 'fruits')),
     
     carbs_100g NUMERIC(5,1) NOT NULL DEFAULT 0.0,
     protein_100g NUMERIC(5,1) NOT NULL DEFAULT 0.0,
@@ -86,9 +86,9 @@ CREATE TABLE IF NOT EXISTS public.meals (
     glycemic_index_avg SMALLINT NOT NULL DEFAULT 50,
     glycemic_load NUMERIC(5,1) NOT NULL DEFAULT 0.0,
     
-    -- Ratio d'amorti : (Proteines + Fibres) / Glucides
-    glycemic_buffer_ratio NUMERIC(4,2) GENERATED ALWAYS AS (
-        CASE WHEN net_carbs_g > 0 THEN ((proteins_g + fibers_g) / net_carbs_g)
+    -- Ratio d'amorti : (Proteines + Fibres) / Glucides (protégé contre les dépassements numériques)
+    glycemic_buffer_ratio NUMERIC(6,2) GENERATED ALWAYS AS (
+        CASE WHEN net_carbs_g > 0 THEN LEAST(999.99, ((proteins_g + fibers_g) / net_carbs_g))
              ELSE 3.0 END
     ) STORED,
     
@@ -151,7 +151,7 @@ BEGIN
     ON CONFLICT (id) DO NOTHING;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created

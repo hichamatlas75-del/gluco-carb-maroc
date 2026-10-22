@@ -1,7 +1,9 @@
 /**
  * Service Worker : GlucoScan Maroc (PWA Hors-Ligne & Cache Rapide)
  */
-const CACHE_NAME = 'glucoscan-v24';
+const CACHE_NAME = 'glucoscan-v25';
+// Les modules sont importés avec un paramètre de version (?v=31) : la recherche dans le cache
+// ignore la query string (ignoreSearch) pour que le précache serve aussi ces URL hors-ligne.
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -21,7 +23,10 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE).catch(() => {});
+      // Mise en cache fichier par fichier : un échec isolé n'annule pas tout le précache
+      return Promise.all(ASSETS_TO_CACHE.map((url) =>
+        cache.add(url).catch((err) => console.warn('[SW] Précache impossible :', url, err))
+      ));
     })
   );
   self.skipWaiting();
@@ -45,13 +50,13 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Ignorer les requêtes non-GET et les endpoints d'API Edge
-  if (event.request.method !== 'GET' || url.pathname.startsWith('/api/')) {
+  // Ignorer les requêtes non-GET, cross-origin (API Supabase/Gemini, CDN) et les endpoints d'API Edge
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) {
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
       if (cachedResponse) {
         // En arrière-plan, rafraîchir le cache (Stale-While-Revalidate)
         fetch(event.request).then((networkResponse) => {

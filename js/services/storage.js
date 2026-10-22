@@ -30,9 +30,10 @@ function stripHeavyImagesFromData(data) {
 export const StorageService = {
   load(key, fallbackValue) {
     try {
-      const raw = isLocalStorageAvailable
-        ? window.localStorage.getItem(key)
-        : memoryStore[key];
+      // Priorité à la copie mémoire : elle contient la dernière valeur si localStorage était plein
+      const raw = Object.prototype.hasOwnProperty.call(memoryStore, key)
+        ? memoryStore[key]
+        : (isLocalStorageAvailable ? window.localStorage.getItem(key) : null);
       return raw ? JSON.parse(raw) : fallbackValue;
     } catch {
       return fallbackValue;
@@ -49,6 +50,7 @@ export const StorageService = {
 
       try {
         window.localStorage.setItem(key, JSON.stringify(payload));
+        delete memoryStore[key];
       } catch (quotaErr) {
         // En cas de dépassement de quota (QuotaExceededError), allègement automatique des images
         console.warn(`[StorageService] Quota warning sur ${key}. Allègement des images anciennes...`, quotaErr);
@@ -83,6 +85,7 @@ export const StorageService = {
     link.href = url;
     link.download = `glucoscan-maroc-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
-    URL.revokeObjectURL(url);
+    // Révocation différée : une révocation immédiate peut annuler le téléchargement (Safari/Firefox)
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
   }
 };

@@ -1,5 +1,5 @@
-import { FoodRepository } from '../data/foods.js?v=17';
-import { MetabolicEngine } from '../services/metabolicEngine.js?v=17';
+import { FoodRepository } from '../data/foods.js?v=31';
+import { MetabolicEngine } from '../services/metabolicEngine.js?v=31';
 
 /**
  * Fonctions de rendu DOM, protection XSS et utilitaires de dates
@@ -192,14 +192,6 @@ export const UIRenderer = {
       barAmorti.style.width = `${amorti.pct}%`;
       barAmorti.className = `h-full rounded-full transition-all duration-500 ${amorti.barColor}`;
     }
-
-    this.renderPins(state.items, state.selectedPinIndex, state.pinsVisible !== false);
-    this.renderRecognizedList(state.items, state.selectedPinIndex);
-
-    if (window.lucide) {
-      window.lucide.createIcons();
-    }
-  },
 
     this.renderPins(state.items, state.selectedPinIndex, state.pinsVisible !== false);
     this.renderRecognizedList(state.items, state.selectedPinIndex);
@@ -499,7 +491,6 @@ export const UIRenderer = {
     const chart = document.getElementById('chartSevenDays');
     const list = document.getElementById('historyLogsContainer');
     const avg = document.getElementById('lblWeeklyAverage');
-    const isWellness = settings?.userMode === 'wellness';
 
     const days = [];
     const now = new Date();
@@ -815,7 +806,8 @@ export const UIRenderer = {
     link.href = url;
     link.download = `macroscan-repas-${getLocalDateString()}.csv`;
     link.click();
-    URL.revokeObjectURL(url);
+    // Révocation différée : une révocation immédiate peut annuler le téléchargement (Safari/Firefox)
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
     showToast('📊 Export CSV généré (compatible Excel & Suivi Sportif) !');
   }
 };

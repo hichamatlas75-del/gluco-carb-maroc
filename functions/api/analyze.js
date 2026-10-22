@@ -3,7 +3,7 @@
  * Analyse de secours pour plats et boissons.
  */
 
-const FALLBACK_KEY = 'AQ.Ab8RN6IcD0t6smDPSNTKH1wEPUYRFjYuSCUU5FwipEkAAHmRsg';
+const WATER_WORD_RE = /(^|[^a-zà-öø-ÿ])(eau|eaux|water)([^a-zà-öø-ÿ]|$)/i;
 
 export async function onRequest(context) {
   const corsHeaders = {
@@ -35,7 +35,7 @@ export async function onRequest(context) {
     }
 
     const cleanBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
-    const apiKey = context.env?.GEMINI_API_KEY || body?.apiKey || FALLBACK_KEY;
+    const apiKey = context.env?.GEMINI_API_KEY || body?.apiKey;
 
     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 15) {
       return new Response(JSON.stringify({
@@ -126,9 +126,8 @@ Réponds UNIQUEMENT en JSON strict avec ce format :
     }));
 
     const filtered = sanitized.filter(it => {
-      const name = String(it.customName || it.foodId || '').toLowerCase();
-      const isWater = (name.includes('eau') || name.includes('water')) && !name.includes('gateau');
-      const isZeroCal = Number(it.carbs100g || 0) === 0 && Number(it.fiber100g || 0) === 0 && isWater;
+      const isWater = WATER_WORD_RE.test(String(it.customName || it.foodId || ''));
+      const isZeroCal = Number(it.carbs100g || 0) === 0 && Number(it.fiber100g || 0) === 0 && Number(it.protein100g || 0) === 0 && isWater;
       return !isZeroCal;
     });
 
