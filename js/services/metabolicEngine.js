@@ -120,7 +120,7 @@ export const MetabolicEngine = {
           barColor: 'bg-emerald-500',
           pct: 100,
           headline: 'Amorti maximal (Zéro pic)',
-          desc: 'Repas sans glucides nets. Les protéines et lipides assurent une glycémie parfaitement stable.'
+          desc: 'Repas sans glucides nets. Les protéines et lipides assurent une énergie parfaitement stable sans coup de barre.'
         };
       } else if (amortiRatio >= 0.70) {
         amorti = {
