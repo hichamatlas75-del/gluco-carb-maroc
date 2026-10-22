@@ -1,7 +1,7 @@
 /**
  * Service Worker : GlucoScan Maroc (PWA Hors-Ligne & Cache Rapide)
  */
-const CACHE_NAME = 'glucoscan-v26';
+const CACHE_NAME = 'glucoscan-v27';
 // Les modules sont importés avec un paramètre de version (?v=31) : la recherche dans le cache
 // ignore la query string (ignoreSearch) pour que le précache serve aussi ces URL hors-ligne.
 const ASSETS_TO_CACHE = [
@@ -13,6 +13,7 @@ const ASSETS_TO_CACHE = [
   './js/app.js',
   './js/data/foods.js',
   './js/ui/renderer.js',
+  './js/ui/imageCropper.js',
   './js/services/metabolicEngine.js',
   './js/services/profileService.js',
   './js/services/storage.js',

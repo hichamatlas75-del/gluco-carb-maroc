@@ -1365,6 +1365,113 @@
     </main>
 
     <!-- ========================================== -->
+    <!-- MODAL : RECADRER L'IMAGE AVANT ANALYSE    -->
+    <!-- ========================================== -->
+    <div id="modalCropImage" class="fixed inset-0 z-50 hidden flex-col bg-slate-950/95 backdrop-blur-md text-white select-none">
+      <!-- En-tête -->
+      <div class="px-4 py-3 flex items-center justify-between border-b border-slate-800 bg-slate-900/90 backdrop-blur-xs flex-shrink-0 z-20">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
+            <i data-lucide="crop" class="w-4 h-4"></i>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-xs sm:text-sm font-extrabold text-white truncate">Recadrer l'assiette</h3>
+            <p class="text-[10.5px] text-slate-400 truncate">Ajustez le cadre autour du plat pour une analyse IA optimale</p>
+          </div>
+        </div>
+        <button id="btnCancelCrop" type="button" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all flex-shrink-0 active:scale-95" title="Annuler">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Zone de travail du recadrage interactive -->
+      <div id="cropWorkspace" class="relative flex-1 bg-black flex items-center justify-center overflow-hidden touch-none p-2 select-none">
+        <!-- Scène qui épouse exactement les dimensions de l'image affichée -->
+        <div id="cropStage" class="relative overflow-hidden shadow-2xl touch-none select-none">
+          <!-- Canvas d'affichage de l'image (avec rotation appliquée) -->
+          <canvas id="cropDisplayCanvas" class="block pointer-events-none select-none max-w-full max-h-full"></canvas>
+
+          <!-- Boîte de recadrage avec ombre 9999px (masque sombre à l'extérieur) -->
+          <div id="cropBox" class="absolute cursor-move touch-none border-2 border-emerald-400 select-none shadow-[0_0_0_9999px_rgba(0,0,0,0.65)]"
+               style="left: 5%; top: 5%; width: 90%; height: 90%;">
+            
+            <!-- Grille de cadrage 3x3 -->
+            <div class="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none opacity-40">
+              <div class="border-r border-b border-white/60"></div>
+              <div class="border-r border-b border-white/60"></div>
+              <div class="border-b border-white/60"></div>
+              <div class="border-r border-b border-white/60"></div>
+              <div class="border-r border-b border-white/60"></div>
+              <div class="border-b border-white/60"></div>
+              <div class="border-r border-b border-white/60"></div>
+              <div class="border-r border-b border-white/60"></div>
+              <div></div>
+            </div>
+
+            <!-- Poignées de redimensionnement aux 4 coins (Touch-friendly 32x32px) -->
+            <div data-handle="nw" class="crop-handle absolute -top-3.5 -left-3.5 w-8 h-8 flex items-center justify-center cursor-nwse-resize z-30 touch-none select-none">
+              <div class="w-3.5 h-3.5 bg-white border-2 border-emerald-500 rounded-sm shadow-md"></div>
+            </div>
+            <div data-handle="ne" class="crop-handle absolute -top-3.5 -right-3.5 w-8 h-8 flex items-center justify-center cursor-nesw-resize z-30 touch-none select-none">
+              <div class="w-3.5 h-3.5 bg-white border-2 border-emerald-500 rounded-sm shadow-md"></div>
+            </div>
+            <div data-handle="se" class="crop-handle absolute -bottom-3.5 -right-3.5 w-8 h-8 flex items-center justify-center cursor-nwse-resize z-30 touch-none select-none">
+              <div class="w-3.5 h-3.5 bg-white border-2 border-emerald-500 rounded-sm shadow-md"></div>
+            </div>
+            <div data-handle="sw" class="crop-handle absolute -bottom-3.5 -left-3.5 w-8 h-8 flex items-center justify-center cursor-nesw-resize z-30 touch-none select-none">
+              <div class="w-3.5 h-3.5 bg-white border-2 border-emerald-500 rounded-sm shadow-md"></div>
+            </div>
+
+            <!-- Poignées sur les 4 côtés -->
+            <div data-handle="n" class="crop-handle absolute -top-2.5 left-1/2 -translate-x-1/2 w-10 h-5 flex items-center justify-center cursor-ns-resize z-20 touch-none select-none">
+              <div class="w-6 h-1 bg-white/90 rounded-full shadow-xs"></div>
+            </div>
+            <div data-handle="s" class="crop-handle absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-10 h-5 flex items-center justify-center cursor-ns-resize z-20 touch-none select-none">
+              <div class="w-6 h-1 bg-white/90 rounded-full shadow-xs"></div>
+            </div>
+            <div data-handle="w" class="crop-handle absolute top-1/2 -left-2.5 -translate-y-1/2 w-5 h-10 flex items-center justify-center cursor-ew-resize z-20 touch-none select-none">
+              <div class="w-1 h-6 bg-white/90 rounded-full shadow-xs"></div>
+            </div>
+            <div data-handle="e" class="crop-handle absolute top-1/2 -right-2.5 -translate-y-1/2 w-5 h-10 flex items-center justify-center cursor-ew-resize z-20 touch-none select-none">
+              <div class="w-1 h-6 bg-white/90 rounded-full shadow-xs"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Barre d'outils Ratios & Rotation -->
+      <div class="px-3 py-2 bg-slate-900 border-t border-slate-800 flex items-center justify-center gap-1.5 flex-wrap flex-shrink-0 z-20 text-[11px]">
+        <button id="btnRotateCrop" type="button" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold flex items-center gap-1.5 transition-all">
+          <i data-lucide="rotate-cw" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <span>Pivoter 90°</span>
+        </button>
+        <button id="btnResetCrop" type="button" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold flex items-center gap-1.5 transition-all">
+          <i data-lucide="maximize" class="w-3.5 h-3.5 text-slate-400"></i>
+          <span>Plein format</span>
+        </button>
+        <button id="btnSquareCrop" type="button" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold flex items-center gap-1.5 transition-all">
+          <i data-lucide="square" class="w-3.5 h-3.5 text-slate-400"></i>
+          <span>1:1</span>
+        </button>
+        <button id="btn43Crop" type="button" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold flex items-center gap-1.5 transition-all">
+          <i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5 text-slate-400"></i>
+          <span>4:3</span>
+        </button>
+      </div>
+
+      <!-- Actions de validation -->
+      <div class="p-3 sm:p-4 bg-slate-900/95 border-t border-slate-800 flex items-center gap-2 flex-shrink-0 z-20">
+        <button id="btnSkipCrop" type="button" class="flex-1 py-3 px-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-300 hover:text-white font-bold text-xs transition-all text-center">
+          Ignorer (Plein format)
+        </button>
+        <button id="btnConfirmCrop" type="button" class="flex-[1.5] py-3 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-1.5 transition-all">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span>Valider &amp; Analyser</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
     <!-- BOTTOM-SHEET : AJOUTER / CORRIGER ALIMENT  -->
     <!-- ========================================== -->
     <div id="modalFoodCatalog" class="fixed inset-0 z-50 hidden items-end justify-center bg-slate-900/50 backdrop-blur-xs">
@@ -1719,6 +1826,6 @@
   </script>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=32"></script>
+  <script type="module" src="./js/app.js?v=33"></script>
 </body>
 </html>

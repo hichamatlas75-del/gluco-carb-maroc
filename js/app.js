@@ -4,6 +4,7 @@ import { MetabolicEngine } from './services/metabolicEngine.js?v=31';
 import { VisionAnalyzer } from './services/visionAnalyzer.js?v=31';
 import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=31';
 import { ProfileService } from './services/profileService.js?v=31';
+import { ImageCropper } from './ui/imageCropper.js?v=33';
 
 /**
  * Contrôleur principal MacroFit Maroc (Nutrition Sportive & Jeûne Intermittent 18/6)
@@ -1319,7 +1320,10 @@ function bindEvents() {
   const handleFileInput = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    handleImageSource(file);
+    ImageCropper.open(
+      file,
+      (processedSource) => handleImageSource(processedSource)
+    );
     e.target.value = '';
   };
 
@@ -1336,7 +1340,12 @@ function bindEvents() {
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    handleImageSource(canvas.toDataURL('image/jpeg', 0.72));
+    const frameDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    stopWebRTC();
+    ImageCropper.open(
+      frameDataUrl,
+      (processedSource) => handleImageSource(processedSource)
+    );
   });
 
   // Réinitialiser la photo
@@ -1969,6 +1978,10 @@ function bindEvents() {
   // Fermeture des modales avec la touche Échap (Accessibilité clavier)
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      if (ImageCropper.isOpen()) {
+        ImageCropper.cancel();
+        return;
+      }
       document.getElementById('modalSupabaseAuth')?.classList.add('hidden');
       document.getElementById('modalSupabaseAuth')?.classList.remove('flex');
       closeFoodCatalogModal();
@@ -1994,6 +2007,7 @@ function init() {
       });
     }
     bindEvents();
+    ImageCropper.init();
     updateUI();
     updateFasting186View();
     setInterval(updateFasting186View, 30000);
