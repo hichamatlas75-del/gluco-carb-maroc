@@ -152,8 +152,8 @@
             </div>
 
             <!-- État initial : Aucun plat photographié -->
-            <div id="emptyCameraState" class="text-center px-6 py-6 space-y-3 z-10">
-              <div class="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mx-auto text-emerald-400 shadow-inner">
+            <div id="emptyCameraState" class="text-center px-6 py-8 space-y-3 z-10 cursor-pointer group" title="Touchez pour prendre une photo">
+              <div class="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mx-auto text-emerald-400 shadow-inner group-hover:scale-105 group-hover:bg-white/15 transition-all">
                 <i data-lucide="scan-line" class="w-7 h-7"></i>
               </div>
               <div>
@@ -161,17 +161,6 @@
                 <p class="text-slate-300 text-[11px] sm:text-xs leading-relaxed max-w-sm mx-auto mt-1">
                   Prenez une photo ou importez une image : reconnaissance automatique des aliments, calcul du grammage et verdict immédiat.
                 </p>
-              </div>
-              <!-- Boutons directs d'action au cœur du viseur (Labels natifs 100% fiables) -->
-              <div class="pt-1 flex flex-wrap items-center justify-center gap-2">
-                <label for="fileCameraInput" id="btnEmptyTakePhoto" class="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all cursor-pointer select-none">
-                  <i data-lucide="camera" class="w-4 h-4"></i>
-                  <span>Prendre Photo</span>
-                </label>
-                <label for="fileGalleryInput" id="btnEmptyUploadPhoto" class="px-4 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 active:scale-95 text-white font-extrabold text-xs border border-white/20 flex items-center gap-2 transition-all cursor-pointer select-none">
-                  <i data-lucide="image" class="w-4 h-4 text-emerald-400"></i>
-                  <span>Galerie Photo</span>
-                </label>
               </div>
             </div>
 
@@ -1730,6 +1719,6 @@
   </script>
 
   <!-- Entrée Modulaire ES6 -->
-  <script type="module" src="./js/app.js?v=31"></script>
+  <script type="module" src="./js/app.js?v=32"></script>
 </body>
 </html>

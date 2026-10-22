@@ -1311,18 +1311,9 @@ function bindEvents() {
     });
   });
 
-  // Boutons Appareil Photo & Galerie (Sous le viseur et au centre du viseur)
-  document.getElementById('btnTakePhoto')?.addEventListener('click', () => {
+  // Clic direct sur le viseur vide pour lancer la caméra
+  document.getElementById('emptyCameraState')?.addEventListener('click', () => {
     document.getElementById('fileCameraInput')?.click();
-  });
-  document.getElementById('btnUploadPhoto')?.addEventListener('click', () => {
-    document.getElementById('fileGalleryInput')?.click();
-  });
-  document.getElementById('btnEmptyTakePhoto')?.addEventListener('click', () => {
-    document.getElementById('fileCameraInput')?.click();
-  });
-  document.getElementById('btnEmptyUploadPhoto')?.addEventListener('click', () => {
-    document.getElementById('fileGalleryInput')?.click();
   });
 
   const handleFileInput = (e) => {
