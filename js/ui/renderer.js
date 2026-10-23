@@ -584,66 +584,160 @@ export const UIRenderer = {
       return;
     }
 
-    list.innerHTML = history.map(h => {
-      const dateStr = new Date(h.timestamp).toLocaleDateString('fr-FR', {
-        day: '2-digit',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      const names = (h.items || []).map(i => `${escapeHTML(i.name)} (${Number(i.grams) || 0}g)`).join(', ');
-      const itemId = escapeHTML(h.id || h.timestamp);
-      const proteinVal = h.totalProtein ? Math.round(Number(h.totalProtein) * 10) / 10 : 0;
-      const totalGramsVal = Math.round(Number(h.totalGrams) || 0);
-      const netCarbsVal = Math.round(Number(h.netCarbs) * 10 || 0) / 10;
+    // Trier les repas par ordre chronologique décroissant (plus récents en premier)
+    const sortedHistory = [...history].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-      const giVal = Number(h.avgGI);
-      const giBadge = giVal > 0 ? (
-        giVal <= 55
-          ? `<span class="text-[9.5px] font-extrabold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">IG ${Math.round(giVal)}</span>`
-          : giVal <= 69
-            ? `<span class="text-[9.5px] font-extrabold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">IG ${Math.round(giVal)}</span>`
-            : `<span class="text-[9.5px] font-extrabold text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200">IG ${Math.round(giVal)}</span>`
-      ) : '';
+    // Grouper les repas par date locale (YYYY-MM-DD)
+    const groups = new Map();
+    for (const h of sortedHistory) {
+      const dayKey = getLocalDateString(h.timestamp) || 'inconnu';
+      if (!groups.has(dayKey)) {
+        groups.set(dayKey, []);
+      }
+      groups.get(dayKey).push(h);
+    }
 
-      const validImg = safeImageUrl(h.imageUrl);
-      const imageThumb = validImg
-        ? `<img src="${validImg}" alt="Repas" class="w-12 h-12 object-cover rounded-xl border border-slate-200 shadow-2xs shrink-0">`
-        : `<div class="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0 text-base font-bold">🍽️</div>`;
+    const todayKey = getLocalDateString(now);
+    const yesterdayDate = new Date(now);
+    yesterdayDate.setDate(now.getDate() - 1);
+    const yesterdayKey = getLocalDateString(yesterdayDate);
 
-      const fatVal = h.totalFat ? Math.round(Number(h.totalFat) * 10) / 10 : 0;
-      const calVal = h.totalCalories ? Math.round(Number(h.totalCalories)) : Math.round(proteinVal * 4 + netCarbsVal * 4 + fatVal * 9);
+    let html = '';
+    groups.forEach((meals, dayKey) => {
+      let dayProtein = 0;
+      let dayCarbs = 0;
+      let dayFat = 0;
+      let dayCalories = 0;
+      let dayGrams = 0;
 
-      return `
-        <div class="surface-card rounded-2xl p-3 space-y-2 border border-slate-200/70 hover:border-slate-300 transition-all">
-          <div class="flex items-start gap-2.5">
-            ${imageThumb}
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center justify-between gap-1 mb-0.5">
-                <span class="text-xs font-black text-slate-900">${escapeHTML(dateStr)}</span>
-                <div class="flex items-center gap-1">
-                  ${giBadge}
-                  <span class="text-[9.5px] font-extrabold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
-                    ${escapeHTML(h.verdictTag || 'Repas')}
-                  </span>
-                  <button type="button" class="btn-delete-history-item p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition-all flex items-center justify-center" data-id="${itemId}" title="Supprimer ce repas du journal">
-                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                  </button>
+      for (const m of meals) {
+        const prot = Number(m.totalProtein) || 0;
+        const carbs = Number(m.netCarbs) || 0;
+        const fat = Number(m.totalFat) || 0;
+        const cal = m.totalCalories ? Number(m.totalCalories) : (prot * 4 + carbs * 4 + fat * 9);
+        const gr = Number(m.totalGrams) || 0;
+
+        dayProtein += prot;
+        dayCarbs += carbs;
+        dayFat += fat;
+        dayCalories += cal;
+        dayGrams += gr;
+      }
+
+      let dayTitle = '';
+      let subTitle = '';
+      if (dayKey === todayKey) {
+        dayTitle = "Aujourd'hui";
+        subTitle = now.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+      } else if (dayKey === yesterdayKey) {
+        dayTitle = 'Hier';
+        subTitle = yesterdayDate.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+      } else if (dayKey.includes('-')) {
+        const [year, month, day] = dayKey.split('-').map(Number);
+        const groupDate = new Date(year, month - 1, day);
+        const fullDayName = groupDate.toLocaleDateString('fr-FR', { weekday: 'long' });
+        dayTitle = fullDayName.charAt(0).toUpperCase() + fullDayName.slice(1);
+        subTitle = groupDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+      } else {
+        dayTitle = 'Autre date';
+        subTitle = dayKey;
+      }
+
+      const mealCountText = meals.length > 1 ? `${meals.length} repas` : '1 repas';
+      const roundedProt = Math.round(dayProtein * 10) / 10;
+      const roundedCarbs = Math.round(dayCarbs * 10) / 10;
+      const roundedFat = Math.round(dayFat * 10) / 10;
+      const roundedCal = Math.round(dayCalories);
+
+      const mealsHtml = meals.map(h => {
+        const mealDate = new Date(h.timestamp);
+        const timeStr = !isNaN(mealDate.getTime())
+          ? mealDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+          : '--:--';
+        const names = (h.items || []).map(i => `${escapeHTML(i.name)} (${Number(i.grams) || 0}g)`).join(', ');
+        const itemId = escapeHTML(h.id || h.timestamp);
+        const proteinVal = h.totalProtein ? Math.round(Number(h.totalProtein) * 10) / 10 : 0;
+        const totalGramsVal = Math.round(Number(h.totalGrams) || 0);
+        const netCarbsVal = Math.round(Number(h.netCarbs) * 10 || 0) / 10;
+
+        const giVal = Number(h.avgGI);
+        const giBadge = giVal > 0 ? (
+          giVal <= 55
+            ? `<span class="text-[9.5px] font-extrabold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">IG ${Math.round(giVal)}</span>`
+            : giVal <= 69
+              ? `<span class="text-[9.5px] font-extrabold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">IG ${Math.round(giVal)}</span>`
+              : `<span class="text-[9.5px] font-extrabold text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200">IG ${Math.round(giVal)}</span>`
+        ) : '';
+
+        const validImg = safeImageUrl(h.imageUrl);
+        const imageThumb = validImg
+          ? `<img src="${validImg}" alt="Repas" class="w-12 h-12 object-cover rounded-xl border border-slate-200 shadow-2xs shrink-0">`
+          : `<div class="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0 text-base font-bold">🍽️</div>`;
+
+        const fatVal = h.totalFat ? Math.round(Number(h.totalFat) * 10) / 10 : 0;
+        const calVal = h.totalCalories ? Math.round(Number(h.totalCalories)) : Math.round(proteinVal * 4 + netCarbsVal * 4 + fatVal * 9);
+
+        return `
+          <div class="surface-card rounded-2xl p-3 space-y-2 border border-slate-200/70 hover:border-slate-300 transition-all">
+            <div class="flex items-start gap-2.5">
+              ${imageThumb}
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-1 mb-0.5">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs font-black text-slate-900">🕒 ${escapeHTML(timeStr)}</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    ${giBadge}
+                    <span class="text-[9.5px] font-extrabold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
+                      ${escapeHTML(h.verdictTag || 'Repas')}
+                    </span>
+                    <button type="button" class="btn-delete-history-item p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition-all flex items-center justify-center" data-id="${itemId}" title="Supprimer ce repas du journal">
+                      <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                  </div>
                 </div>
+                <p class="text-[11px] text-slate-600 leading-snug line-clamp-2">${names}</p>
               </div>
-              <p class="text-[11px] text-slate-600 leading-snug line-clamp-2">${names}</p>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-1 pt-1.5 border-t border-slate-100 text-[10.5px] font-mono font-bold text-slate-700">
+              <span class="text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">🥩 ${proteinVal}g prot</span>
+              <span class="text-cyan-800 bg-cyan-50 px-1.5 py-0.5 rounded-md border border-cyan-200">🌾 ${netCarbsVal}g gluc</span>
+              <span class="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">🥑 ${fatVal}g lip</span>
+              <span class="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md">🔥 ${calVal} kcal</span>
+              <span class="text-slate-400 ml-auto">⚖️ ${totalGramsVal}g</span>
             </div>
           </div>
-          <div class="flex flex-wrap items-center justify-between gap-1 pt-1.5 border-t border-slate-100 text-[10.5px] font-mono font-bold text-slate-700">
-            <span class="text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">🥩 ${proteinVal}g prot</span>
-            <span class="text-cyan-800 bg-cyan-50 px-1.5 py-0.5 rounded-md border border-cyan-200">🌾 ${netCarbsVal}g gluc</span>
-            <span class="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">🥑 ${fatVal}g lip</span>
-            <span class="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md">🔥 ${calVal} kcal</span>
-            <span class="text-slate-400 ml-auto">⚖️ ${totalGramsVal}g</span>
+        `;
+      }).join('');
+
+      html += `
+        <div class="day-group space-y-2 pt-2 first:pt-0">
+          <div class="sticky top-2 z-10 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl p-2.5 border border-slate-200/80 shadow-2xs space-y-1.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full ${dayKey === todayKey ? 'bg-emerald-500 ring-2 ring-emerald-200 animate-pulse' : (dayKey === yesterdayKey ? 'bg-cyan-500' : 'bg-slate-400')}"></span>
+                <span class="text-xs font-black text-slate-900 tracking-wide">${escapeHTML(dayTitle)}</span>
+                <span class="text-[10.5px] text-slate-500 font-semibold">• ${escapeHTML(subTitle)}</span>
+              </div>
+              <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700 shadow-2xs">
+                ${mealCountText}
+              </span>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-mono font-bold">
+              <span class="text-slate-800 bg-white border border-slate-200 px-1.5 py-0.5 rounded-md shadow-2xs">🔥 ${roundedCal} kcal</span>
+              <span class="text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">🥩 ${roundedProt}g prot</span>
+              <span class="text-cyan-800 bg-cyan-50 border border-cyan-200 px-1.5 py-0.5 rounded-md">🌾 ${roundedCarbs}g gluc</span>
+              <span class="text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">🥑 ${roundedFat}g lip</span>
+            </div>
+          </div>
+          <div class="space-y-2">
+            ${mealsHtml}
           </div>
         </div>
       `;
-    }).join('');
+    });
+
+    list.innerHTML = html;
 
     if (window.lucide) {
       window.lucide.createIcons();

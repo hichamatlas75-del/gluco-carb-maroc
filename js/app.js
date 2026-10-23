@@ -2,7 +2,7 @@ import { FoodRepository } from './data/foods.js?v=31';
 import { StorageService } from './services/storage.js?v=31';
 import { MetabolicEngine } from './services/metabolicEngine.js?v=31';
 import { VisionAnalyzer } from './services/visionAnalyzer.js?v=31';
-import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=31';
+import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=36';
 import { ProfileService } from './services/profileService.js?v=31';
 import { ImageCropper } from './ui/imageCropper.js?v=33';
 
