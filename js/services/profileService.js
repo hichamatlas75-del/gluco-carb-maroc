@@ -16,6 +16,19 @@ const LOCAL_ONLY_SETTINGS = ['geminiKey'];
 const MAX_TOMBSTONES = 500;
 const SYNC_DEBOUNCE_MS = 1500;
 
+// Bus de synchronisation temps réel inter-onglets (PC / Multi-fenêtres)
+const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
+  ? new BroadcastChannel('glucoscan_sync_bus')
+  : null;
+
+function notifyCrossTab(msg = {}) {
+  try {
+    if (syncChannel) {
+      syncChannel.postMessage(msg);
+    }
+  } catch (_) {}
+}
+
 /** Retire les métadonnées de synchro d'un objet de réglages */
 function stripMeta(settings) {
   const out = { ...(settings || {}) };
@@ -209,17 +222,38 @@ export const ProfileService = {
    */
   async upsertAccountToCloud(record) {
     if (!record || !record.username) return { success: false, error: 'Compte invalide' };
+    const bodyStr = JSON.stringify(record);
+    const useKeepalive = typeof bodyStr === 'string' && bodyStr.length < 60000;
     try {
-      const res = await fetch(`${SUPABASE_REST_URL}/app_accounts?on_conflict=username`, {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify(record)
-      });
+      let res;
+      try {
+        res = await fetch(`${SUPABASE_REST_URL}/app_accounts?on_conflict=username`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates'
+          },
+          body: bodyStr,
+          keepalive: useKeepalive
+        });
+      } catch (keepaliveErr) {
+        if (useKeepalive) {
+          res = await fetch(`${SUPABASE_REST_URL}/app_accounts?on_conflict=username`, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: bodyStr
+          });
+        } else {
+          throw keepaliveErr;
+        }
+      }
       if (!res.ok) {
         const txt = await res.text();
         return { success: false, error: `HTTP ${res.status}: ${txt}` };
@@ -458,6 +492,7 @@ export const ProfileService = {
       }
       localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(profiles));
 
+      notifyCrossTab({ source: 'local_save', timestamp: Date.now() });
       this.scheduleSync();
     }
   },
@@ -542,13 +577,45 @@ export const ProfileService = {
       return res;
     }
 
-    return {
+    const payload = {
       success: true,
       count: merged.history.length,
       history: merged.history,
       settings: merged.settings,
       mode: merged.mode
     };
+    this._notifyListeners({ source: 'cloud_sync', ...payload });
+    notifyCrossTab({ source: 'cloud_sync', timestamp: Date.now() });
+
+    return payload;
+  },
+
+  _syncListeners: new Set(),
+  _lastPullTime: 0,
+
+  /** Enregistre un observateur appelé lors de toute mise à jour Cloud ou inter-onglets */
+  onSyncUpdate(callback) {
+    if (typeof callback === 'function') {
+      this._syncListeners.add(callback);
+      return () => this._syncListeners.delete(callback);
+    }
+    return () => {};
+  },
+
+  _notifyListeners(data) {
+    this._syncListeners.forEach(cb => {
+      try { cb(data); } catch (_) {}
+    });
+  },
+
+  /** Récupération Cloud avec protection anti-spam (4s min entre 2 requêtes) */
+  async pullFromCloudThrottled(minIntervalMs = 4000) {
+    const now = Date.now();
+    if (now - this._lastPullTime < minIntervalMs) {
+      return { success: true, throttled: true };
+    }
+    this._lastPullTime = now;
+    return this.pullFromCloud();
   },
 
   /**
@@ -578,7 +645,7 @@ export const ProfileService = {
     // Propager vers le Cloud les éléments uniquement locaux (repas hors-ligne, suppressions, réglages récents)
     this.scheduleSync();
 
-    return {
+    const payload = {
       success: true,
       updated: true,
       count: merged.history.length,
@@ -586,6 +653,10 @@ export const ProfileService = {
       settings: merged.settings,
       mode: merged.mode
     };
+    this._notifyListeners({ source: 'cloud_pull', ...payload });
+    notifyCrossTab({ source: 'cloud_pull', timestamp: Date.now() });
+
+    return payload;
   },
 
   getProfileData() {
@@ -607,5 +678,21 @@ export const ProfileService = {
     localStorage.removeItem(STORAGE_KEY_ACTIVE);
   }
 };
+
+if (syncChannel) {
+  syncChannel.onmessage = (ev) => {
+    if (ev && ev.data && ProfileService.isLoggedIn()) {
+      const activeRecord = ProfileService.getProfileData();
+      if (activeRecord) {
+        ProfileService._notifyListeners({
+          source: 'crosstab',
+          history: activeRecord.history || [],
+          settings: activeRecord.settings || {},
+          mode: activeRecord.mode || 'sport'
+        });
+      }
+    }
+  };
+}
 
 ProfileService.init();

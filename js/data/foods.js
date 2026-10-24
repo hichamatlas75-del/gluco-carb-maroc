@@ -87,11 +87,11 @@ export const MOROCCAN_FOODS = [
 ];
 
 export const PRESET_PLATES = {
-  // Protocole 85 kg (18-6) : Repas 1 (10h00, 40%) -> ~770 kcal, 60g Prot, 60g Gluc, 32g Lip
+  // Protocole 85 kg (18-6) : Repas 1 (10h00, 40%) -> 4 Œufs, Pain Céréales, Jben & Huile d’Olive (~890 kcal, ~60g Prot, ~60g Gluc, ~47g Lip)
   jeune_10h: {
-    title: '🍳 Repas 1 (10h00) Rupture [40%] : Œufs, Pain Céréales, Jben & Huile d’Olive',
+    title: '🍳 Repas 1 (10h00) Rupture [40%] : 4 Œufs, Pain Céréales, Jben & Huile d’Olive',
     items: [
-      { foodId: 'oeufs-plat', grams: 180, x: 35, y: 45 },      // 3 œufs (~23.4g prot, ~18.9g lip, 2g gluc)
+      { foodId: 'oeufs-plat', grams: 240, x: 35, y: 45 },      // 4 œufs (~31.2g prot, ~25.2g lip, ~2.6g gluc)
       { foodId: 'pain-cereales', grams: 165, x: 68, y: 55 },   // Pain complet graines (~18.2g prot, ~55.8g gluc nets, ~7.4g lip)
       { foodId: 'jben-huile-olive', grams: 65, x: 45, y: 72 }  // Jben Beldi + Huile (~9.1g prot, ~14.3g lip, ~1.6g gluc)
     ]

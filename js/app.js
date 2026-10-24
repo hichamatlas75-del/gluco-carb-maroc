@@ -1,10 +1,10 @@
-import { FoodRepository } from './data/foods.js?v=31';
-import { StorageService } from './services/storage.js?v=31';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=31';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=31';
-import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=36';
-import { ProfileService } from './services/profileService.js?v=31';
-import { ImageCropper } from './ui/imageCropper.js?v=33';
+import { FoodRepository } from './data/foods.js?v=37';
+import { StorageService } from './services/storage.js?v=37';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=37';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=37';
+import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=37';
+import { ProfileService } from './services/profileService.js?v=37';
+import { ImageCropper } from './ui/imageCropper.js?v=37';
 
 /**
  * Contrôleur principal MacroFit Maroc (Nutrition Sportive & Jeûne Intermittent 18/6)
@@ -99,19 +99,8 @@ if (activeProfileInit) {
     }
   }
 
-  // Synchronisation automatique en arrière-plan avec le Cloud Supabase (Mobile ⇄ PC)
-  ProfileService.pullFromCloud().then(res => {
-    if (res && res.success && Array.isArray(res.history)) {
-      state.history = res.history;
-      if (res.settings) {
-        state.settings = { ...state.settings, ...res.settings };
-      }
-      StorageService.save('glucoscan_history_v3', state.history);
-      StorageService.save('glucoscan_settings_v3', state.settings);
-      updateUI();
-      UIRenderer.renderHistoryView(state.history, state.settings);
-    }
-  }).catch(() => {});
+  // Synchronisation automatique au démarrage avec le Cloud Supabase (Mobile ⇄ PC)
+  performGlobalSync({ silent: true });
 }
 
 /**
@@ -1139,19 +1128,7 @@ function bindEvents() {
 
     // Synchronisation automatique des données Cloud lors de l'ouverture du profil
     if (ProfileService.isLoggedIn()) {
-      ProfileService.pullFromCloud().then(res => {
-        if (res && res.success && Array.isArray(res.history)) {
-          state.history = res.history;
-          if (res.settings) state.settings = { ...state.settings, ...res.settings };
-          StorageService.save('glucoscan_history_v3', state.history);
-          StorageService.save('glucoscan_settings_v3', state.settings);
-          updateUI();
-          UIRenderer.renderHistoryView(state.history, state.settings);
-          renderProfileCalendar();
-          renderProfileDateMeals();
-          updateAuthUI();
-        }
-      }).catch(() => {});
+      performGlobalSync({ silent: true });
     }
   });
 
@@ -1256,50 +1233,133 @@ function bindEvents() {
     }
   });
 
-  // Sauvegarde / Synchronisation Cloud manuelle bidirectionnelle (Mobile ⇄ PC)
-  document.getElementById('btnSyncProfileData')?.addEventListener('click', async () => {
-    const activeProfile = ProfileService.getActiveProfile();
-    if (!activeProfile) {
-      showToast('Connectez-vous d’abord à un profil');
-      return;
-    }
+  /**
+   * Synchronisation globale bidirectionnelle avec Supabase (PC ⇄ Mobile)
+   * Gère les conflits, le re-rendu de toutes les vues, et le retour d'état visuel.
+   */
+  async function performGlobalSync({ silent = true, forceToast = false } = {}) {
+    if (!ProfileService.isLoggedIn()) return;
 
-    const btn = document.getElementById('btnSyncProfileData');
-    const origHTML = btn ? btn.innerHTML : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin inline-block"></i> Synchronisation en cours...`;
+    const quickIcon = document.getElementById('iconQuickSync');
+    const profileSyncBtn = document.getElementById('btnSyncProfileData');
+
+    if (quickIcon) quickIcon.classList.add('animate-spin');
+    if (!silent && profileSyncBtn) {
+      profileSyncBtn.disabled = true;
+      profileSyncBtn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin inline-block"></i> Synchronisation en cours...`;
     }
 
     try {
+      const prevIds = state.history.map(h => String(h.id || h.timestamp)).join(',');
+      const prevSettingsJson = JSON.stringify(state.settings || {});
       const res = await ProfileService.syncToCloud(state.settings, state.history);
+
       if (res && res.success) {
+        let changed = false;
         if (Array.isArray(res.history)) {
+          const newIds = res.history.map(h => String(h.id || h.timestamp)).join(',');
+          if (newIds !== prevIds) changed = true;
           state.history = res.history;
           StorageService.save('glucoscan_history_v3', state.history);
         }
         if (res.settings) {
+          const newSettingsJson = JSON.stringify(res.settings || {});
+          if (newSettingsJson !== prevSettingsJson) changed = true;
           state.settings = { ...state.settings, ...res.settings };
           StorageService.save('glucoscan_settings_v3', state.settings);
         }
+
         updateAuthUI();
         updateUI();
         UIRenderer.renderHistoryView(state.history, state.settings);
         renderProfileCalendar();
         renderProfileDateMeals();
-        showToast(`☁️ Synchronisation réussie ! (${state.history.length} repas à jour entre PC et Mobile)`);
-      } else {
-        showToast(res?.error ? `Info synchro: ${res.error}` : 'Erreur de synchronisation Cloud');
+
+        if (forceToast || (!silent && changed)) {
+          showToast(`☁️ Synchronisation PC ⇄ Mobile réussie (${state.history.length} repas à jour)`);
+        } else if (!silent) {
+          showToast(`☁️ Vos données sont déjà parfaitement synchronisées`);
+        } else if (changed) {
+          showToast(`☁️ Repas synchronisés depuis votre autre appareil`);
+        }
+      } else if (!silent) {
+        showToast(res?.error ? `Info synchro : ${res.error}` : 'Erreur de synchronisation Cloud');
       }
-    } catch (err) {
-      showToast('Erreur lors de la synchronisation');
+    } catch (e) {
+      if (!silent) showToast('Connexion Cloud momentanément indisponible');
     } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = origHTML;
+      if (quickIcon) quickIcon.classList.remove('animate-spin');
+      if (profileSyncBtn) {
+        profileSyncBtn.disabled = false;
+        profileSyncBtn.innerHTML = `<i data-lucide="refresh-cw" class="w-4 h-4"></i> Synchroniser mes repas (Mobile ⇄ PC)`;
         if (window.lucide) window.lucide.createIcons();
       }
     }
+  }
+
+  // Bouton de synchronisation rapide dans la barre supérieure
+  document.getElementById('btnQuickSyncCloud')?.addEventListener('click', () => {
+    if (!ProfileService.isLoggedIn()) {
+      showToast('Connectez-vous à votre profil pour synchroniser PC et Mobile');
+      document.getElementById('modalSupabaseAuth')?.classList.remove('hidden');
+      document.getElementById('modalSupabaseAuth')?.classList.add('flex');
+      if (window.lucide) window.lucide.createIcons();
+      return;
+    }
+    performGlobalSync({ silent: false, forceToast: true });
+  });
+
+  // Sauvegarde / Synchronisation Cloud manuelle bidirectionnelle (Mobile ⇄ PC)
+  document.getElementById('btnSyncProfileData')?.addEventListener('click', () => {
+    performGlobalSync({ silent: false, forceToast: true });
+  });
+
+  // Auto-synchronisation intelligente lors du retour sur l'onglet ou mise au premier plan (Mobile & PC)
+  let lastVisibilitySync = 0;
+  const triggerAutoSyncIfVisible = () => {
+    if (document.visibilityState === 'visible' && ProfileService.isLoggedIn()) {
+      const now = Date.now();
+      if (now - lastVisibilitySync > 5000) {
+        lastVisibilitySync = now;
+        performGlobalSync({ silent: true });
+      }
+    }
+  };
+
+  document.addEventListener('visibilitychange', triggerAutoSyncIfVisible);
+  window.addEventListener('focus', triggerAutoSyncIfVisible);
+  window.addEventListener('pageshow', triggerAutoSyncIfVisible);
+
+  // Auto-synchronisation lors de la reconnexion à Internet (Offline -> Online)
+  window.addEventListener('online', () => {
+    if (ProfileService.isLoggedIn()) {
+      showToast('🌐 Connexion rétablie : synchronisation Cloud...');
+      performGlobalSync({ silent: true, forceToast: true });
+    }
+  });
+
+  // Battement de cœur périodique (toutes les 60 secondes si l'écran est actif)
+  setInterval(() => {
+    if (document.visibilityState === 'visible' && navigator.onLine && ProfileService.isLoggedIn()) {
+      performGlobalSync({ silent: true });
+    }
+  }, 60000);
+
+  // Écoute des synchronisations inter-onglets et Cloud instantanées
+  ProfileService.onSyncUpdate((data) => {
+    if (data && Array.isArray(data.history)) {
+      state.history = data.history;
+      StorageService.save('glucoscan_history_v3', state.history);
+    }
+    if (data && data.settings) {
+      state.settings = { ...state.settings, ...data.settings };
+      StorageService.save('glucoscan_settings_v3', state.settings);
+    }
+    updateAuthUI();
+    updateUI();
+    UIRenderer.renderHistoryView(state.history, state.settings);
+    renderProfileCalendar();
+    renderProfileDateMeals();
   });
 
   // Déconnexion / Changer de profil
@@ -1330,7 +1390,7 @@ function bindEvents() {
     state.activeSlot = 'morning';
     loadPresetPlate('jeune_10h', true);
     switchToTab('scanner');
-    showToast('Repas 1 (10h00) Rupture [40%] (~770 kcal • 60g P • 60g G • 32g L) chargé !');
+    showToast('Repas 1 (10h00) Rupture avec 4 œufs (~60g P • ~60g G • ~47g L) chargé !');
   });
 
   document.getElementById('btnLoadMeal15h')?.addEventListener('click', () => {
