@@ -1,10 +1,10 @@
-import { FoodRepository } from './data/foods.js?v=37';
-import { StorageService } from './services/storage.js?v=37';
-import { MetabolicEngine } from './services/metabolicEngine.js?v=37';
-import { VisionAnalyzer } from './services/visionAnalyzer.js?v=37';
-import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=37';
-import { ProfileService } from './services/profileService.js?v=37';
-import { ImageCropper } from './ui/imageCropper.js?v=37';
+import { FoodRepository } from './data/foods.js?v=38';
+import { StorageService } from './services/storage.js?v=38';
+import { MetabolicEngine } from './services/metabolicEngine.js?v=38';
+import { VisionAnalyzer } from './services/visionAnalyzer.js?v=38';
+import { UIRenderer, showToast, escapeHTML, getLocalDateString, safeImageUrl } from './ui/renderer.js?v=38';
+import { ProfileService } from './services/profileService.js?v=38';
+import { ImageCropper } from './ui/imageCropper.js?v=38';
 
 /**
  * Contrôleur principal MacroFit Maroc (Nutrition Sportive & Jeûne Intermittent 18/6)
@@ -98,9 +98,6 @@ if (activeProfileInit) {
       state.history = profileRecord.history;
     }
   }
-
-  // Synchronisation automatique au démarrage avec le Cloud Supabase (Mobile ⇄ PC)
-  performGlobalSync({ silent: true });
 }
 
 /**
@@ -779,6 +776,304 @@ function switchToTab(target) {
   }
 }
 
+// Suppression d'un repas de l'historique (Journal & Profil) avec persistance Tombstone
+function deleteMealFromHistory(targetId) {
+  if (!targetId) return;
+  try {
+    if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
+  } catch (_) {}
+  ProfileService.recordDeletedMeal(targetId);
+  const countBefore = state.history.length;
+  state.history = state.history.filter(h => String(h.id || h.timestamp) !== String(targetId));
+
+  if (state.history.length < countBefore) {
+    StorageService.save('glucoscan_history_v3', state.history);
+    ProfileService.saveProfileData(state.settings, state.history);
+    UIRenderer.renderHistoryView(state.history, state.settings);
+    renderProfileCalendar();
+    renderProfileDateMeals();
+    updateUI();
+    showToast('🗑️ Repas supprimé');
+  }
+}
+
+// Rendu du calendrier interactif dans le profil utilisateur
+function renderProfileCalendar() {
+  const grid = document.getElementById('gridCalendarDays');
+  const monthYearLabel = document.getElementById('lblCalMonthYear');
+  if (!grid || !monthYearLabel) return;
+
+  const year = state.viewCalendarYear;
+  const month = state.viewCalendarMonth;
+
+  // Libellé mois et année (ex: "Octobre 2026")
+  const monthDate = new Date(year, month, 1);
+  const monthName = monthDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  monthYearLabel.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+  // Décalage pour le premier jour du mois (Lundi = 0, Dimanche = 6)
+  const firstDay = new Date(year, month, 1);
+  const startDayOffset = (firstDay.getDay() + 6) % 7;
+  const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Dictionnaire des repas par jour (format local YYYY-MM-DD)
+  const mealsByDate = new Map();
+  for (const h of state.history) {
+    if (!h.timestamp) continue;
+    const dateStr = getLocalDateString(h.timestamp);
+    mealsByDate.set(dateStr, (mealsByDate.get(dateStr) || 0) + 1);
+  }
+
+  const todayStr = getLocalDateString();
+
+  let html = '';
+  // Cases vides avant le 1er du mois
+  for (let i = 0; i < startDayOffset; i++) {
+    html += `<div class="h-8"></div>`;
+  }
+
+  // Jours du mois courant
+  for (let day = 1; day <= totalDaysInMonth; day++) {
+    const dayStr = String(day).padStart(2, '0');
+    const monthStr = String(month + 1).padStart(2, '0');
+    const dateKey = `${year}-${monthStr}-${dayStr}`;
+
+    const mealCount = mealsByDate.get(dateKey) || 0;
+    const isSelected = (dateKey === state.selectedCalendarDate);
+    const isToday = (dateKey === todayStr);
+
+    let btnClasses = 'relative h-8 rounded-xl font-bold text-xs flex flex-col items-center justify-center transition-all ';
+    if (isSelected) {
+      btnClasses += 'bg-emerald-600 text-white shadow-xs font-black ring-2 ring-emerald-300';
+    } else if (isToday) {
+      btnClasses += 'bg-emerald-50 text-emerald-900 border border-emerald-300 font-extrabold';
+    } else {
+      btnClasses += 'hover:bg-slate-100 text-slate-700';
+    }
+
+    const dotHtml = mealCount > 0
+      ? `<span class="w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-500'} absolute bottom-1"></span>`
+      : '';
+
+    html += `
+      <button type="button" class="btn-cal-day ${btnClasses}" data-date="${dateKey}" title="${day} ${monthDate.toLocaleDateString('fr-FR', { month: 'short' })} : ${mealCount} repas">
+        <span class="${mealCount > 0 ? '-mt-1' : ''}">${day}</span>
+        ${dotHtml}
+      </button>
+    `;
+  }
+
+  grid.innerHTML = html;
+}
+
+// Rendu de la liste des repas pour la date sélectionnée dans le profil
+function renderProfileDateMeals() {
+  const container = document.getElementById('containerProfileDateMeals');
+  const header = document.getElementById('lblProfileSelectedDateHeader');
+  const countLabel = document.getElementById('lblProfileSelectedDateCount');
+  if (!container) return;
+
+  const selectedDate = state.selectedCalendarDate || getLocalDateString();
+  const [y, m, d] = selectedDate.split('-');
+  const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
+  const isToday = selectedDate === getLocalDateString();
+
+  const formattedDate = isToday
+    ? `Aujourd'hui (${dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })})`
+    : dateObj.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+
+  if (header) {
+    header.innerHTML = `
+      <i data-lucide="utensils" class="w-3.5 h-3.5 text-emerald-600"></i>
+      <span class="capitalize">Repas du ${formattedDate}</span>
+    `;
+  }
+
+  // Filtrer les repas de la date choisie (format local)
+  const meals = state.history.filter(h => getLocalDateString(h.timestamp) === selectedDate);
+
+  if (countLabel) {
+    countLabel.textContent = `${meals.length} repas`;
+  }
+
+  if (meals.length === 0) {
+    container.innerHTML = `
+      <div class="bg-white rounded-2xl p-4 text-center border border-slate-200/80 text-xs text-slate-400 space-y-1">
+        <p class="font-bold text-slate-500">Aucun repas enregistré pour ce jour</p>
+        <p class="text-[10px] text-slate-400">Prenez une photo de votre assiette pour l'enregistrer ici.</p>
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+    return;
+  }
+
+  container.innerHTML = meals.map(h => {
+    const timeStr = new Date(h.timestamp).toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const names = (h.items || []).map(i => `${escapeHTML(i.name)} (${i.grams}g)`).join(', ');
+    const itemId = escapeHTML(h.id || h.timestamp);
+    const proteinVal = h.totalProtein ? Math.round(Number(h.totalProtein) * 10) / 10 : 0;
+    const giVal = Number(h.avgGI);
+    let giColorClass = 'bg-slate-100 text-slate-700 border-slate-200';
+    if (giVal > 0) {
+      if (giVal <= 55) giColorClass = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+      else if (giVal <= 69) giColorClass = 'bg-amber-50 text-amber-800 border-amber-200';
+      else giColorClass = 'bg-rose-50 text-rose-800 border-rose-200';
+    }
+
+    const giBadge = giVal > 0
+      ? `<span class="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-md border ${giColorClass}">IG ${Math.round(giVal)}</span>`
+      : '';
+
+    const glBadge = h.totalGL
+      ? `<span class="text-[9.5px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200">CG ${h.totalGL}</span>`
+      : '';
+
+    const validImg = safeImageUrl(h.imageUrl);
+    const imageThumb = validImg
+      ? `<img src="${validImg}" alt="Repas" class="w-13 h-13 object-cover rounded-xl border border-slate-200 shadow-2xs shrink-0">`
+      : `<div class="w-13 h-13 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0 text-lg font-bold">🍽️</div>`;
+
+    const fatVal = h.totalFat ? Math.round(Number(h.totalFat) * 10) / 10 : 0;
+    const calVal = h.totalCalories ? Math.round(Number(h.totalCalories)) : Math.round(proteinVal * 4 + Number(h.netCarbs || 0) * 4 + fatVal * 9);
+
+    return `
+      <div class="surface-card rounded-2xl p-3 border border-slate-200/80 shadow-2xs space-y-2 hover:border-emerald-300 transition-all">
+        <div class="flex items-start gap-2.5">
+          ${imageThumb}
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-1 mb-0.5">
+              <span class="text-xs font-black text-slate-900">${timeStr}</span>
+              <div class="flex items-center gap-1">
+                ${giBadge}
+                ${glBadge}
+                <button type="button" class="btn-delete-profile-meal p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition-all flex items-center justify-center" data-id="${itemId}" title="Supprimer ce repas">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+            <p class="text-[11px] text-slate-600 leading-snug line-clamp-2">${names}</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-1 pt-1.5 border-t border-slate-100 text-[10px] font-mono font-bold text-slate-700">
+          <div class="flex items-center gap-1.5">
+            <span class="text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 font-extrabold">🥩 ${proteinVal}g prot</span>
+            <span class="text-cyan-800 bg-cyan-50 px-1.5 py-0.5 rounded-md border border-cyan-200">🌾 ${h.netCarbs}g nets</span>
+            <span class="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">🥑 ${fatVal}g lip</span>
+            <span class="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md">🔥 ${calVal} kcal</span>
+          </div>
+          <span class="text-slate-400">⚖️ ${Number(h.totalGrams) || 0}g</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
+// Gestion du Profil Utilisateur (Modèle Workout Home - Pseudo & Mot de passe sans email)
+function updateAuthUI() {
+  const isLogged = ProfileService.isLoggedIn();
+  const activeProfile = ProfileService.getActiveProfile();
+  const badge = document.getElementById('lblAuthStatusBadge');
+
+  const panelActive = document.getElementById('panelProfileActive');
+  const panelAuth = document.getElementById('panelProfileAuth');
+
+  if (isLogged && activeProfile) {
+    if (badge) badge.textContent = activeProfile.username;
+    panelActive?.classList.remove('hidden');
+    panelAuth?.classList.add('hidden');
+
+    const avatar = document.getElementById('activeProfileAvatar');
+    const name = document.getElementById('activeProfileName');
+    const modeBadge = document.getElementById('activeProfileModeBadge');
+    const countLabel = document.getElementById('activeProfileMealsCount');
+
+    if (avatar) avatar.textContent = (activeProfile.username[0] || 'U').toUpperCase();
+    if (name) name.textContent = activeProfile.username;
+    if (modeBadge) {
+      modeBadge.textContent = '⚡ Nutrition Sportive & Jeûne 18/6';
+    }
+    if (countLabel) {
+      countLabel.textContent = `${state.history.length} repas dans votre journal`;
+    }
+
+    renderProfileCalendar();
+    renderProfileDateMeals();
+  } else {
+    if (badge) badge.textContent = 'Invité';
+    panelActive?.classList.add('hidden');
+    panelAuth?.classList.remove('hidden');
+  }
+}
+
+/**
+ * Synchronisation globale bidirectionnelle avec Supabase (PC ⇄ Mobile)
+ * Gère les conflits, le re-rendu de toutes les vues, et le retour d'état visuel.
+ */
+async function performGlobalSync({ silent = true, forceToast = false } = {}) {
+  if (!ProfileService.isLoggedIn()) return;
+
+  const quickIcon = document.getElementById('iconQuickSync');
+  const profileSyncBtn = document.getElementById('btnSyncProfileData');
+
+  if (quickIcon) quickIcon.classList.add('animate-spin');
+  if (!silent && profileSyncBtn) {
+    profileSyncBtn.disabled = true;
+    profileSyncBtn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin inline-block"></i> Synchronisation en cours...`;
+  }
+
+  try {
+    const prevIds = state.history.map(h => String(h.id || h.timestamp)).join(',');
+    const prevSettingsJson = JSON.stringify(state.settings || {});
+    const res = await ProfileService.syncToCloud(state.settings, state.history);
+
+    if (res && res.success) {
+      let changed = false;
+      if (Array.isArray(res.history)) {
+        const newIds = res.history.map(h => String(h.id || h.timestamp)).join(',');
+        if (newIds !== prevIds) changed = true;
+        state.history = res.history;
+        StorageService.save('glucoscan_history_v3', state.history);
+      }
+      if (res.settings) {
+        const newSettingsJson = JSON.stringify(res.settings || {});
+        if (newSettingsJson !== prevSettingsJson) changed = true;
+        state.settings = { ...state.settings, ...res.settings };
+        StorageService.save('glucoscan_settings_v3', state.settings);
+      }
+
+      updateAuthUI();
+      updateUI();
+      UIRenderer.renderHistoryView(state.history, state.settings);
+      renderProfileCalendar();
+      renderProfileDateMeals();
+
+      if (forceToast || (!silent && changed)) {
+        showToast(`☁️ Synchronisation PC ⇄ Mobile réussie (${state.history.length} repas à jour)`);
+      } else if (!silent) {
+        showToast(`☁️ Vos données sont déjà parfaitement synchronisées`);
+      } else if (changed) {
+        showToast(`☁️ Repas synchronisés depuis votre autre appareil`);
+      }
+    } else if (!silent) {
+      showToast(res?.error ? `Info synchro : ${res.error}` : 'Erreur de synchronisation Cloud');
+    }
+  } catch (e) {
+    if (!silent) showToast('Connexion Cloud momentanément indisponible');
+  } finally {
+    if (quickIcon) quickIcon.classList.remove('animate-spin');
+    if (profileSyncBtn) {
+      profileSyncBtn.disabled = false;
+      profileSyncBtn.innerHTML = `<i data-lucide="refresh-cw" class="w-4 h-4"></i> Synchroniser mes repas (Mobile ⇄ PC)`;
+      if (window.lucide) window.lucide.createIcons();
+    }
+  }
+}
+
 function bindEvents() {
   // Navigation entre les 5 onglets (Scanner, Mon 18/6, Journal 7j, Guide, Synthèse/Paramètres)
   document.querySelectorAll('.nav-tab').forEach(btn => {
@@ -808,27 +1103,6 @@ function bindEvents() {
     UIRenderer.exportHistoryCSV(state.history);
   });
 
-  // Suppression d'un repas de l'historique (Journal & Profil) avec persistance Tombstone
-  const deleteMealFromHistory = (targetId) => {
-    if (!targetId) return;
-    try {
-      if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
-    } catch (_) {}
-    ProfileService.recordDeletedMeal(targetId);
-    const countBefore = state.history.length;
-    state.history = state.history.filter(h => String(h.id || h.timestamp) !== String(targetId));
-
-    if (state.history.length < countBefore) {
-      StorageService.save('glucoscan_history_v3', state.history);
-      ProfileService.saveProfileData(state.settings, state.history);
-      UIRenderer.renderHistoryView(state.history, state.settings);
-      renderProfileCalendar();
-      renderProfileDateMeals();
-      updateUI();
-      showToast('🗑️ Repas supprimé');
-    }
-  };
-
   // Suppression d'un repas du Journal 7j
   document.getElementById('historyLogsContainer')?.addEventListener('click', (e) => {
     const btn = e.target.closest('.btn-delete-history-item');
@@ -842,182 +1116,6 @@ function bindEvents() {
     if (!btn) return;
     deleteMealFromHistory(btn.getAttribute('data-id'));
   });
-
-  // Rendu du calendrier interactif dans le profil utilisateur
-  const renderProfileCalendar = () => {
-    const grid = document.getElementById('gridCalendarDays');
-    const monthYearLabel = document.getElementById('lblCalMonthYear');
-    if (!grid || !monthYearLabel) return;
-
-    const year = state.viewCalendarYear;
-    const month = state.viewCalendarMonth;
-
-    // Libellé mois et année (ex: "Octobre 2026")
-    const monthDate = new Date(year, month, 1);
-    const monthName = monthDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-    monthYearLabel.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-
-    // Décalage pour le premier jour du mois (Lundi = 0, Dimanche = 6)
-    const firstDay = new Date(year, month, 1);
-    const startDayOffset = (firstDay.getDay() + 6) % 7;
-    const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
-
-    // Dictionnaire des repas par jour (format local YYYY-MM-DD)
-    const mealsByDate = new Map();
-    for (const h of state.history) {
-      if (!h.timestamp) continue;
-      const dateStr = getLocalDateString(h.timestamp);
-      mealsByDate.set(dateStr, (mealsByDate.get(dateStr) || 0) + 1);
-    }
-
-    const todayStr = getLocalDateString();
-
-    let html = '';
-    // Cases vides avant le 1er du mois
-    for (let i = 0; i < startDayOffset; i++) {
-      html += `<div class="h-8"></div>`;
-    }
-
-    // Jours du mois courant
-    for (let day = 1; day <= totalDaysInMonth; day++) {
-      const dayStr = String(day).padStart(2, '0');
-      const monthStr = String(month + 1).padStart(2, '0');
-      const dateKey = `${year}-${monthStr}-${dayStr}`;
-
-      const mealCount = mealsByDate.get(dateKey) || 0;
-      const isSelected = (dateKey === state.selectedCalendarDate);
-      const isToday = (dateKey === todayStr);
-
-      let btnClasses = 'relative h-8 rounded-xl font-bold text-xs flex flex-col items-center justify-center transition-all ';
-      if (isSelected) {
-        btnClasses += 'bg-emerald-600 text-white shadow-xs font-black ring-2 ring-emerald-300';
-      } else if (isToday) {
-        btnClasses += 'bg-emerald-50 text-emerald-900 border border-emerald-300 font-extrabold';
-      } else {
-        btnClasses += 'hover:bg-slate-100 text-slate-700';
-      }
-
-      const dotHtml = mealCount > 0
-        ? `<span class="w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-500'} absolute bottom-1"></span>`
-        : '';
-
-      html += `
-        <button type="button" class="btn-cal-day ${btnClasses}" data-date="${dateKey}" title="${day} ${monthDate.toLocaleDateString('fr-FR', { month: 'short' })} : ${mealCount} repas">
-          <span class="${mealCount > 0 ? '-mt-1' : ''}">${day}</span>
-          ${dotHtml}
-        </button>
-      `;
-    }
-
-    grid.innerHTML = html;
-  };
-
-  // Rendu de la liste des repas pour la date sélectionnée dans le profil
-  const renderProfileDateMeals = () => {
-    const container = document.getElementById('containerProfileDateMeals');
-    const header = document.getElementById('lblProfileSelectedDateHeader');
-    const countLabel = document.getElementById('lblProfileSelectedDateCount');
-    if (!container) return;
-
-    const selectedDate = state.selectedCalendarDate || getLocalDateString();
-    const [y, m, d] = selectedDate.split('-');
-    const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
-    const isToday = selectedDate === getLocalDateString();
-
-    const formattedDate = isToday
-      ? `Aujourd'hui (${dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })})`
-      : dateObj.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
-
-    if (header) {
-      header.innerHTML = `
-        <i data-lucide="utensils" class="w-3.5 h-3.5 text-emerald-600"></i>
-        <span class="capitalize">Repas du ${formattedDate}</span>
-      `;
-    }
-
-    // Filtrer les repas de la date choisie (format local)
-    const meals = state.history.filter(h => getLocalDateString(h.timestamp) === selectedDate);
-
-    if (countLabel) {
-      countLabel.textContent = `${meals.length} repas`;
-    }
-
-    if (meals.length === 0) {
-      container.innerHTML = `
-        <div class="bg-white rounded-2xl p-4 text-center border border-slate-200/80 text-xs text-slate-400 space-y-1">
-          <p class="font-bold text-slate-500">Aucun repas enregistré pour ce jour</p>
-          <p class="text-[10px] text-slate-400">Prenez une photo de votre assiette pour l'enregistrer ici.</p>
-        </div>
-      `;
-      if (window.lucide) window.lucide.createIcons();
-      return;
-    }
-
-    container.innerHTML = meals.map(h => {
-      const timeStr = new Date(h.timestamp).toLocaleTimeString('fr-FR', {
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      const names = (h.items || []).map(i => `${escapeHTML(i.name)} (${i.grams}g)`).join(', ');
-      const itemId = escapeHTML(h.id || h.timestamp);
-      const proteinVal = h.totalProtein ? Math.round(Number(h.totalProtein) * 10) / 10 : 0;
-      const giVal = Number(h.avgGI);
-      let giColorClass = 'bg-slate-100 text-slate-700 border-slate-200';
-      if (giVal > 0) {
-        if (giVal <= 55) giColorClass = 'bg-emerald-50 text-emerald-800 border-emerald-200';
-        else if (giVal <= 69) giColorClass = 'bg-amber-50 text-amber-800 border-amber-200';
-        else giColorClass = 'bg-rose-50 text-rose-800 border-rose-200';
-      }
-
-      const giBadge = giVal > 0
-        ? `<span class="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-md border ${giColorClass}">IG ${Math.round(giVal)}</span>`
-        : '';
-
-      const glBadge = h.totalGL
-        ? `<span class="text-[9.5px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200">CG ${h.totalGL}</span>`
-        : '';
-
-      const validImg = safeImageUrl(h.imageUrl);
-      const imageThumb = validImg
-        ? `<img src="${validImg}" alt="Repas" class="w-13 h-13 object-cover rounded-xl border border-slate-200 shadow-2xs shrink-0">`
-        : `<div class="w-13 h-13 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0 text-lg font-bold">🍽️</div>`;
-
-      const fatVal = h.totalFat ? Math.round(Number(h.totalFat) * 10) / 10 : 0;
-      const calVal = h.totalCalories ? Math.round(Number(h.totalCalories)) : Math.round(proteinVal * 4 + Number(h.netCarbs || 0) * 4 + fatVal * 9);
-
-      return `
-        <div class="surface-card rounded-2xl p-3 border border-slate-200/80 shadow-2xs space-y-2 hover:border-emerald-300 transition-all">
-          <div class="flex items-start gap-2.5">
-            ${imageThumb}
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center justify-between gap-1 mb-0.5">
-                <span class="text-xs font-black text-slate-900">${timeStr}</span>
-                <div class="flex items-center gap-1">
-                  ${giBadge}
-                  ${glBadge}
-                  <button type="button" class="btn-delete-profile-meal p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition-all flex items-center justify-center" data-id="${itemId}" title="Supprimer ce repas">
-                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                  </button>
-                </div>
-              </div>
-              <p class="text-[11px] text-slate-600 leading-snug line-clamp-2">${names}</p>
-            </div>
-          </div>
-          <div class="flex flex-wrap items-center justify-between gap-1 pt-1.5 border-t border-slate-100 text-[10px] font-mono font-bold text-slate-700">
-            <div class="flex items-center gap-1.5">
-              <span class="text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 font-extrabold">🥩 ${proteinVal}g prot</span>
-              <span class="text-cyan-800 bg-cyan-50 px-1.5 py-0.5 rounded-md border border-cyan-200">🌾 ${h.netCarbs}g nets</span>
-              <span class="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">🥑 ${fatVal}g lip</span>
-              <span class="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded-md">🔥 ${calVal} kcal</span>
-            </div>
-            <span class="text-slate-400">⚖️ ${Number(h.totalGrams) || 0}g</span>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    if (window.lucide) window.lucide.createIcons();
-  };
 
   // Événements navigation calendrier du profil
   document.getElementById('btnCalPrevMonth')?.addEventListener('click', () => {
@@ -1080,43 +1178,6 @@ function bindEvents() {
       showToast('Autorisation de notification refusée');
     }
   });
-
-  // Gestion du Profil Utilisateur (Modèle Workout Home - Pseudo & Mot de passe sans email)
-  const updateAuthUI = () => {
-    const isLogged = ProfileService.isLoggedIn();
-    const activeProfile = ProfileService.getActiveProfile();
-    const badge = document.getElementById('lblAuthStatusBadge');
-
-    const panelActive = document.getElementById('panelProfileActive');
-    const panelAuth = document.getElementById('panelProfileAuth');
-
-    if (isLogged && activeProfile) {
-      if (badge) badge.textContent = activeProfile.username;
-      panelActive?.classList.remove('hidden');
-      panelAuth?.classList.add('hidden');
-
-      const avatar = document.getElementById('activeProfileAvatar');
-      const name = document.getElementById('activeProfileName');
-      const modeBadge = document.getElementById('activeProfileModeBadge');
-      const countLabel = document.getElementById('activeProfileMealsCount');
-
-      if (avatar) avatar.textContent = (activeProfile.username[0] || 'U').toUpperCase();
-      if (name) name.textContent = activeProfile.username;
-      if (modeBadge) {
-        modeBadge.textContent = '⚡ Nutrition Sportive & Jeûne 18/6';
-      }
-      if (countLabel) {
-        countLabel.textContent = `${state.history.length} repas dans votre journal`;
-      }
-
-      renderProfileCalendar();
-      renderProfileDateMeals();
-    } else {
-      if (badge) badge.textContent = 'Invité';
-      panelActive?.classList.add('hidden');
-      panelAuth?.classList.remove('hidden');
-    }
-  };
 
   updateAuthUI();
 
@@ -1232,70 +1293,6 @@ function bindEvents() {
       showToast(err.message || 'Erreur lors de la création du profil');
     }
   });
-
-  /**
-   * Synchronisation globale bidirectionnelle avec Supabase (PC ⇄ Mobile)
-   * Gère les conflits, le re-rendu de toutes les vues, et le retour d'état visuel.
-   */
-  async function performGlobalSync({ silent = true, forceToast = false } = {}) {
-    if (!ProfileService.isLoggedIn()) return;
-
-    const quickIcon = document.getElementById('iconQuickSync');
-    const profileSyncBtn = document.getElementById('btnSyncProfileData');
-
-    if (quickIcon) quickIcon.classList.add('animate-spin');
-    if (!silent && profileSyncBtn) {
-      profileSyncBtn.disabled = true;
-      profileSyncBtn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin inline-block"></i> Synchronisation en cours...`;
-    }
-
-    try {
-      const prevIds = state.history.map(h => String(h.id || h.timestamp)).join(',');
-      const prevSettingsJson = JSON.stringify(state.settings || {});
-      const res = await ProfileService.syncToCloud(state.settings, state.history);
-
-      if (res && res.success) {
-        let changed = false;
-        if (Array.isArray(res.history)) {
-          const newIds = res.history.map(h => String(h.id || h.timestamp)).join(',');
-          if (newIds !== prevIds) changed = true;
-          state.history = res.history;
-          StorageService.save('glucoscan_history_v3', state.history);
-        }
-        if (res.settings) {
-          const newSettingsJson = JSON.stringify(res.settings || {});
-          if (newSettingsJson !== prevSettingsJson) changed = true;
-          state.settings = { ...state.settings, ...res.settings };
-          StorageService.save('glucoscan_settings_v3', state.settings);
-        }
-
-        updateAuthUI();
-        updateUI();
-        UIRenderer.renderHistoryView(state.history, state.settings);
-        renderProfileCalendar();
-        renderProfileDateMeals();
-
-        if (forceToast || (!silent && changed)) {
-          showToast(`☁️ Synchronisation PC ⇄ Mobile réussie (${state.history.length} repas à jour)`);
-        } else if (!silent) {
-          showToast(`☁️ Vos données sont déjà parfaitement synchronisées`);
-        } else if (changed) {
-          showToast(`☁️ Repas synchronisés depuis votre autre appareil`);
-        }
-      } else if (!silent) {
-        showToast(res?.error ? `Info synchro : ${res.error}` : 'Erreur de synchronisation Cloud');
-      }
-    } catch (e) {
-      if (!silent) showToast('Connexion Cloud momentanément indisponible');
-    } finally {
-      if (quickIcon) quickIcon.classList.remove('animate-spin');
-      if (profileSyncBtn) {
-        profileSyncBtn.disabled = false;
-        profileSyncBtn.innerHTML = `<i data-lucide="refresh-cw" class="w-4 h-4"></i> Synchroniser mes repas (Mobile ⇄ PC)`;
-        if (window.lucide) window.lucide.createIcons();
-      }
-    }
-  }
 
   // Bouton de synchronisation rapide dans la barre supérieure
   document.getElementById('btnQuickSyncCloud')?.addEventListener('click', () => {
@@ -2152,9 +2149,15 @@ function init() {
     bindEvents();
     ImageCropper.init();
     updateUI();
+    updateAuthUI();
     updateFasting186View();
     setInterval(updateFasting186View, 30000);
     if (window.lucide) window.lucide.createIcons();
+
+    // Synchronisation automatique au démarrage avec le Cloud Supabase (Mobile ⇄ PC)
+    if (ProfileService.isLoggedIn()) {
+      setTimeout(() => performGlobalSync({ silent: true }), 150);
+    }
 
     // Enregistrement du Service Worker PWA pour le mode hors-ligne
     if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
