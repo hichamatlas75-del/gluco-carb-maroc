@@ -691,6 +691,15 @@ export const UIRenderer = {
                     <span class="text-[9.5px] font-extrabold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
                       ${escapeHTML(h.verdictTag || 'Repas')}
                     </span>
+                    <button type="button" class="btn-copy-samsung-meal p-1 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 active:scale-90 transition-all flex items-center justify-center"
+                      data-title="${escapeHTML(h.verdictTag || 'Repas')} (${escapeHTML(timeStr)})"
+                      data-cal="${calVal}"
+                      data-prot="${proteinVal}"
+                      data-carbs="${netCarbsVal}"
+                      data-fat="${fatVal}"
+                      title="Copier pour Samsung Health">
+                      <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
+                    </button>
                     <button type="button" class="btn-delete-history-item p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition-all flex items-center justify-center" data-id="${itemId}" title="Supprimer ce repas du journal">
                       <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                     </button>
@@ -723,11 +732,24 @@ export const UIRenderer = {
                 ${mealCountText}
               </span>
             </div>
-            <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-mono font-bold">
-              <span class="text-slate-800 bg-white border border-slate-200 px-1.5 py-0.5 rounded-md shadow-2xs">🔥 ${roundedCal} kcal</span>
-              <span class="text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">🥩 ${roundedProt}g prot</span>
-              <span class="text-cyan-800 bg-cyan-50 border border-cyan-200 px-1.5 py-0.5 rounded-md">🌾 ${roundedCarbs}g gluc</span>
-              <span class="text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">🥑 ${roundedFat}g lip</span>
+            <div class="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
+              <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-mono font-bold">
+                <span class="text-slate-800 bg-white border border-slate-200 px-1.5 py-0.5 rounded-md shadow-2xs">🔥 ${roundedCal} kcal</span>
+                <span class="text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">🥩 ${roundedProt}g prot</span>
+                <span class="text-cyan-800 bg-cyan-50 border border-cyan-200 px-1.5 py-0.5 rounded-md">🌾 ${roundedCarbs}g gluc</span>
+                <span class="text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">🥑 ${roundedFat}g lip</span>
+              </div>
+              <button type="button" class="btn-copy-samsung-day text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-sky-800 hover:bg-sky-100 active:scale-95 transition-all flex items-center gap-1 shadow-2xs"
+                data-day="${escapeHTML(dayKey)}"
+                data-cal="${roundedCal}"
+                data-prot="${roundedProt}"
+                data-carbs="${roundedCarbs}"
+                data-fat="${roundedFat}"
+                data-title="${escapeHTML(dayTitle)}"
+                title="Copier le total de cette journée pour Samsung Health">
+                <i data-lucide="smartphone" class="w-3 h-3 text-sky-600"></i>
+                <span>Samsung Health</span>
+              </button>
             </div>
           </div>
           <div class="space-y-2">

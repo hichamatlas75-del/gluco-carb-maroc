@@ -949,6 +949,15 @@ function renderProfileDateMeals() {
               <div class="flex items-center gap-1">
                 ${giBadge}
                 ${glBadge}
+                <button type="button" class="btn-copy-samsung-meal p-1 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 active:scale-90 transition-all flex items-center justify-center"
+                  data-title="${escapeHTML(h.verdictTag || 'Repas')} (${escapeHTML(timeStr)})"
+                  data-cal="${calVal}"
+                  data-prot="${proteinVal}"
+                  data-carbs="${h.netCarbs}"
+                  data-fat="${fatVal}"
+                  title="Copier pour Samsung Health">
+                  <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
+                </button>
                 <button type="button" class="btn-delete-profile-meal p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-90 transition-all flex items-center justify-center" data-id="${itemId}" title="Supprimer ce repas">
                   <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                 </button>
@@ -1074,6 +1083,67 @@ async function performGlobalSync({ silent = true, forceToast = false } = {}) {
   }
 }
 
+function openSamsungHealthModal({ title, calories, protein, carbs, fat, sourceLabel }) {
+  const roundedCal = Math.round(Number(calories) || 0);
+  const roundedProt = Math.round((Number(protein) || 0) * 10) / 10;
+  const roundedCarbs = Math.round((Number(carbs) || 0) * 10) / 10;
+  const roundedFat = Math.round((Number(fat) || 0) * 10) / 10;
+
+  const text = `📱 GlucoScan ➜ Samsung Health\n🍽️ ${title || 'Repas'}\n🔥 Calories : ${roundedCal} kcal\n🥩 Protéines : ${roundedProt.toFixed(1)} g\n🌾 Glucides : ${roundedCarbs.toFixed(1)} g\n🥑 Lipides : ${roundedFat.toFixed(1)} g`;
+
+  // Copie automatique dans le presse-papier
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text);
+    }
+  } catch (e) {}
+
+  // Retour haptique doux si supporté (vibration mobile)
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try { navigator.vibrate(40); } catch (e) {}
+  }
+
+  // Remplissage des éléments de la modale
+  const modal = document.getElementById('modalSamsungHealth');
+  const lblSource = document.getElementById('lblSamsungModalSource');
+  const valCal = document.getElementById('samsungValCalories');
+  const valProt = document.getElementById('samsungValProtein');
+  const valCarbs = document.getElementById('samsungValCarbs');
+  const valFat = document.getElementById('samsungValFat');
+  const lblQuickCal = document.getElementById('lblSamsungQuickCal');
+  const lblQuickProt = document.getElementById('lblSamsungQuickProt');
+  const lblQuickCarbs = document.getElementById('lblSamsungQuickCarbs');
+  const lblQuickFat = document.getElementById('lblSamsungQuickFat');
+
+  if (lblSource) lblSource.textContent = sourceLabel || title || 'Données nutritionnelles';
+  if (valCal) valCal.textContent = roundedCal;
+  if (valProt) valProt.textContent = roundedProt.toFixed(1);
+  if (valCarbs) valCarbs.textContent = roundedCarbs.toFixed(1);
+  if (valFat) valFat.textContent = roundedFat.toFixed(1);
+
+  if (lblQuickCal) lblQuickCal.textContent = roundedCal;
+  if (lblQuickProt) lblQuickProt.textContent = roundedProt.toFixed(1);
+  if (lblQuickCarbs) lblQuickCarbs.textContent = roundedCarbs.toFixed(1);
+  if (lblQuickFat) lblQuickFat.textContent = roundedFat.toFixed(1);
+
+  if (modal) {
+    modal.dataset.fullText = text;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  showToast(`📱 Copié pour Samsung Health : ${roundedCal} kcal | ${roundedProt.toFixed(1)}g P | ${roundedCarbs.toFixed(1)}g G | ${roundedFat.toFixed(1)}g L`);
+}
+
+function closeSamsungHealthModal() {
+  const modal = document.getElementById('modalSamsungHealth');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+}
+
 function bindEvents() {
   // Navigation entre les 5 onglets (Scanner, Mon 18/6, Journal 7j, Guide, Synthèse/Paramètres)
   document.querySelectorAll('.nav-tab').forEach(btn => {
@@ -1103,15 +1173,51 @@ function bindEvents() {
     UIRenderer.exportHistoryCSV(state.history);
   });
 
-  // Suppression d'un repas du Journal 7j
+  // Clics dans le Journal 7j (Copier pour Samsung Health ou Supprimer)
   document.getElementById('historyLogsContainer')?.addEventListener('click', (e) => {
+    const copyMealBtn = e.target.closest('.btn-copy-samsung-meal');
+    if (copyMealBtn) {
+      openSamsungHealthModal({
+        title: copyMealBtn.dataset.title || 'Repas Journal',
+        calories: copyMealBtn.dataset.cal,
+        protein: copyMealBtn.dataset.prot,
+        carbs: copyMealBtn.dataset.carbs,
+        fat: copyMealBtn.dataset.fat,
+        sourceLabel: `Repas du journal (${copyMealBtn.dataset.title || ''})`
+      });
+      return;
+    }
+    const copyDayBtn = e.target.closest('.btn-copy-samsung-day');
+    if (copyDayBtn) {
+      openSamsungHealthModal({
+        title: `Total ${copyDayBtn.dataset.title || 'Journée'}`,
+        calories: copyDayBtn.dataset.cal,
+        protein: copyDayBtn.dataset.prot,
+        carbs: copyDayBtn.dataset.carbs,
+        fat: copyDayBtn.dataset.fat,
+        sourceLabel: `Total journalier (${copyDayBtn.dataset.day || ''})`
+      });
+      return;
+    }
     const btn = e.target.closest('.btn-delete-history-item');
     if (!btn) return;
     deleteMealFromHistory(btn.getAttribute('data-id'));
   });
 
-  // Suppression d'un repas depuis le calendrier / profil
+  // Clics dans le calendrier / profil (Copier pour Samsung Health ou Supprimer)
   document.getElementById('containerProfileDateMeals')?.addEventListener('click', (e) => {
+    const copyBtn = e.target.closest('.btn-copy-samsung-meal');
+    if (copyBtn) {
+      openSamsungHealthModal({
+        title: copyBtn.dataset.title || 'Repas Profil',
+        calories: copyBtn.dataset.cal,
+        protein: copyBtn.dataset.prot,
+        carbs: copyBtn.dataset.carbs,
+        fat: copyBtn.dataset.fat,
+        sourceLabel: `Repas du profil (${copyBtn.dataset.title || ''})`
+      });
+      return;
+    }
     const btn = e.target.closest('.btn-delete-profile-meal');
     if (!btn) return;
     deleteMealFromHistory(btn.getAttribute('data-id'));
@@ -1430,6 +1536,61 @@ function bindEvents() {
     updateUI();
     switchToTab('scanner');
     showToast(`${titleLabel} chargé (~1150 kcal • 90g P • 90g G • 48g L) !`);
+  });
+
+  // Copier le Repas 1 (10h00 - 4 Œufs) pour Samsung Health
+  document.getElementById('btnCopySamsungMeal1')?.addEventListener('click', () => {
+    const ev = MetabolicEngine.evaluatePlate(PRESET_PLATES.jeune_10h, state.settings, 'morning');
+    const cal = ev.totalCalories || Math.round(ev.totalProtein * 4 + ev.netCarbs * 4 + (ev.totalFat || 0) * 9);
+    openSamsungHealthModal({
+      title: "Repas 1 (10h00 - 4 Œufs)",
+      calories: cal,
+      protein: ev.totalProtein,
+      carbs: ev.netCarbs,
+      fat: ev.totalFat,
+      sourceLabel: "Repas 1 • 10h00 (Rupture du jeûne [40%])"
+    });
+  });
+
+  // Copier le Repas 2 (15h00) pour Samsung Health
+  document.getElementById('btnCopySamsungMeal2')?.addEventListener('click', () => {
+    const protKey = document.getElementById('fastingSelectProtein15h')?.value || 'poulet';
+    const breadId = document.getElementById('fastingSelectBread15h')?.value || 'khobz-complet';
+    const breadGrams = Math.min(350, Math.max(5, parseInt(document.getElementById('fastingInputBreadGrams')?.value, 10) || 210));
+
+    let protFoodId = 'poulet-grille';
+    let protGrams = 300;
+    let oilGrams = 25;
+    let titleLabel = 'Repas 2 (15h00) : Poulet + Khobz';
+    if (protKey === 'sardine') {
+      protFoodId = 'sardines-grillees';
+      protGrams = 320;
+      oilGrams = 10;
+      titleLabel = 'Repas 2 (15h00) : Sardines + Khobz';
+    } else if (protKey === 'kefta') {
+      protFoodId = 'kefta-grillee';
+      protGrams = 320;
+      oilGrams = 5;
+      titleLabel = 'Repas 2 (15h00) : Kefta + Khobz';
+    }
+
+    const items = [
+      { foodId: protFoodId, grams: protGrams },
+      { foodId: 'salade-marocaine', grams: 180 },
+      { foodId: 'huile-olive-pure', grams: oilGrams },
+      { foodId: breadId, grams: breadGrams }
+    ];
+
+    const ev = MetabolicEngine.evaluatePlate(items, state.settings, 'noon');
+    const cal = ev.totalCalories || Math.round(ev.totalProtein * 4 + ev.netCarbs * 4 + (ev.totalFat || 0) * 9);
+    openSamsungHealthModal({
+      title: titleLabel,
+      calories: cal,
+      protein: ev.totalProtein,
+      carbs: ev.netCarbs,
+      fat: ev.totalFat,
+      sourceLabel: "Repas 2 • 15h00 (Clôture du jeûne [60%])"
+    });
   });
 
   // Simulateur de besoin journalier en glucides dans l'onglet Guide
@@ -1979,6 +2140,37 @@ function bindEvents() {
     showToast(removedCount > 0 ? `Réinitialisé (${removedCount} repas retiré(s))` : 'Aucun repas à réinitialiser aujourd’hui');
   });
 
+  // Copier le Total du Jour pour Samsung Health
+  document.getElementById('btnCopySamsungDay')?.addEventListener('click', () => {
+    const todayKey = getLocalDateString(new Date());
+    const todayMeals = state.history.filter(h => getLocalDateString(h.timestamp) === todayKey);
+
+    let dayProtein = 0;
+    let dayCarbs = 0;
+    let dayFat = 0;
+    let dayCalories = 0;
+
+    for (const m of todayMeals) {
+      const prot = Number(m.totalProtein) || 0;
+      const carbs = Number(m.netCarbs) || 0;
+      const fat = Number(m.totalFat) || 0;
+      const cal = m.totalCalories ? Number(m.totalCalories) : (prot * 4 + carbs * 4 + fat * 9);
+      dayProtein += prot;
+      dayCarbs += carbs;
+      dayFat += fat;
+      dayCalories += cal;
+    }
+
+    openSamsungHealthModal({
+      title: "Total Aujourd'hui",
+      calories: dayCalories,
+      protein: dayProtein,
+      carbs: dayCarbs,
+      fat: dayFat,
+      sourceLabel: `Cumul du jour (${todayMeals.length} repas journalisé${todayMeals.length > 1 ? 's' : ''})`
+    });
+  });
+
   document.getElementById('btnShareSummary')?.addEventListener('click', async () => {
     const ev = MetabolicEngine.evaluatePlate(
       state.items,
@@ -2000,6 +2192,68 @@ function bindEvents() {
       try {
         await navigator.share({ text });
       } catch {}
+    }
+  });
+
+  // Copier l'Assiette Courante pour Samsung Health
+  document.getElementById('btnCopySamsungCurrentMeal')?.addEventListener('click', () => {
+    if (!state.items.length) {
+      showToast('Aucun aliment dans l’assiette courante');
+      return;
+    }
+    const ev = MetabolicEngine.evaluatePlate(state.items, state.settings, state.activeSlot);
+    const cal = ev.totalCalories ? ev.totalCalories : Math.round(ev.totalProtein * 4 + ev.netCarbs * 4 + (ev.totalFat || 0) * 9);
+    openSamsungHealthModal({
+      title: ev.verdict?.tag || 'Assiette Scanner',
+      calories: cal,
+      protein: ev.totalProtein,
+      carbs: ev.netCarbs,
+      fat: ev.totalFat,
+      sourceLabel: `Assiette du scanner (${state.items.length} aliment${state.items.length > 1 ? 's' : ''})`
+    });
+  });
+
+  // Événements de la Modale Samsung Health
+  document.querySelectorAll('.btn-copy-single-macro').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const targetId = btn.getAttribute('data-target');
+      const val = document.getElementById(targetId)?.textContent?.trim() || '';
+      if (val) {
+        try {
+          if (navigator.clipboard) await navigator.clipboard.writeText(val);
+          showToast(`Copié : ${val}`);
+        } catch {
+          showToast(`Valeur : ${val}`);
+        }
+      }
+    });
+  });
+
+  document.getElementById('btnSamsungCopyAllText')?.addEventListener('click', async () => {
+    const modal = document.getElementById('modalSamsungHealth');
+    const text = modal?.dataset?.fullText;
+    if (text) {
+      try {
+        if (navigator.clipboard) await navigator.clipboard.writeText(text);
+        showToast('📋 Texte complet copié !');
+      } catch {
+        showToast('Texte prêt');
+      }
+    }
+  });
+
+  document.getElementById('btnSamsungOpenApp')?.addEventListener('click', (e) => {
+    if (!navigator.userAgent.toLowerCase().includes('android')) {
+      e.preventDefault();
+      showToast('Samsung Health est disponible sur votre smartphone Samsung');
+    }
+  });
+
+  document.getElementById('btnCloseSamsungModal')?.addEventListener('click', closeSamsungHealthModal);
+  document.getElementById('modalSamsungHealth')?.addEventListener('click', (e) => {
+    if (e.target.id === 'modalSamsungHealth') {
+      closeSamsungHealthModal();
     }
   });
 
